@@ -17,7 +17,6 @@ import (
 	dssync "github.com/ipfs/go-datastore/sync"
 	"github.com/ipfs/go-log"
 	"github.com/libp2p/go-libp2p"
-	relay "github.com/libp2p/go-libp2p-circuit"
 	crypto "github.com/libp2p/go-libp2p-crypto"
 	discovery "github.com/libp2p/go-libp2p-discovery"
 	host "github.com/libp2p/go-libp2p-host"
@@ -27,7 +26,7 @@ import (
 	peer "github.com/libp2p/go-libp2p-peer"
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
 	protocol "github.com/libp2p/go-libp2p-protocol"
-	swarm "github.com/libp2p/go-libp2p-swarm"
+	//swarm "github.com/libp2p/go-libp2p-swarm"
 )
 
 const protocalId = "/tss/binance/0.0.1"
@@ -55,8 +54,8 @@ func dumpPeersRoutine(host host.Host) {
 func main() {
 	log.SetLogLevel("tss", "debug")
 	dhtServerMode := flag.Bool("dht_sever_mode", false, "true - start in dht_server mode")
-	//bootstrapPeer := flag.String("dht_server_addr", "/ip4/0.0.0.0/tcp/27148/p2p/12D3KooWMXTGW6uHbVs7QiHEYtzVa4RunbugxRcJhGU43qAvfAa1", "address of bootstrap server")
-	bootstrapPeer := flag.String("dht_server_addr", "/dns4/ec2-3-211-209-139.compute-1.amazonaws.com/tcp/27148/p2p/12D3KooWLXx68ortikYWRiyjgSnWercccrqrNmLpu7Yng37xKvTo", "address of bootstrap server")
+	bootstrapPeer := flag.String("dht_server_addr", "/ip4/0.0.0.0/tcp/27148/p2p/12D3KooWMXTGW6uHbVs7QiHEYtzVa4RunbugxRcJhGU43qAvfAa1", "address of bootstrap server")
+	//bootstrapPeer := flag.String("dht_server_addr", "/dns4/ec2-3-211-209-139.compute-1.amazonaws.com/tcp/27148/p2p/12D3KooWLXx68ortikYWRiyjgSnWercccrqrNmLpu7Yng37xKvTo", "address of bootstrap server")
 	pathToNodeKey := flag.String("node_key", "node_key", "specify a path to node_key")
 	// change this for client
 	listenAddr := flag.String("listen_addr", "/ip4/0.0.0.0/tcp/27148", "address this node should listen on")
@@ -88,13 +87,18 @@ func main() {
 		panic(err)
 	}
 	addr, _ := multiaddr.NewMultiaddr(*listenAddr)
-	var relayOpt libp2p.Option
-	if *dhtServerMode {
-		relayOpt = libp2p.EnableRelay(relay.OptHop)
-	} else {
-		relayOpt = libp2p.EnableRelay(relay.OptDiscovery)
-	}
-	host, err := libp2p.New(ctx, libp2p.ListenAddrs(addr), libp2p.Identity(privKey), relayOpt)
+	//var relayOpt libp2p.Option
+	//if *dhtServerMode {
+	//	relayOpt = libp2p.EnableRelay(relay.OptHop)
+	//} else {
+	//	relayOpt = libp2p.EnableRelay(relay.OptDiscovery)
+	//}
+	host, err := libp2p.New(
+		ctx,
+		libp2p.ListenAddrs(addr),
+		libp2p.Identity(privKey),
+		libp2p.NATPortMap(),
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -148,10 +152,10 @@ func main() {
 			panic(err)
 		}
 
-		relayaddr, err := multiaddr.NewMultiaddr("/p2p-circuit/p2p/" + bootstrapPeerInfo.ID.Pretty())
-		if err != nil {
-			panic(err)
-		}
+		//relayaddr, err := multiaddr.NewMultiaddr("/p2p-circuit/p2p/" + bootstrapPeerInfo.ID.Pretty())
+		//if err != nil {
+		//	panic(err)
+		//}
 
 		for peer := range peerChan {
 			if peer.ID == host.ID() {
@@ -164,24 +168,26 @@ func main() {
 
 			if err != nil {
 				logger.Warning("Connection failed:", err)
+
 				// TODO: fallback to NAT
+
 				// if fallback to NAT also cannot solve the problem, fallback to relaying
-				host.Network().(*swarm.Swarm).Backoff().Clear(peer.ID)
-				relayInfo := peerstore.PeerInfo{
-					ID:    peer.ID,
-					Addrs: []multiaddr.Multiaddr{relayaddr},
-				}
-				err := host.Connect(ctx, relayInfo)
-				if err != nil {
-					logger.Warning("Relay Connection failed:", err)
-					continue
-				}
-				stream, err := host.NewStream(ctx, peer.ID, protocalId)
-				if err != nil {
-					logger.Warning("Relay Stream failed:", err)
-					continue
-				}
-				handleStream(stream)
+				//host.Network().(*swarm.Swarm).Backoff().Clear(peer.ID)
+				//relayInfo := peerstore.PeerInfo{
+				//	ID:    peer.ID,
+				//	Addrs: []multiaddr.Multiaddr{relayaddr},
+				//}
+				//err := host.Connect(ctx, relayInfo)
+				//if err != nil {
+				//	logger.Warning("Relay Connection failed:", err)
+				//	continue
+				//}
+				//stream, err := host.NewStream(ctx, peer.ID, protocalId)
+				//if err != nil {
+				//	logger.Warning("Relay Stream failed:", err)
+				//	continue
+				//}
+				//handleStream(stream)
 			} else {
 				handleStream(stream)
 			}

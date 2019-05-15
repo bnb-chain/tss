@@ -166,7 +166,7 @@ func main() {
 				logger.Info("Normal Connection failed:", err)
 				// fallback to relaying
 				host.Network().(*swarm.Swarm).Backoff().Clear(peer.ID)
-				relayaddr, err := multiaddr.NewMultiaddr("/p2p-circuit/p2p/" + bootstrapPeerInfo.ID.Pretty())
+				relayaddr, err := multiaddr.NewMultiaddr("/p2p-circuit/p2p/" + peer.ID.Pretty())
 				if err != nil {
 					panic(err)
 				}

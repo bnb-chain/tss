@@ -36,8 +36,8 @@ var logger = log.Logger("tss")
 
 func dumpDHTRoutine(dht *libp2pdht.IpfsDHT) {
 	for {
+		dht.RoutingTable().Print()
 		time.Sleep(10 * time.Second)
-		//dht.RoutingTable().Print()
 	}
 }
 
@@ -54,6 +54,8 @@ func dumpPeersRoutine(host host.Host) {
 
 func main() {
 	log.SetLogLevel("tss", "debug")
+	log.SetLogLevel("dht", "debug")
+	log.SetLogLevel("discovery", "debug")
 	dhtServerMode := flag.Bool("dht_sever_mode", false, "true - start in dht_server mode")
 	bootstrapPeer := flag.String("dht_server_addr", "/ip4/0.0.0.0/tcp/27148/p2p/12D3KooWMXTGW6uHbVs7QiHEYtzVa4RunbugxRcJhGU43qAvfAa1", "address of bootstrap server")
 	pathToNodeKey := flag.String("node_key", "node_key", "specify a path to node_key")
@@ -117,12 +119,12 @@ func main() {
 		panic(err)
 	}
 
-	if *dhtServerMode {
-		go dumpDHTRoutine(kademliaDHT)
-	}
+	go dumpDHTRoutine(kademliaDHT)
 	go dumpPeersRoutine(host)
 
-	if err = kademliaDHT.Bootstrap(ctx); err != nil {
+	bootstrapConfig := libp2pdht.DefaultBootstrapConfig
+	bootstrapConfig.Period = 5 * time.Second // for debug
+	if err = kademliaDHT.BootstrapWithConfig(ctx, bootstrapConfig); err != nil {
 		panic(err)
 	}
 
@@ -166,7 +168,7 @@ func main() {
 				logger.Info("Normal Connection failed:", err)
 				// fallback to relaying
 				host.Network().(*swarm.Swarm).Backoff().Clear(peer.ID)
-				relayaddr, err := multiaddr.NewMultiaddr("/p2p-circuit/p2p/" + bootstrapPeerInfo.ID.Pretty())
+				relayaddr, err := multiaddr.NewMultiaddr("/p2p-circuit/p2p/" + peer.ID.Pretty())
 				if err != nil {
 					panic(err)
 				}

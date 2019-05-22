@@ -71,5 +71,7 @@ func NewTssBootstrapServer(config common.P2PConfig) *TssBootstrapServer {
 	go p2p.DumpDHTRoutine(kademliaDHT)
 	go p2p.DumpPeersRoutine(host)
 
+	logger.Info("Bootstrap server has started, id: ", host.ID().Pretty())
+
 	return &bs
 }

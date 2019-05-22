@@ -9,6 +9,7 @@ import (
 
 func initLogLevel(cfg common.TssConfig) {
 	log.SetLogLevel("tss", cfg.LogLevel)
+	log.SetLogLevel("srv", cfg.LogLevel)
 	log.SetLogLevel("trans", cfg.LogLevel)
 	log.SetLogLevel("p2p_utils", cfg.LogLevel)
 
@@ -19,7 +20,7 @@ func initLogLevel(cfg common.TssConfig) {
 }
 
 func main() {
-	cfg, err := common.ParseFlags()
+	cfg, err := common.ReadConfig()
 	if err != nil {
 		panic(err)
 	}
@@ -33,5 +34,7 @@ func main() {
 	case "server":
 		server.NewTssBootstrapServer(cfg.P2PConfig)
 		select {}
+	case "setup":
+		client.Setup(cfg)
 	}
 }

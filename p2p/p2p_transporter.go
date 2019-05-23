@@ -1,10 +1,13 @@
 package p2p
 
 import (
-	"bufio"
 	"context"
-	"fmt"
-	"github.com/binance-chain/tss/common"
+	"encoding/gob"
+	"io/ioutil"
+	"os"
+	"sync"
+	"time"
+
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	"github.com/libp2p/go-libp2p"
 	relay "github.com/libp2p/go-libp2p-circuit"
@@ -19,10 +22,8 @@ import (
 	protocol "github.com/libp2p/go-libp2p-protocol"
 	swarm "github.com/libp2p/go-libp2p-swarm"
 	"github.com/multiformats/go-multiaddr"
-	"io/ioutil"
-	"os"
-	"sync"
-	"time"
+
+	"github.com/binance-chain/tss/common"
 )
 
 const (
@@ -140,7 +141,8 @@ func (t *p2pTransporter) Send(msg common.Msg, to common.TssClientId) error {
 	// TODO: stream.Write should be protected by their lock?
 	stream, ok := t.streams.Load(to.String())
 	if ok && stream != nil {
-		if _, err := stream.(inet.Stream).Write(append(msg.Bytes())); err != nil {
+		enc := gob.NewEncoder(stream.(inet.Stream))
+		if err := enc.Encode(&msg); err != nil {
 			return err
 		}
 		logger.Debugf("Sent to: %s, msg: %s", to, msg.String())
@@ -182,29 +184,19 @@ func (t *p2pTransporter) handleStream(stream inet.Stream) {
 	logger.Infof("streams: %p stream: %p", t.streams, stream)
 
 	t.streams.Store(pid, stream)
-	go t.readDataRoutine(bufio.NewReader(stream))
+	go t.readDataRoutine(stream)
 }
 
-func (t *p2pTransporter) readDataRoutine(reader *bufio.Reader) {
+func (t *p2pTransporter) readDataRoutine(stream inet.Stream) {
 	for {
-		// TODO: decide coding schema
-		str, err := reader.ReadString('\n')
-		if err != nil {
-			logger.Warningf("Error reading from buffer: %s", err.Error())
-			return
+		var msg common.Msg
+		decoder := gob.NewDecoder(stream)
+		if err := decoder.Decode(&msg); err == nil {
+			t.receiveCh <- msg
+		} else {
+			// TODO: comprehensive error handling
+			logger.Error("failed to decode message: ", err)
 		}
-
-		t.receiveCh <- common.BaseMsg{}
-
-		if str == "" {
-			return
-		}
-		if str != "\n" {
-			// Green console colour: 	\x1b[32m
-			// Reset console colour: 	\x1b[0m
-			fmt.Printf("\x1b[32m%s\x1b[0m> ", str)
-		}
-
 	}
 }
 

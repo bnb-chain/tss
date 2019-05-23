@@ -1,33 +1,37 @@
 package common
 
-import "fmt"
+import (
+	"encoding/gob"
+	"fmt"
+
+	"github.com/binance-chain/tss-lib/keygen"
+)
+
+func init() {
+	gob.Register(KGMsg{})
+	gob.Register(DummyMsg{})
+}
 
 type Msg interface {
-	Bytes() []byte
 	String() string
 }
 
-type BaseMsg struct {
-	sid   string
-	round int
-	from  TssClientId
+type KGMsg struct {
+	msg keygen.KGMessage
+	sid string // session id
 }
 
-func (BaseMsg) Bytes() []byte {
-	return nil
-}
-
-func (m BaseMsg) String() string {
-	return fmt.Sprintf("sid: %s, round: %d, from: %s", m.sid, m.round, m.from)
+func (m KGMsg) String() string {
+	return fmt.Sprintf("sid: %s, type: %s, from: %s, to: %s",
+		m.sid,
+		m.msg.GetType(),
+		m.msg.GetFrom(),
+		m.msg.GetTo())
 }
 
 // DummyMsg just used for debugging
 type DummyMsg struct {
 	Content string
-}
-
-func (m DummyMsg) Bytes() []byte {
-	return []byte(m.Content + "\n")
 }
 
 func (m DummyMsg) String() string {

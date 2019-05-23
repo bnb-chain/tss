@@ -50,7 +50,7 @@ func Setup(cfg common.TssConfig) {
 		tssConfig.ExpectedPeers = append(tssConfig.ExpectedPeers[:i], tssConfig.ExpectedPeers[i+1:]...)
 
 		tssConfig.Id = allPeerIds[i]
-		tssConfig.Index = i
+		tssConfig.Moniker = fmt.Sprintf("party%d", i)
 		tssConfig.Mode = "client"
 
 		bytes, err := json.MarshalIndent(tssConfig, "", "    ")

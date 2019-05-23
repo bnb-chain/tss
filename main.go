@@ -1,10 +1,11 @@
 package main
 
 import (
+	"github.com/ipfs/go-log"
+
 	"github.com/binance-chain/tss/client"
 	"github.com/binance-chain/tss/common"
 	"github.com/binance-chain/tss/server"
-	"github.com/ipfs/go-log"
 )
 
 func initLogLevel(cfg common.TssConfig) {

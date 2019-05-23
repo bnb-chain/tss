@@ -1,6 +1,8 @@
 package p2p
 
 import (
+	"github.com/binance-chain/tss-lib/types"
+
 	"github.com/binance-chain/tss/common"
 	"sync"
 )
@@ -11,7 +13,7 @@ var registeredTransporters map[common.TssClientId]*memTransporter
 // in memory transporter used for testing
 type memTransporter struct {
 	cid       common.TssClientId
-	receiveCh chan common.Msg
+	receiveCh chan types.Message
 }
 
 var _ common.Transporter = (*memTransporter)(nil)
@@ -19,7 +21,7 @@ var _ common.Transporter = (*memTransporter)(nil)
 func NewMemTransporter(cid common.TssClientId) common.Transporter {
 	t := memTransporter{
 		cid:       cid,
-		receiveCh: make(chan common.Msg, receiveChBufSize),
+		receiveCh: make(chan types.Message, receiveChBufSize),
 	}
 	once.Do(func() {
 		registeredTransporters = make(map[common.TssClientId]*memTransporter, 0)
@@ -29,7 +31,7 @@ func NewMemTransporter(cid common.TssClientId) common.Transporter {
 	return &t
 }
 
-func (t *memTransporter) Broadcast(msg common.Msg) error {
+func (t *memTransporter) Broadcast(msg types.Message) error {
 	for cid, peer := range registeredTransporters {
 		if cid != t.cid {
 			peer.receiveCh <- msg
@@ -38,14 +40,14 @@ func (t *memTransporter) Broadcast(msg common.Msg) error {
 	return nil
 }
 
-func (t *memTransporter) Send(msg common.Msg, to common.TssClientId) error {
+func (t *memTransporter) Send(msg types.Message, to common.TssClientId) error {
 	if peer, ok := registeredTransporters[to]; ok {
 		peer.receiveCh <- msg
 	}
 	return nil
 }
 
-func (t *memTransporter) ReceiveCh() <-chan common.Msg {
+func (t *memTransporter) ReceiveCh() <-chan types.Message {
 	return t.receiveCh
 }
 

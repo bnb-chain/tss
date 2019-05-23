@@ -65,13 +65,14 @@ type TssConfig struct {
 
 	Id        TssClientId
 	Moniker   string
-	Index     int
 	Threshold int
 	Parties   int
 	Mode      string // client, server, setup
 }
 
 func ReadConfig() (TssConfig, error) {
+	pflag.String("config_path", ".", "Path to config file, configs in file can be overriden by command line arguments")
+
 	pflag.String("node_key", "./node_key", "Path to node key")
 	pflag.String("route_table", "./rt", "Path to DHT route table store")
 	pflag.String("listen", "/ip4/0.0.0.0/tcp/27148", "Adds a multiaddress to the listen list")
@@ -86,18 +87,21 @@ func ReadConfig() (TssConfig, error) {
 	pflag.Int("parties", 3, "total parities of this scheme")
 	pflag.String("mode", "client", "client,server,setup")
 
-	viper.SetConfigName("config")
-	viper.AddConfigPath(".")
-	err := viper.ReadInConfig()
-	if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-		panic(err)
-	} else {
-		fmt.Printf("!!!NOTICE!!! cannot find config.json, would use config in command line parameter")
-	}
-
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 	pflag.Parse()
+
 	viper.BindPFlags(pflag.CommandLine)
+	viper.SetConfigName("config")
+	cfgPath := viper.GetString("config_path")
+	viper.AddConfigPath(cfgPath)
+	err := viper.ReadInConfig()
+	if err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			panic(err)
+		} else {
+			fmt.Printf("!!!NOTICE!!! cannot find config.json, would use config in command line parameter")
+		}
+	}
 
 	var config TssConfig
 	err = viper.Unmarshal(&config, func(config *mapstructure.DecoderConfig) {

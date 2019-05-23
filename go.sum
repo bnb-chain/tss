@@ -19,6 +19,8 @@ github.com/binance-chain/tss-lib v0.0.0-20190523024626-b665807c7791 h1:MyPqXsxF5
 github.com/binance-chain/tss-lib v0.0.0-20190523024626-b665807c7791/go.mod h1:ei3/6B3FAemem+ATEZ3ODD+jY5VJ6T63PwjiocUl2mw=
 github.com/binance-chain/tss-lib v0.0.0-20190523055421-f7e1d0160f34 h1:9hI82v8aZusZPzT5ablRucrpbL49YFg0CGgtoNjsPFM=
 github.com/binance-chain/tss-lib v0.0.0-20190523055421-f7e1d0160f34/go.mod h1:cs25QD9apzwW26XrzoO93cJuvM2ZlBT8HoTjRaasQeE=
+github.com/binance-chain/tss-lib v0.0.0-20190523114633-405eda6c318b h1:6BkJQuA4DXNZvlxhI9fC9LJ2ta+4kXyc8Vbxbwg5j3k=
+github.com/binance-chain/tss-lib v0.0.0-20190523114633-405eda6c318b/go.mod h1:VD1zzsaMLWdyZyhe/eFapR+VM6i2P+JTpM/SEAMp0cE=
 github.com/btcsuite/btcd v0.0.0-20190213025234-306aecffea32 h1:qkOC5Gd33k54tobS36cXdAzJbeHaduLtnLQQwNoIi78=
 github.com/btcsuite/btcd v0.0.0-20190213025234-306aecffea32/go.mod h1:DrZx5ec/dmnfpw9KyYoQyYo7d0KEvTkk/5M/vbZjAr8=
 github.com/btcsuite/btcd v0.0.0-20190427004231-96897255fd17 h1:m0N5Vg5nP3zEz8TREZpwX3gt4Biw3/8fbIf4A3hO96g=

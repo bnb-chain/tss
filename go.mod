@@ -3,7 +3,8 @@ module github.com/binance-chain/tss
 go 1.12
 
 require (
-	github.com/binance-chain/tss-lib v0.0.0-20190523055421-f7e1d0160f34
+	github.com/NebulousLabs/hdkey v0.0.0-20160410223530-aee6f80cd15d // indirect
+	github.com/binance-chain/tss-lib v0.0.0-20190523114633-405eda6c318b
 	github.com/ipfs/go-datastore v0.0.5
 	github.com/ipfs/go-ds-leveldb v0.0.1
 	github.com/ipfs/go-log v0.0.1

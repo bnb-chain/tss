@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/binance-chain/tss-lib/types"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	"github.com/libp2p/go-libp2p"
 	relay "github.com/libp2p/go-libp2p-circuit"
@@ -45,7 +46,7 @@ type p2pTransporter struct {
 	relayPeers       []multiaddr.Multiaddr
 	notifee          inet.Notifiee
 
-	receiveCh chan common.Msg
+	receiveCh chan types.Message
 	host      host.Host
 }
 
@@ -82,7 +83,7 @@ func NewP2PTransporter(config common.P2PConfig) common.Transporter {
 		t.relayPeers = append(t.relayPeers, relayAddr)
 	}
 	t.notifee = &cmNotifee{t}
-	t.receiveCh = make(chan common.Msg, receiveChBufSize)
+	t.receiveCh = make(chan types.Message, receiveChBufSize)
 	// load private key of node id
 	var privKey crypto.PrivKey
 	if _, err := os.Stat(config.PathToNodeKey); err == nil {
@@ -123,8 +124,8 @@ func NewP2PTransporter(config common.P2PConfig) common.Transporter {
 	return t
 }
 
-func (t *p2pTransporter) Broadcast(msg common.Msg) error {
-	logger.Debug("Broadcast: ", msg.String())
+func (t *p2pTransporter) Broadcast(msg types.Message) error {
+	logger.Debug("Broadcast: ", msg)
 	var err error
 	t.streams.Range(func(to, stream interface{}) bool {
 		if e := t.Send(msg, common.TssClientId(to.(string))); e != nil {
@@ -136,8 +137,8 @@ func (t *p2pTransporter) Broadcast(msg common.Msg) error {
 	return err
 }
 
-func (t *p2pTransporter) Send(msg common.Msg, to common.TssClientId) error {
-	logger.Debugf("Sending to: %s, msg: %s", to, msg.String())
+func (t *p2pTransporter) Send(msg types.Message, to common.TssClientId) error {
+	logger.Debug("Sending: ", msg)
 	// TODO: stream.Write should be protected by their lock?
 	stream, ok := t.streams.Load(to.String())
 	if ok && stream != nil {
@@ -145,12 +146,12 @@ func (t *p2pTransporter) Send(msg common.Msg, to common.TssClientId) error {
 		if err := enc.Encode(&msg); err != nil {
 			return err
 		}
-		logger.Debugf("Sent to: %s, msg: %s", to, msg.String())
+		logger.Debug("Sent: ", msg)
 	}
 	return nil
 }
 
-func (t p2pTransporter) ReceiveCh() <-chan common.Msg {
+func (t p2pTransporter) ReceiveCh() <-chan types.Message {
 	return t.receiveCh
 }
 
@@ -181,7 +182,6 @@ func (t *p2pTransporter) Notifee() inet.Notifiee {
 func (t *p2pTransporter) handleStream(stream inet.Stream) {
 	pid := stream.Conn().RemotePeer().Pretty()
 	logger.Infof("Connected to: %s(%s)", pid, stream.Protocol())
-	logger.Infof("streams: %p stream: %p", t.streams, stream)
 
 	t.streams.Store(pid, stream)
 	go t.readDataRoutine(stream)
@@ -189,7 +189,7 @@ func (t *p2pTransporter) handleStream(stream inet.Stream) {
 
 func (t *p2pTransporter) readDataRoutine(stream inet.Stream) {
 	for {
-		var msg common.Msg
+		var msg types.Message
 		decoder := gob.NewDecoder(stream)
 		if err := decoder.Decode(&msg); err == nil {
 			t.receiveCh <- msg

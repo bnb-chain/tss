@@ -75,7 +75,7 @@ func (tss *TssClient) handleMessageRoutine() {
 		if err != nil {
 			logger.Errorf("[%s] error updating local party state: v", tss.config.Moniker, err)
 		} else if !ok {
-			logger.Errorf("[%s] failed Update", tss.config.Moniker)
+			logger.Warningf("[%s] failed Update", tss.config.Moniker)
 		} else {
 			logger.Debugf("[%s] update success", tss.config.Moniker)
 		}

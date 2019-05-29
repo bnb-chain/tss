@@ -31,7 +31,12 @@ func NewMemTransporter(cid common.TssClientId) common.Transporter {
 	return &t
 }
 
+func GetMemTransporter(cid common.TssClientId) common.Transporter {
+	return registeredTransporters[cid]
+}
+
 func (t *memTransporter) Broadcast(msg types.Message) error {
+	logger.Debugf("[%s] Broadcast: %s", t.cid, msg)
 	for cid, peer := range registeredTransporters {
 		if cid != t.cid {
 			peer.receiveCh <- msg
@@ -41,6 +46,7 @@ func (t *memTransporter) Broadcast(msg types.Message) error {
 }
 
 func (t *memTransporter) Send(msg types.Message, to common.TssClientId) error {
+	logger.Debugf("[%s] Sending: %s", t.cid, msg)
 	if peer, ok := registeredTransporters[to]; ok {
 		peer.receiveCh <- msg
 	}

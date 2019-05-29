@@ -1,14 +1,15 @@
 package client
 
 import (
-	"github.com/binance-chain/tss/common"
-	"github.com/binance-chain/tss/p2p"
-
+	"strconv"
 	"time"
 
 	"github.com/binance-chain/tss-lib/keygen"
 	"github.com/binance-chain/tss-lib/types"
 	"github.com/ipfs/go-log"
+
+	"github.com/binance-chain/tss/common"
+	"github.com/binance-chain/tss/p2p"
 )
 
 var logger = log.Logger("tss")
@@ -19,14 +20,23 @@ type TssClient struct {
 	transporter common.Transporter
 }
 
-func NewTssClient(config common.TssConfig) *TssClient {
+func NewTssClient(config common.TssConfig, mock bool) *TssClient {
 	params := keygen.NewKGParameters(config.Parties, config.Threshold)
 	partyID := types.NewPartyID(string(config.Id), config.Moniker)
 	unsortedPartyIds := make(types.UnSortedPartyIDs, 0, config.Parties)
 	unsortedPartyIds = append(unsortedPartyIds, partyID)
-	// TODO: put other's moniker into config fire
-	for _, peer := range config.P2PConfig.ExpectedPeers {
-		unsortedPartyIds = append(unsortedPartyIds, types.NewPartyID(string(peer), ""))
+	if !mock {
+		// TODO: put other's moniker into config fire
+		for _, peer := range config.P2PConfig.ExpectedPeers {
+			unsortedPartyIds = append(unsortedPartyIds, types.NewPartyID(string(peer), ""))
+		}
+	} else {
+		for i := 0; i < config.Parties; i++ {
+			id, _ := strconv.Atoi(string(config.Id))
+			if i != id {
+				unsortedPartyIds = append(unsortedPartyIds, types.NewPartyID(strconv.Itoa(i), strconv.Itoa(i)))
+			}
+		}
 	}
 	sortedIds := types.SortPartyIDs(unsortedPartyIds)
 	p2pCtx := types.NewPeerContext(sortedIds)
@@ -34,11 +44,16 @@ func NewTssClient(config common.TssConfig) *TssClient {
 	sendCh := make(chan types.Message, 250)
 	saveCh := make(chan keygen.LocalPartySaveData, 250)
 	localParty := keygen.NewLocalParty(p2pCtx, *params, partyID, sendCh, saveCh)
-	logger.Infof("initialized localParty: ", localParty)
+	logger.Infof("[%s] initialized localParty: %s", config.Moniker, localParty)
 	c := TssClient{
-		config:      config,
-		localParty:  localParty,
-		transporter: p2p.NewP2PTransporter(config.P2PConfig),
+		config:     config,
+		localParty: localParty,
+	}
+	if mock {
+		c.transporter = p2p.GetMemTransporter(config.Id)
+	} else {
+		// will block until peers are connected
+		c.transporter = p2p.NewP2PTransporter(config.P2PConfig)
 	}
 
 	// has to start local party before network routines in case 2 other peers msg comes before self fully initialized
@@ -55,10 +70,14 @@ func NewTssClient(config common.TssConfig) *TssClient {
 
 func (tss *TssClient) handleMessageRoutine() {
 	for msg := range tss.transporter.ReceiveCh() {
-		logger.Info("received message: ", msg)
-		_, err := tss.localParty.Update(msg)
+		logger.Infof("[%s] received message: %s", tss.config.Moniker, msg)
+		ok, err := tss.localParty.Update(msg)
 		if err != nil {
-			logger.Error("error updating local party state: ", err)
+			logger.Errorf("[%s] error updating local party state: v", tss.config.Moniker, err)
+		} else if !ok {
+			logger.Errorf("[%s] failed Update", tss.config.Moniker)
+		} else {
+			logger.Debugf("[%s] update success", tss.config.Moniker)
 		}
 	}
 }

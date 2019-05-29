@@ -23,6 +23,7 @@ import (
 	protocol "github.com/libp2p/go-libp2p-protocol"
 	swarm "github.com/libp2p/go-libp2p-swarm"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/whyrusleeping/yamux"
 
 	"github.com/binance-chain/tss/common"
 )
@@ -184,6 +185,8 @@ func (t *p2pTransporter) handleStream(stream inet.Stream) {
 	logger.Infof("Connected to: %s(%s)", pid, stream.Protocol())
 
 	t.streams.Store(pid, stream)
+	// TODO: tidy this before go to production
+	stream.SetDeadline(time.Now().Add(time.Hour))
 	go t.readDataRoutine(stream)
 }
 
@@ -194,9 +197,14 @@ func (t *p2pTransporter) readDataRoutine(stream inet.Stream) {
 		if err := decoder.Decode(&msg); err == nil {
 			t.receiveCh <- msg
 		} else {
-			// TODO: comprehensive error handling
 			logger.Error("failed to decode message: ", err)
+			switch err {
+			case yamux.ErrConnectionReset:
+				break // connManager would handle the reconnection
+			default:
+			}
 		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 

@@ -45,15 +45,15 @@ func Setup(cfg common.TssConfig) {
 	for i := 0; i < cfg.Parties; i++ {
 		configFilePath := fmt.Sprintf("./configs/%d/config.json", i)
 		tssConfig := cfg
-		tssConfig.ExpectedPeers = make([]common.TssClientId, len(allPeerIds), len(allPeerIds))
-		copy(tssConfig.ExpectedPeers, allPeerIds)
-		tssConfig.ExpectedPeers = append(tssConfig.ExpectedPeers[:i], tssConfig.ExpectedPeers[i+1:]...)
+		tssConfig.P2PConfig.ExpectedPeers = make([]common.TssClientId, len(allPeerIds), len(allPeerIds))
+		copy(tssConfig.P2PConfig.ExpectedPeers, allPeerIds)
+		tssConfig.P2PConfig.ExpectedPeers = append(tssConfig.P2PConfig.ExpectedPeers[:i], tssConfig.P2PConfig.ExpectedPeers[i+1:]...)
 
 		tssConfig.Id = allPeerIds[i]
 		tssConfig.Moniker = fmt.Sprintf("party%d", i)
 		tssConfig.Mode = "client"
 
-		bytes, err := json.MarshalIndent(tssConfig, "", "    ")
+		bytes, err := json.MarshalIndent(&tssConfig, "", "    ")
 		if err != nil {
 			panic(err)
 		}

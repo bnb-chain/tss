@@ -9,15 +9,16 @@ import (
 )
 
 func initLogLevel(cfg common.TssConfig) {
-	log.SetLogLevel("tss", cfg.LogLevel)
-	log.SetLogLevel("srv", cfg.LogLevel)
-	log.SetLogLevel("trans", cfg.LogLevel)
-	log.SetLogLevel("p2p_utils", cfg.LogLevel)
+	log.SetLogLevel("tss", cfg.P2PConfig.LogLevel)
+	log.SetLogLevel("tss-lib", cfg.P2PConfig.LogLevel)
+	log.SetLogLevel("srv", cfg.P2PConfig.LogLevel)
+	log.SetLogLevel("trans", cfg.P2PConfig.LogLevel)
+	log.SetLogLevel("p2p_utils", cfg.P2PConfig.LogLevel)
 
 	// libp2p loggers
-	log.SetLogLevel("dht", cfg.LogLevel)
-	log.SetLogLevel("discovery", cfg.LogLevel)
-	log.SetLogLevel("swarm2", cfg.LogLevel)
+	log.SetLogLevel("dht", cfg.P2PConfig.LogLevel)
+	log.SetLogLevel("discovery", cfg.P2PConfig.LogLevel)
+	log.SetLogLevel("swarm2", cfg.P2PConfig.LogLevel)
 }
 
 func main() {

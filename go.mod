@@ -4,7 +4,7 @@ go 1.12
 
 require (
 	github.com/NebulousLabs/hdkey v0.0.0-20160410223530-aee6f80cd15d // indirect
-	github.com/binance-chain/tss-lib v0.0.0-20190523114633-405eda6c318b
+	github.com/binance-chain/tss-lib v0.0.0-20190529081742-4e4b669c8989
 	github.com/ipfs/go-datastore v0.0.5
 	github.com/ipfs/go-ds-leveldb v0.0.1
 	github.com/ipfs/go-log v0.0.1
@@ -24,5 +24,6 @@ require (
 	github.com/multiformats/go-multiaddr v0.0.2
 	github.com/spf13/pflag v1.0.3
 	github.com/spf13/viper v1.3.2
+	github.com/whyrusleeping/yamux v1.1.5
 	golang.org/x/crypto v0.0.0-20190513172903-22d7a77e9e5f // indirect
 )

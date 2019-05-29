@@ -3,6 +3,7 @@ package client
 import (
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/ipfs/go-log"
 
@@ -30,6 +31,9 @@ func TestWhole(t *testing.T) {
 		p2p.NewMemTransporter(common.TssClientId(strconv.Itoa(i)))
 	}
 
+	start := time.Now()
+	doneCh := make(chan bool, 3)
+
 	for i := 0; i < 3; i++ {
 		tssConfig := common.TssConfig{
 			Id:        common.TssClientId(strconv.Itoa(i)),
@@ -38,7 +42,15 @@ func TestWhole(t *testing.T) {
 			Parties:   3,
 			Mode:      "client",
 		}
-		NewTssClient(tssConfig, true)
+		NewTssClient(tssConfig, true, doneCh)
 	}
-	select {}
+
+	i := 0
+	for range doneCh {
+		logger.Debugf("party i: keygen complete. took %s\n", time.Since(start))
+		i++
+		if i == 3 {
+			break
+		}
+	}
 }

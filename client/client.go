@@ -20,7 +20,7 @@ type TssClient struct {
 	transporter common.Transporter
 }
 
-func NewTssClient(config common.TssConfig, mock bool) *TssClient {
+func NewTssClient(config common.TssConfig, mock bool, done chan<- bool) *TssClient {
 	params := keygen.NewKGParameters(config.Parties, config.Threshold)
 	partyID := types.NewPartyID(string(config.Id), config.Moniker)
 	unsortedPartyIds := make(types.UnSortedPartyIDs, 0, config.Parties)
@@ -62,6 +62,7 @@ func NewTssClient(config common.TssConfig, mock bool) *TssClient {
 	}
 
 	go c.sendMessageRoutine(sendCh)
+	go c.saveDataRoutine(saveCh, done)
 	//go c.sendDummyMessageRoutine()
 	go c.handleMessageRoutine()
 
@@ -98,5 +99,15 @@ func (tss *TssClient) sendMessageRoutine(sendCh <-chan types.Message) {
 		} else {
 			tss.transporter.Send(msg, common.TssClientId(dest.ID))
 		}
+	}
+}
+
+func (tss *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData, done chan<- bool) {
+	for msg := range saveCh {
+		logger.Infof("[%s] received save data: %v", tss.config.Moniker, msg)
+		if done != nil {
+			done <- true
+		}
+		break
 	}
 }

@@ -11,6 +11,10 @@ import (
 	"github.com/binance-chain/tss/p2p"
 )
 
+const (
+	TestParticipants = 10
+)
+
 func initlog() {
 	log.SetLogLevel("tss", "debug")
 	log.SetLogLevel("tss-lib", "debug")
@@ -27,19 +31,19 @@ func initlog() {
 func TestWhole(t *testing.T) {
 	initlog()
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < TestParticipants; i++ {
 		p2p.NewMemTransporter(common.TssClientId(strconv.Itoa(i)))
 	}
 
 	start := time.Now()
-	doneCh := make(chan bool, 3)
+	doneCh := make(chan bool, TestParticipants)
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < TestParticipants; i++ {
 		tssConfig := common.TssConfig{
 			Id:        common.TssClientId(strconv.Itoa(i)),
 			Moniker:   strconv.Itoa(i),
-			Threshold: 2,
-			Parties:   3,
+			Threshold: TestParticipants / 2,
+			Parties:   TestParticipants,
 			Mode:      "client",
 		}
 		NewTssClient(tssConfig, true, doneCh)
@@ -49,7 +53,7 @@ func TestWhole(t *testing.T) {
 	for range doneCh {
 		logger.Debugf("party i: keygen complete. took %s\n", time.Since(start))
 		i++
-		if i == 3 {
+		if i == TestParticipants {
 			break
 		}
 	}

@@ -203,8 +203,8 @@ func (t *p2pTransporter) readDataRoutine(stream inet.Stream) {
 				break // connManager would handle the reconnection
 			default:
 			}
+			time.Sleep(100 * time.Millisecond)
 		}
-		time.Sleep(100 * time.Millisecond)
 	}
 }
 

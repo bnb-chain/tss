@@ -4,7 +4,7 @@ go 1.12
 
 require (
 	github.com/NebulousLabs/hdkey v0.0.0-20160410223530-aee6f80cd15d // indirect
-	github.com/binance-chain/tss-lib v0.0.0-20190529081742-4e4b669c8989
+	github.com/binance-chain/tss-lib v0.0.0-20190529134826-cad2cdc9a464
 	github.com/ipfs/go-datastore v0.0.5
 	github.com/ipfs/go-ds-leveldb v0.0.1
 	github.com/ipfs/go-log v0.0.1

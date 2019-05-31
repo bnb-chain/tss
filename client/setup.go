@@ -4,11 +4,14 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"github.com/binance-chain/tss/common"
-	crypto "github.com/libp2p/go-libp2p-crypto"
-	peer "github.com/libp2p/go-libp2p-peer"
 	"io/ioutil"
 	"os"
+
+	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/peer"
+
+	"github.com/binance-chain/tss/common"
+	"github.com/binance-chain/tss/p2p"
 )
 
 func Setup(cfg common.TssConfig) {
@@ -16,7 +19,7 @@ func Setup(cfg common.TssConfig) {
 	if err != nil {
 		panic(err)
 	}
-	allPeerIds := make([]common.TssClientId, 0, cfg.Parties)
+	allPeerIds := make([]string, 0, cfg.Parties)
 	for i := 0; i < cfg.Parties; i++ {
 		configPath := fmt.Sprintf("./configs/%d", i)
 		err := os.Mkdir(configPath, 0700)
@@ -33,7 +36,7 @@ func Setup(cfg common.TssConfig) {
 		if err != nil {
 			panic(err)
 		}
-		allPeerIds = append(allPeerIds, common.TssClientId(pid.Pretty()))
+		allPeerIds = append(allPeerIds, fmt.Sprintf("%s@%s", fmt.Sprintf("party%d", i), pid.Pretty()))
 
 		bytes, err := crypto.MarshalPrivateKey(privKey)
 		if err != nil {
@@ -45,12 +48,12 @@ func Setup(cfg common.TssConfig) {
 	for i := 0; i < cfg.Parties; i++ {
 		configFilePath := fmt.Sprintf("./configs/%d/config.json", i)
 		tssConfig := cfg
-		tssConfig.P2PConfig.ExpectedPeers = make([]common.TssClientId, len(allPeerIds), len(allPeerIds))
+		tssConfig.P2PConfig.ExpectedPeers = make([]string, len(allPeerIds), len(allPeerIds))
 		copy(tssConfig.P2PConfig.ExpectedPeers, allPeerIds)
 		tssConfig.P2PConfig.ExpectedPeers = append(tssConfig.P2PConfig.ExpectedPeers[:i], tssConfig.P2PConfig.ExpectedPeers[i+1:]...)
 
-		tssConfig.Id = allPeerIds[i]
-		tssConfig.Moniker = fmt.Sprintf("party%d", i)
+		tssConfig.Id = p2p.GetClientIdFromExpecetdPeers(allPeerIds[i])
+		tssConfig.Moniker = p2p.GetMonikerFromExpectedPeers(allPeerIds[i])
 		tssConfig.Mode = "client"
 
 		bytes, err := json.MarshalIndent(&tssConfig, "", "    ")

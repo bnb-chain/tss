@@ -34,7 +34,7 @@ func main() {
 		client.NewTssClient(cfg, false, nil)
 		select {}
 	case "server":
-		server.NewTssBootstrapServer(cfg.P2PConfig)
+		server.NewTssBootstrapServer(cfg.Home, cfg.P2PConfig)
 		select {}
 	case "setup":
 		client.Setup(cfg)

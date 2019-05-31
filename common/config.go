@@ -34,31 +34,14 @@ func (al *addrList) Set(value string) error {
 	return nil
 }
 
-type cidList []TssClientId
-
-func (cl *cidList) String() string {
-	strs := make([]string, len(*cl))
-	for i, cid := range *cl {
-		strs[i] = string(cid)
-	}
-	return strings.Join(strs, ",")
-}
-
-func (cl *cidList) Set(value string) error {
-	*cl = append(*cl, TssClientId(value))
-	return nil
-}
-
 type P2PConfig struct {
-	PathToNodeKey    string `mapstructure:"node_key" json:"node_key"`
-	PathToRouteTable string `mapstructure:"route_table" json:"route_table"`
-	ListenAddr       string `mapstructure:"listen" json:"listen"`
-	LogLevel         string `mapstructure:"log_level" json:"log_level"`
+	ListenAddr string `mapstructure:"listen" json:"listen"`
+	LogLevel   string `mapstructure:"log_level" json:"log_level"`
 
 	// client only config
 	BootstrapPeers addrList `mapstructure:"bootstraps" json:"bootstraps"`
 	RelayPeers     addrList `mapstructure:"relays" json:"relays"`
-	ExpectedPeers  cidList  `mapstructure:"peers" json:"peers"`
+	ExpectedPeers  []string `mapstructure:"peers" json:"peers"` // expected peer list, <moniker>@<TssClientId>
 }
 
 type TssConfig struct {
@@ -69,13 +52,12 @@ type TssConfig struct {
 	Threshold int
 	Parties   int
 	Mode      string // client, server, setup
+	Home      string
 }
 
 func ReadConfig() (TssConfig, error) {
-	pflag.String("config_path", ".", "Path to config file, configs in file can be overriden by command line arguments")
+	pflag.String("home", "~/.tss", "Path to config/route_table/node_key/tss_key files, configs in config file can be overriden by command line arguments")
 
-	pflag.String("p2p.node_key", "./node_key", "Path to node key")
-	pflag.String("p2p.route_table", "./rt", "Path to DHT route table store")
 	pflag.String("p2p.listen", "/ip4/0.0.0.0/tcp/27148", "Adds a multiaddress to the listen list")
 	pflag.String("p2p.log_level", "debug", "log level")
 	pflag.StringSlice("p2p.bootstraps", []string{}, "bootstrap server list in multiaddr format, i.e. /ip4/127.0.0.1/tcp/27148/p2p/12D3KooWMXTGW6uHbVs7QiHEYtzVa4RunbugxRcJhGU43qAvfAa1")
@@ -93,7 +75,7 @@ func ReadConfig() (TssConfig, error) {
 
 	viper.BindPFlags(pflag.CommandLine)
 	viper.SetConfigName("config")
-	cfgPath := viper.GetString("config_path")
+	cfgPath := viper.GetString("home")
 	viper.AddConfigPath(cfgPath)
 	err := viper.ReadInConfig()
 	if err != nil {

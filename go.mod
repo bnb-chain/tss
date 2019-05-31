@@ -3,14 +3,14 @@ module github.com/binance-chain/tss
 go 1.12
 
 require (
-	github.com/binance-chain/tss-lib v0.0.0-20190530132741-a702d7a31087
+	github.com/binance-chain/tss-lib v0.0.0-20190531100901-0ec64acbd8e7
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/go-cmp v0.3.0 // indirect
 	github.com/ipfs/go-ds-leveldb v0.0.2
 	github.com/ipfs/go-log v0.0.1
 	github.com/libp2p/go-libp2p v0.1.0
 	github.com/libp2p/go-libp2p-circuit v0.1.0
-	github.com/libp2p/go-libp2p-core v0.0.2 // indirect
+	github.com/libp2p/go-libp2p-core v0.0.2
 	github.com/libp2p/go-libp2p-crypto v0.1.0
 	github.com/libp2p/go-libp2p-host v0.1.0
 	github.com/libp2p/go-libp2p-interface-connmgr v0.1.0

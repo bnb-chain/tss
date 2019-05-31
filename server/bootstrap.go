@@ -14,18 +14,20 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"io/ioutil"
 	"os"
+	"path"
 )
 
 var logger = log.Logger("srv")
 
 type TssBootstrapServer struct{}
 
-func NewTssBootstrapServer(config common.P2PConfig) *TssBootstrapServer {
+func NewTssBootstrapServer(home string, config common.P2PConfig) *TssBootstrapServer {
 	bs := TssBootstrapServer{}
 
 	var privKey crypto.PrivKey
-	if _, err := os.Stat(config.PathToNodeKey); err == nil {
-		bytes, err := ioutil.ReadFile(config.PathToNodeKey)
+	pathToNodeKey := path.Join(home, "node_key")
+	if _, err := os.Stat(pathToNodeKey); err == nil {
+		bytes, err := ioutil.ReadFile(pathToNodeKey)
 		if err != nil {
 			panic(err)
 		}
@@ -54,7 +56,7 @@ func NewTssBootstrapServer(config common.P2PConfig) *TssBootstrapServer {
 		panic(err)
 	}
 
-	ds, err := leveldb.NewDatastore(config.PathToRouteTable, nil)
+	ds, err := leveldb.NewDatastore(path.Join(home, "rt/"), nil)
 	if err != nil {
 		panic(err)
 	}

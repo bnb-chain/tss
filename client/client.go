@@ -26,9 +26,11 @@ func NewTssClient(config common.TssConfig, mock bool, done chan<- bool) *TssClie
 	unsortedPartyIds := make(types.UnSortedPartyIDs, 0, config.Parties)
 	unsortedPartyIds = append(unsortedPartyIds, partyID)
 	if !mock {
-		// TODO: put other's moniker into config fire
 		for _, peer := range config.P2PConfig.ExpectedPeers {
-			unsortedPartyIds = append(unsortedPartyIds, types.NewPartyID(string(peer), ""))
+			unsortedPartyIds = append(unsortedPartyIds,
+				types.NewPartyID(
+					string(p2p.GetClientIdFromExpecetdPeers(peer)),
+					p2p.GetMonikerFromExpectedPeers(peer)))
 		}
 	} else {
 		for i := 0; i < config.Parties; i++ {
@@ -53,7 +55,7 @@ func NewTssClient(config common.TssConfig, mock bool, done chan<- bool) *TssClie
 		c.transporter = p2p.GetMemTransporter(config.Id)
 	} else {
 		// will block until peers are connected
-		c.transporter = p2p.NewP2PTransporter(config.P2PConfig)
+		c.transporter = p2p.NewP2PTransporter(config.Home, config.P2PConfig)
 	}
 
 	// has to start local party before network routines in case 2 other peers msg comes before self fully initialized

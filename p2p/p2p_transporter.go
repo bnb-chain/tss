@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"io/ioutil"
 	"os"
+	"path"
 	"sync"
 	"time"
 
@@ -12,13 +13,13 @@ import (
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	"github.com/libp2p/go-libp2p"
 	relay "github.com/libp2p/go-libp2p-circuit"
-	crypto "github.com/libp2p/go-libp2p-crypto"
+	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/peer"
 	host "github.com/libp2p/go-libp2p-host"
 	ifconnmgr "github.com/libp2p/go-libp2p-interface-connmgr"
 	libp2pdht "github.com/libp2p/go-libp2p-kad-dht"
 	opts "github.com/libp2p/go-libp2p-kad-dht/opts"
 	inet "github.com/libp2p/go-libp2p-net"
-	peer "github.com/libp2p/go-libp2p-peer"
 	pstore "github.com/libp2p/go-libp2p-peerstore"
 	protocol "github.com/libp2p/go-libp2p-protocol"
 	swarm "github.com/libp2p/go-libp2p-swarm"
@@ -56,13 +57,13 @@ var _ common.Transporter = (*p2pTransporter)(nil)
 
 // Constructor of p2pTransporter
 // Once this is done, the transportation is ready to use
-func NewP2PTransporter(config common.P2PConfig) common.Transporter {
+func NewP2PTransporter(home string, config common.P2PConfig) common.Transporter {
 	t := &p2pTransporter{}
 
 	t.ctx = context.Background()
-	t.pathToRouteTable = config.PathToRouteTable
+	t.pathToRouteTable = path.Join(home, "rt/")
 	for _, expectedPeer := range config.ExpectedPeers {
-		if pid, err := peer.IDB58Decode(string(expectedPeer)); err != nil {
+		if pid, err := peer.IDB58Decode(string(GetClientIdFromExpecetdPeers(expectedPeer))); err != nil {
 			panic(err)
 		} else {
 			t.expectedPeers = append(t.expectedPeers, pid)
@@ -87,8 +88,9 @@ func NewP2PTransporter(config common.P2PConfig) common.Transporter {
 	t.receiveCh = make(chan types.Message, receiveChBufSize)
 	// load private key of node id
 	var privKey crypto.PrivKey
-	if _, err := os.Stat(config.PathToNodeKey); err == nil {
-		bytes, err := ioutil.ReadFile(config.PathToNodeKey)
+	pathToNodeKey := path.Join(home, "node_key")
+	if _, err := os.Stat(pathToNodeKey); err == nil {
+		bytes, err := ioutil.ReadFile(pathToNodeKey)
 		if err != nil {
 			panic(err)
 		}

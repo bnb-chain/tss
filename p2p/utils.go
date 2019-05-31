@@ -7,6 +7,8 @@ import (
 	libp2pdht "github.com/libp2p/go-libp2p-kad-dht"
 	"strings"
 	"time"
+
+	"github.com/binance-chain/tss/common"
 )
 
 var logger = log.Logger(loggerName)
@@ -27,4 +29,12 @@ func DumpPeersRoutine(host host.Host) {
 		}
 		logger.Debugf("Dump peers:\n%s", builder.String())
 	}
+}
+
+func GetMonikerFromExpectedPeers(peer string) string {
+	return strings.SplitN(peer, "@", 2)[0]
+}
+
+func GetClientIdFromExpecetdPeers(peer string) common.TssClientId {
+	return common.TssClientId(strings.SplitN(peer, "@", 2)[1])
 }

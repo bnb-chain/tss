@@ -1,6 +1,9 @@
 package client
 
 import (
+	"encoding/gob"
+	"os"
+	"path"
 	"strconv"
 	"time"
 
@@ -107,6 +110,14 @@ func (tss *TssClient) sendMessageRoutine(sendCh <-chan types.Message) {
 func (tss *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData, done chan<- bool) {
 	for msg := range saveCh {
 		logger.Infof("[%s] received save data: %v", tss.config.Moniker, msg)
+		if f, err := os.Create(path.Join(tss.config.Home, "party_share")); err == nil {
+			if err := gob.NewEncoder(f).Encode(&msg); err != nil {
+				logger.Errorf("[%s] failed to persist data: %v", tss.config.Moniker, msg)
+			}
+		} else {
+			logger.Errorf("[%s] failed to create party_share file for persistence", tss.config.Moniker)
+		}
+
 		if done != nil {
 			done <- true
 		}

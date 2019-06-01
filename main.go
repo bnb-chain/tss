@@ -31,8 +31,9 @@ func main() {
 
 	switch cfg.Mode {
 	case "client":
-		client.NewTssClient(cfg, false, nil)
-		select {}
+		done := make(chan bool)
+		client.NewTssClient(cfg, false, done)
+		<-done
 	case "server":
 		server.NewTssBootstrapServer(cfg.Home, cfg.P2PConfig)
 		select {}

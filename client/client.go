@@ -23,8 +23,11 @@ type TssClient struct {
 	transporter common.Transporter
 }
 
+func init() {
+	gob.RegisterName("LocalPartySaveData", keygen.LocalPartySaveData{})
+}
+
 func NewTssClient(config common.TssConfig, mock bool, done chan<- bool) *TssClient {
-	params := keygen.NewKGParameters(config.Parties, config.Threshold)
 	partyID := types.NewPartyID(string(config.Id), config.Moniker)
 	unsortedPartyIds := make(types.UnSortedPartyIDs, 0, config.Parties)
 	unsortedPartyIds = append(unsortedPartyIds, partyID)
@@ -45,10 +48,11 @@ func NewTssClient(config common.TssConfig, mock bool, done chan<- bool) *TssClie
 	}
 	sortedIds := types.SortPartyIDs(unsortedPartyIds)
 	p2pCtx := types.NewPeerContext(sortedIds)
+	params := keygen.NewKGParameters(p2pCtx, partyID, config.Parties, config.Threshold)
 	// TODO: decide buffer size of this channel
 	sendCh := make(chan types.Message, 250)
 	saveCh := make(chan keygen.LocalPartySaveData, 250)
-	localParty := keygen.NewLocalParty(p2pCtx, *params, partyID, sendCh, saveCh)
+	localParty := keygen.NewLocalParty(params, sendCh, saveCh)
 	logger.Infof("[%s] initialized localParty: %s", config.Moniker, localParty)
 	c := TssClient{
 		config:     config,
@@ -110,6 +114,7 @@ func (tss *TssClient) sendMessageRoutine(sendCh <-chan types.Message) {
 func (tss *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData, done chan<- bool) {
 	for msg := range saveCh {
 		logger.Infof("[%s] received save data: %v", tss.config.Moniker, msg)
+
 		if f, err := os.Create(path.Join(tss.config.Home, "party_share")); err == nil {
 			if err := gob.NewEncoder(f).Encode(&msg); err != nil {
 				logger.Errorf("[%s] failed to persist data: %v", tss.config.Moniker, msg)

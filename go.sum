@@ -45,6 +45,8 @@ github.com/binance-chain/tss-lib v0.0.0-20190531085452-e58532b0c48d h1:gYw8iBaIN
 github.com/binance-chain/tss-lib v0.0.0-20190531085452-e58532b0c48d/go.mod h1:Efks1l1MFQYIUQBHxofhTHGkYtRkHokzVmCBoEJbE7c=
 github.com/binance-chain/tss-lib v0.0.0-20190531100901-0ec64acbd8e7 h1:vkblIESULYwl5hQ1/6DCExRJohTXPq64ZUZ1EAWCR0U=
 github.com/binance-chain/tss-lib v0.0.0-20190531100901-0ec64acbd8e7/go.mod h1:Efks1l1MFQYIUQBHxofhTHGkYtRkHokzVmCBoEJbE7c=
+github.com/binance-chain/tss-lib v0.0.0-20190603035440-26e75ce26492 h1:OACUPquE2+Q9whJyQRj3gSNlX/ylk5UhiBHh0wX9KdY=
+github.com/binance-chain/tss-lib v0.0.0-20190603035440-26e75ce26492/go.mod h1:uWVsUZ7KUM/YZG1Ki7IqUSrM4Y83ga+8C7YQFV5XSDM=
 github.com/btcsuite/btcd v0.0.0-20190213025234-306aecffea32 h1:qkOC5Gd33k54tobS36cXdAzJbeHaduLtnLQQwNoIi78=
 github.com/btcsuite/btcd v0.0.0-20190213025234-306aecffea32/go.mod h1:DrZx5ec/dmnfpw9KyYoQyYo7d0KEvTkk/5M/vbZjAr8=
 github.com/btcsuite/btcd v0.0.0-20190427004231-96897255fd17 h1:m0N5Vg5nP3zEz8TREZpwX3gt4Biw3/8fbIf4A3hO96g=
@@ -442,6 +444,8 @@ golang.org/x/sys v0.0.0-20190508100423-12bbe5a7a520 h1:5/ojcKo2vQ2eroPDFcBB9tuc4
 golang.org/x/sys v0.0.0-20190508100423-12bbe5a7a520/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20190529164535-6a60838ec259 h1:so6Hr/LodwSZ5UQDu/7PmQiDeS112WwtLvU3lpSPZTU=
 golang.org/x/sys v0.0.0-20190529164535-6a60838ec259/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+golang.org/x/sys v0.0.0-20190602015325-4c4f7f33c9ed h1:uPxWBzB3+mlnjy9W58qY1j/cjyFjutgw/Vhan2zLy/A=
+golang.org/x/sys v0.0.0-20190602015325-4c4f7f33c9ed/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/text v0.3.0 h1:g61tztE5qeGQ89tm6NTjjM9VPIm088od1l6aSorWRWg=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.2 h1:tW2bmiBqwgJj/UpqtC8EpXEZVYOwU0yG4iWbprSVAcs=

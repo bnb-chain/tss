@@ -25,6 +25,7 @@ type TssClient struct {
 
 func init() {
 	gob.RegisterName("LocalPartySaveData", keygen.LocalPartySaveData{})
+	gob.Register(p2p.P2pMessageWithHash{})
 }
 
 func NewTssClient(config common.TssConfig, mock bool, done chan<- bool) *TssClient {

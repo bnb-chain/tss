@@ -3,6 +3,8 @@ package common
 import (
 	"flag"
 	"fmt"
+	"net/http"
+	_ "net/http/pprof"
 	"reflect"
 	"strings"
 
@@ -39,20 +41,22 @@ type P2PConfig struct {
 	LogLevel   string `mapstructure:"log_level" json:"log_level"`
 
 	// client only config
-	BootstrapPeers addrList `mapstructure:"bootstraps" json:"bootstraps"`
-	RelayPeers     addrList `mapstructure:"relays" json:"relays"`
-	ExpectedPeers  []string `mapstructure:"peers" json:"peers"` // expected peer list, <moniker>@<TssClientId>
+	BootstrapPeers       addrList `mapstructure:"bootstraps" json:"bootstraps"`
+	RelayPeers           addrList `mapstructure:"relays" json:"relays"`
+	ExpectedPeers        []string `mapstructure:"peers" json:"peers"` // expected peer list, <moniker>@<TssClientId>
+	BroadcastSanityCheck bool     `mapstructure:"broadcast_sanity_check" json:"broadcast_sanity_check"`
 }
 
 type TssConfig struct {
 	P2PConfig `mapstructure:"p2p" json:"p2p"`
 
-	Id        TssClientId
-	Moniker   string
-	Threshold int
-	Parties   int
-	Mode      string // client, server, setup
-	Home      string
+	Id          TssClientId
+	Moniker     string
+	Threshold   int
+	Parties     int
+	Mode        string // client, server, setup
+	ProfileAddr string `mapstructure:"profile_addr" json:"profile_addr"`
+	Home        string
 }
 
 func ReadConfig() (TssConfig, error) {
@@ -63,12 +67,14 @@ func ReadConfig() (TssConfig, error) {
 	pflag.StringSlice("p2p.bootstraps", []string{}, "bootstrap server list in multiaddr format, i.e. /ip4/127.0.0.1/tcp/27148/p2p/12D3KooWMXTGW6uHbVs7QiHEYtzVa4RunbugxRcJhGU43qAvfAa1")
 	pflag.StringSlice("p2p.relays", []string{}, "relay server list")
 	pflag.StringSlice("p2p.peers", []string{}, "peers in this threshold scheme")
+	pflag.Bool("p2p.broadcast_sanity_check", true, "whether verify broadcasted message's hash with peers")
 
 	pflag.String("id", "", "id of current node")
 	pflag.String("moniker", "", "moniker of current node")
 	pflag.Int("threshold", 2, "threshold of this scheme")
 	pflag.Int("parties", 3, "total parities of this scheme")
-	pflag.String("mode", "client", "client,server,setup")
+	pflag.String("mode", "client", "optional values: client,server,setup")
+	pflag.String("profile_addr", "", "host:port of go pprof")
 
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 	pflag.Parse()
@@ -87,8 +93,6 @@ func ReadConfig() (TssConfig, error) {
 	}
 
 	var config TssConfig
-	mm := viper.AllSettings()
-	fmt.Printf("%v\n", mm)
 	err = viper.Unmarshal(&config, func(config *mapstructure.DecoderConfig) {
 		config.DecodeHook = func(from, to reflect.Type, data interface{}) (interface{}, error) {
 			if from.Kind() == reflect.Slice && from.Elem().Kind() == reflect.String && to == reflect.TypeOf(addrList{}) {
@@ -124,6 +128,12 @@ func ReadConfig() (TssConfig, error) {
 	}
 	if err != nil {
 		panic(err)
+	}
+
+	if config.ProfileAddr != "" {
+		go func() {
+			http.ListenAndServe(config.ProfileAddr, nil)
+		}()
 	}
 
 	return config, nil

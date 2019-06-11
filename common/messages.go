@@ -30,3 +30,7 @@ func (m DummyMsg) GetFrom() *types.PartyID {
 func (m DummyMsg) GetType() string {
 	return ""
 }
+
+func (m DummyMsg) ValidateBasic() bool {
+	return true
+}

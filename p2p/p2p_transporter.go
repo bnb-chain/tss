@@ -81,6 +81,10 @@ func (m P2pMessageWithHash) String() string {
 	return fmt.Sprintf("[Hash]%s, hash:%x", m.MessageMetadata.String(), m.Hash)
 }
 
+func (m P2pMessageWithHash) ValidateBasic() bool {
+	return true
+}
+
 type p2pMessageKey string
 
 func keyOf(m P2pMessageWithHash) p2pMessageKey {

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bgentry/speakeasy"
 	"github.com/binance-chain/tss-lib/keygen"
 	"github.com/binance-chain/tss-lib/types"
 	"github.com/ipfs/go-log"
@@ -114,15 +115,28 @@ func (tss *TssClient) sendMessageRoutine(sendCh <-chan types.Message) {
 
 func (tss *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData, done chan<- bool) {
 	for msg := range saveCh {
-		logger.Infof("[%s] received save data: %v", tss.config.Moniker, msg)
+		logger.Infof("[%s] received save data", tss.config.Moniker)
 
-		if f, err := os.Create(path.Join(tss.config.Home, "party_share")); err == nil {
-			if err := gob.NewEncoder(f).Encode(&msg); err != nil {
-				logger.Errorf("[%s] failed to persist data: %v", tss.config.Moniker, msg)
-			}
+		var passphrase string
+		if tss.config.Password != "" {
+			passphrase = tss.config.Password
 		} else {
-			logger.Errorf("[%s] failed to create party_share file for persistence", tss.config.Moniker)
+			if p, err := speakeasy.Ask("please input password to secure secret key:"); err == nil {
+				passphrase = p
+			} else {
+				panic(err)
+			}
 		}
+
+		wPriv, err := os.OpenFile(path.Join(tss.config.Home, "sk.json"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400)
+		if err != nil {
+			panic(err)
+		}
+		wPub, err := os.OpenFile(path.Join(tss.config.Home, "pk.json"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400)
+		if err != nil {
+			panic(err)
+		}
+		Save(&msg, passphrase, wPriv, wPub)
 
 		if done != nil {
 			done <- true

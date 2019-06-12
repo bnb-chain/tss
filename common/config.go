@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
+	"os"
+	"path"
 	"reflect"
 	"strings"
 
@@ -56,11 +58,16 @@ type TssConfig struct {
 	Parties     int
 	Mode        string // client, server, setup
 	ProfileAddr string `mapstructure:"profile_addr" json:"profile_addr"`
+	Password    string
 	Home        string
 }
 
 func ReadConfig() (TssConfig, error) {
-	pflag.String("home", "~/.tss", "Path to config/route_table/node_key/tss_key files, configs in config file can be overriden by command line arguments")
+	home, err := os.UserHomeDir()
+	if err != nil {
+		panic(err)
+	}
+	pflag.String("home", path.Join(home, ".tss"), "Path to config/route_table/node_key/tss_key files, configs in config file can be overriden by command line arguments")
 
 	pflag.String("p2p.listen", "/ip4/0.0.0.0/tcp/27148", "Adds a multiaddress to the listen list")
 	pflag.String("p2p.log_level", "debug", "log level")
@@ -75,6 +82,7 @@ func ReadConfig() (TssConfig, error) {
 	pflag.Int("parties", 3, "total parities of this scheme")
 	pflag.String("mode", "client", "optional values: client,server,setup")
 	pflag.String("profile_addr", "", "host:port of go pprof")
+	pflag.String("password", "", "password, should only be used for testing. If empty, you will be prompted for password to save/load the secret share")
 
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 	pflag.Parse()
@@ -83,7 +91,7 @@ func ReadConfig() (TssConfig, error) {
 	viper.SetConfigName("config")
 	cfgPath := viper.GetString("home")
 	viper.AddConfigPath(cfgPath)
-	err := viper.ReadInConfig()
+	err = viper.ReadInConfig()
 	if err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			panic(err)

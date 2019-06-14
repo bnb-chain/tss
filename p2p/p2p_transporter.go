@@ -43,7 +43,8 @@ const (
 type p2pTransporter struct {
 	ifconnmgr.NullConnMgr
 
-	ctx context.Context
+	nodeKey []byte
+	ctx     context.Context
 
 	pathToRouteTable string
 	expectedPeers    []peer.ID
@@ -146,6 +147,7 @@ func NewP2PTransporter(home string, config common.P2PConfig) common.Transporter 
 		if err != nil {
 			panic(err)
 		}
+		t.nodeKey = bytes
 	}
 
 	addr, err := multiaddr.NewMultiaddr(config.ListenAddr)
@@ -173,6 +175,10 @@ func NewP2PTransporter(home string, config common.P2PConfig) common.Transporter 
 	t.initConnection(dht)
 
 	return t
+}
+
+func (t *p2pTransporter) NodeKey() []byte {
+	return t.nodeKey
 }
 
 func (t *p2pTransporter) Broadcast(msg types.Message) error {

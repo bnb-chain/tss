@@ -49,8 +49,28 @@ type P2PConfig struct {
 	BroadcastSanityCheck bool     `mapstructure:"broadcast_sanity_check" json:"broadcast_sanity_check"`
 }
 
+// Argon2 parameters, setting should refer 9th section of https://github.com/P-H-C/phc-winner-argon2/blob/master/argon2-specs.pdf
+type KDFConfig struct {
+	Memory      uint32
+	Iterations  uint32
+	Parallelism uint8
+	SaltLength  uint32 `mapstructure:"salt_length" json:"salt_length"`
+	KeyLength   uint32 `mapstructure:"key_length" json:"key_length"`
+}
+
+func DefaultKDFConfig() KDFConfig {
+	return KDFConfig{
+		65536,
+		13,
+		4,
+		16,
+		48,
+	}
+}
+
 type TssConfig struct {
 	P2PConfig `mapstructure:"p2p" json:"p2p"`
+	KDFConfig `mapstructure:"kdf" json:"kdf"`
 
 	Id          TssClientId
 	Moniker     string
@@ -62,20 +82,27 @@ type TssConfig struct {
 	Home        string
 }
 
-func ReadConfig() (TssConfig, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		panic(err)
-	}
-	pflag.String("home", path.Join(home, ".tss"), "Path to config/route_table/node_key/tss_key files, configs in config file can be overriden by command line arguments")
-
+func bindP2pConfigs() {
 	pflag.String("p2p.listen", "/ip4/0.0.0.0/tcp/27148", "Adds a multiaddress to the listen list")
 	pflag.String("p2p.log_level", "debug", "log level")
 	pflag.StringSlice("p2p.bootstraps", []string{}, "bootstrap server list in multiaddr format, i.e. /ip4/127.0.0.1/tcp/27148/p2p/12D3KooWMXTGW6uHbVs7QiHEYtzVa4RunbugxRcJhGU43qAvfAa1")
 	pflag.StringSlice("p2p.relays", []string{}, "relay server list")
 	pflag.StringSlice("p2p.peers", []string{}, "peers in this threshold scheme")
 	pflag.Bool("p2p.broadcast_sanity_check", true, "whether verify broadcasted message's hash with peers")
+}
 
+// more detail explaination of these parameters can be found:
+// https://github.com/P-H-C/phc-winner-argon2/blob/master/argon2-specs.pdf
+// https://www.alexedwards.net/blog/how-to-hash-and-verify-passwords-with-argon2-in-go
+func bindKdfConfigs() {
+	pflag.Uint32("kdf.memory", 65536, "The amount of memory used by the algorithm (in kibibytes)")
+	pflag.Uint32("kdf.iterations", 13, "The number of iterations (or passes) over the memory.")
+	pflag.Uint8("kdf.parallelism", 4, "The number of threads (or lanes) used by the algorithm.")
+	pflag.Uint32("kdf.salt_length", 16, "Length of the random salt. 16 bytes is recommended for password hashing.")
+	pflag.Uint32("kdf.key_length", 48, "Length of the generated key (or password hash). must be 32 bytes or more")
+}
+
+func bindClientConfigs() {
 	pflag.String("id", "", "id of current node")
 	pflag.String("moniker", "", "moniker of current node")
 	pflag.Int("threshold", 2, "threshold of this scheme")
@@ -83,6 +110,18 @@ func ReadConfig() (TssConfig, error) {
 	pflag.String("mode", "client", "optional values: client,server,setup")
 	pflag.String("profile_addr", "", "host:port of go pprof")
 	pflag.String("password", "", "password, should only be used for testing. If empty, you will be prompted for password to save/load the secret share")
+}
+
+func ReadConfig() (TssConfig, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		panic(err)
+	}
+	pflag.String("home", path.Join(home, ".tss"), "Path to config/route_table/node_key/tss_key files, configs in config file can be overriden by command line arguments")
+
+	bindP2pConfigs()
+	bindKdfConfigs()
+	bindClientConfigs()
 
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 	pflag.Parse()
@@ -128,14 +167,17 @@ func ReadConfig() (TssConfig, error) {
 			return data, nil
 		}
 	})
-	//err = viper.Unmarshal(&config)
+	if err != nil {
+		panic(err)
+	}
 
+	// validate configs
 	if len(config.P2PConfig.BootstrapPeers) == 0 {
 		fmt.Println("!!!NOTICE!!! cannot find bootstraps servers in config, would use libp2p default bootstraps")
 		config.P2PConfig.BootstrapPeers = dht.DefaultBootstrapPeers
 	}
-	if err != nil {
-		panic(err)
+	if config.KDFConfig.KeyLength < 32 {
+		panic("Length of the generated key (or password hash). must be 32 bytes or more")
 	}
 
 	if config.ProfileAddr != "" {

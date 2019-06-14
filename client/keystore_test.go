@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/binance-chain/tss-lib/keygen"
+
+	"github.com/binance-chain/tss/common"
 )
 
 func TestSaveAndLoad(t *testing.T) {
@@ -25,7 +27,7 @@ func TestSaveAndLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	Save(&expectedMsg, passphrase, &wPriv, &wPub)
+	Save(&expectedMsg, common.DefaultKDFConfig(), passphrase, &wPriv, &wPub)
 	result := Load(passphrase, &wPriv, &wPub)
 
 	if !reflect.DeepEqual(*result, expectedMsg) {
@@ -57,6 +59,6 @@ func TestSaveAndLoadNeg(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	Save(&expectedMsg, passphrase, &wPriv, &wPub)
+	Save(&expectedMsg, common.DefaultKDFConfig(), passphrase, &wPriv, &wPub)
 	Load("12345678", &wPriv, &wPub) // load saved data with a wrong passphrase would not success
 }

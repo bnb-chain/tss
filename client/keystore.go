@@ -16,25 +16,19 @@ import (
 	"github.com/binance-chain/tss-lib/crypto/paillier"
 	"github.com/binance-chain/tss-lib/keygen"
 	"github.com/binance-chain/tss-lib/types"
-	"golang.org/x/crypto/scrypt"
+	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/sha3"
+
+	"github.com/binance-chain/tss/common"
 )
 
 const (
 	cipherAlg = "aes-256-ctr"
 
-	keyHeaderKDF = "scrypt"
-
-	// scryptN is the N parameter of Scrypt encryption algorithm, using 256MB
-	// memory and taking approximately 1s CPU time on a modern processor.
-	scryptN = 1 << 18
-
-	// scryptP is the P parameter of Scrypt encryption algorithm, using 256MB
-	// memory and taking approximately 1s CPU time on a modern processor.
-	scryptP = 1
-
-	scryptR     = 8
-	scryptDKLen = 48
+	// This is essentially a hybrid of the Argon2d and Argon2i algorithms and uses a combination of
+	// data-independent memory access (for resistance against side-channel timing attacks) and
+	// data-depending memory access (for resistance against GPU cracking attacks).
+	keyHeaderKDF = "Argon2id"
 )
 
 type cryptoJSON struct {
@@ -52,12 +46,13 @@ type cipherparamsJSON struct {
 
 // derived from keygen.LocalPartySaveData
 type secretFields struct {
-	Xi, ShareID *big.Int             // xi, kj
-	PaillierSk  *paillier.PrivateKey // ski
+	Xi         *big.Int             // xi, kj
+	PaillierSk *paillier.PrivateKey // ski
 }
 
 // derived from keygen.LocalPartySaveData
 type publicFields struct {
+	ShareID           *big.Int
 	BigXj             []*types.ECPoint      // Xj
 	ECDSAPub          *types.ECPoint        // y
 	PaillierPks       []*paillier.PublicKey // pkj
@@ -66,10 +61,9 @@ type publicFields struct {
 
 // Split LocalPartySaveData into priv.json and pub.json
 // where priv.json is
-func Save(keygenResult *keygen.LocalPartySaveData, passphrase string, wPriv, wPub io.Writer) {
+func Save(keygenResult *keygen.LocalPartySaveData, config common.KDFConfig, passphrase string, wPriv, wPub io.Writer) {
 	sFields := secretFields{
 		keygenResult.Xi,
-		keygenResult.ShareID,
 		keygenResult.PaillierSk,
 	}
 
@@ -78,7 +72,7 @@ func Save(keygenResult *keygen.LocalPartySaveData, passphrase string, wPriv, wPu
 		panic(err)
 	}
 
-	encrypted, err := encryptSecret(priv, []byte(passphrase))
+	encrypted, err := encryptSecret(priv, []byte(passphrase), config)
 	if err != nil {
 		panic(err)
 	}
@@ -88,6 +82,7 @@ func Save(keygenResult *keygen.LocalPartySaveData, passphrase string, wPriv, wPu
 	}
 
 	pFields := publicFields{
+		keygenResult.ShareID,
 		keygenResult.BigXj,
 		keygenResult.ECDSAPub,
 		keygenResult.PaillierPks,
@@ -137,7 +132,7 @@ func Load(passphrase string, rPriv, rPub io.Reader) *keygen.LocalPartySaveData {
 
 	return &keygen.LocalPartySaveData{
 		sFields.Xi,
-		sFields.ShareID,
+		pFields.ShareID,
 		sFields.PaillierSk,
 
 		pFields.BigXj,
@@ -150,16 +145,13 @@ func Load(passphrase string, rPriv, rPub io.Reader) *keygen.LocalPartySaveData {
 	}
 }
 
-func encryptSecret(data, auth []byte) ([]byte, error) {
-	salt := make([]byte, 32)
+func encryptSecret(data, auth []byte, config common.KDFConfig) ([]byte, error) {
+	salt := make([]byte, config.SaltLength)
 	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
 		panic("reading from crypto/rand failed: " + err.Error())
 	}
-	derivedKey, err := scrypt.Key(auth, salt, scryptN, scryptR, scryptP, scryptDKLen)
-	if err != nil {
-		return nil, err
-	}
-	encryptKey := derivedKey[:32]
+	derivedKey := argon2.IDKey(auth, salt, config.Iterations, config.Memory, config.Parallelism, config.KeyLength)
+	encryptKey := derivedKey[:len(derivedKey)-16]
 
 	iv := make([]byte, aes.BlockSize)
 	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
@@ -171,16 +163,16 @@ func encryptSecret(data, auth []byte) ([]byte, error) {
 	}
 
 	d := sha3.New256()
-	d.Write(derivedKey[32:48])
+	d.Write(derivedKey[len(derivedKey)-16:])
 	d.Write(cipherText)
 	mac := d.Sum(nil)
 
-	scryptParamsJSON := make(map[string]interface{}, 5)
-	scryptParamsJSON["n"] = scryptN
-	scryptParamsJSON["r"] = scryptR
-	scryptParamsJSON["p"] = scryptP
-	scryptParamsJSON["dklen"] = scryptDKLen
-	scryptParamsJSON["salt"] = hex.EncodeToString(salt)
+	argon2ParamsJSON := make(map[string]interface{}, 5)
+	argon2ParamsJSON["i"] = config.Iterations
+	argon2ParamsJSON["m"] = config.Memory
+	argon2ParamsJSON["p"] = config.Parallelism
+	argon2ParamsJSON["dklen"] = config.KeyLength
+	argon2ParamsJSON["salt"] = hex.EncodeToString(salt)
 
 	cipherParamsJSON := cipherparamsJSON{
 		IV: hex.EncodeToString(iv),
@@ -191,7 +183,7 @@ func encryptSecret(data, auth []byte) ([]byte, error) {
 		CipherText:   hex.EncodeToString(cipherText),
 		CipherParams: cipherParamsJSON,
 		KDF:          keyHeaderKDF,
-		KDFParams:    scryptParamsJSON,
+		KDFParams:    argon2ParamsJSON,
 		MAC:          hex.EncodeToString(mac),
 	}
 	return json.Marshal(cryptoStruct)
@@ -222,7 +214,7 @@ func decryptSecret(encryptedSecret cryptoJSON, passphrase string) (*secretFields
 	}
 
 	d := sha3.New256()
-	d.Write(derivedKey[32:48])
+	d.Write(derivedKey[len(derivedKey)-16:])
 	d.Write(cipherText)
 	calculatedMAC := d.Sum(nil)
 
@@ -230,7 +222,7 @@ func decryptSecret(encryptedSecret cryptoJSON, passphrase string) (*secretFields
 		return nil, errors.New("could not decrypt key with given passphrase")
 	}
 
-	plainText, err := aesCTRXOR(derivedKey[:32], cipherText, iv)
+	plainText, err := aesCTRXOR(derivedKey[:len(derivedKey)-16], cipherText, iv)
 	if err != nil {
 		return nil, err
 	}
@@ -261,18 +253,25 @@ func getKDFKey(encryptedSecret cryptoJSON, auth string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	dkLen := ensureInt(encryptedSecret.KDFParams["dklen"])
-
-	n := ensureInt(encryptedSecret.KDFParams["n"])
-	r := ensureInt(encryptedSecret.KDFParams["r"])
-	p := ensureInt(encryptedSecret.KDFParams["p"])
-	return scrypt.Key(authArray, salt, n, r, p, dkLen)
+	dkLen := ensureUInt32(encryptedSecret.KDFParams["dklen"])
+	i := ensureUInt32(encryptedSecret.KDFParams["i"])
+	m := ensureUInt32(encryptedSecret.KDFParams["m"])
+	p := ensureUInt8(encryptedSecret.KDFParams["p"])
+	return argon2.IDKey(authArray, salt, i, m, p, dkLen), nil
 }
 
-func ensureInt(x interface{}) int {
-	res, ok := x.(int)
+func ensureUInt32(x interface{}) uint32 {
+	res, ok := x.(uint32)
 	if !ok {
-		res = int(x.(float64))
+		res = uint32(x.(float64))
+	}
+	return res
+}
+
+func ensureUInt8(x interface{}) uint8 {
+	res, ok := x.(uint8)
+	if !ok {
+		res = uint8(x.(float64))
 	}
 	return res
 }

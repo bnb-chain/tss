@@ -136,7 +136,7 @@ func (tss *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData, d
 		if err != nil {
 			panic(err)
 		}
-		Save(&msg, passphrase, wPriv, wPub)
+		Save(&msg, tss.config.KDFConfig, passphrase, wPriv, wPub)
 
 		if done != nil {
 			done <- true

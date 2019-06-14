@@ -18,20 +18,28 @@ func TestSaveAndLoad(t *testing.T) {
 	passphrase := "1234qwerasdf"
 
 	var expectedMsg keygen.LocalPartySaveData
-	bytes, err := ioutil.ReadFile("example.json")
+	localSaveDataBytes, err := ioutil.ReadFile("example.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = json.Unmarshal(bytes, &expectedMsg)
+	err = json.Unmarshal(localSaveDataBytes, &expectedMsg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedNodeKey, err := ioutil.ReadFile("node_key")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	Save(&expectedMsg, common.DefaultKDFConfig(), passphrase, &wPriv, &wPub)
-	result := Load(passphrase, &wPriv, &wPub)
+	Save(&expectedMsg, expectedNodeKey, common.DefaultKDFConfig(), passphrase, &wPriv, &wPub)
+	result, nodeKey := Load(passphrase, &wPriv, &wPub)
 
 	if !reflect.DeepEqual(*result, expectedMsg) {
 		t.Fatal("local saved data is not expected")
+	}
+
+	if !bytes.Equal(nodeKey, expectedNodeKey) {
+		t.Fatal("local saved node key is not expected")
 	}
 }
 
@@ -58,7 +66,11 @@ func TestSaveAndLoadNeg(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	bytes, err = ioutil.ReadFile("node_key")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	Save(&expectedMsg, common.DefaultKDFConfig(), passphrase, &wPriv, &wPub)
+	Save(&expectedMsg, bytes, common.DefaultKDFConfig(), passphrase, &wPriv, &wPub)
 	Load("12345678", &wPriv, &wPub) // load saved data with a wrong passphrase would not success
 }

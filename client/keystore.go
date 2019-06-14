@@ -48,6 +48,7 @@ type cipherparamsJSON struct {
 type secretFields struct {
 	Xi         *big.Int             // xi, kj
 	PaillierSk *paillier.PrivateKey // ski
+	NodeKey    []byte
 }
 
 // derived from keygen.LocalPartySaveData
@@ -61,10 +62,11 @@ type publicFields struct {
 
 // Split LocalPartySaveData into priv.json and pub.json
 // where priv.json is
-func Save(keygenResult *keygen.LocalPartySaveData, config common.KDFConfig, passphrase string, wPriv, wPub io.Writer) {
+func Save(keygenResult *keygen.LocalPartySaveData, nodeKey []byte, config common.KDFConfig, passphrase string, wPriv, wPub io.Writer) {
 	sFields := secretFields{
 		keygenResult.Xi,
 		keygenResult.PaillierSk,
+		nodeKey,
 	}
 
 	priv, err := json.Marshal(sFields)
@@ -101,7 +103,7 @@ func Save(keygenResult *keygen.LocalPartySaveData, config common.KDFConfig, pass
 	}
 }
 
-func Load(passphrase string, rPriv, rPub io.Reader) *keygen.LocalPartySaveData {
+func Load(passphrase string, rPriv, rPub io.Reader) (saveData *keygen.LocalPartySaveData, nodeKey []byte) {
 	var encryptedSecret cryptoJSON
 	var pFields publicFields
 
@@ -142,7 +144,7 @@ func Load(passphrase string, rPriv, rPub io.Reader) *keygen.LocalPartySaveData {
 		pFields.NTildej,
 		pFields.H1j,
 		pFields.H2j,
-	}
+	}, sFields.NodeKey
 }
 
 func encryptSecret(data, auth []byte, config common.KDFConfig) ([]byte, error) {

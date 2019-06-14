@@ -35,6 +35,10 @@ func GetMemTransporter(cid common.TssClientId) common.Transporter {
 	return registeredTransporters[cid]
 }
 
+func (t *memTransporter) NodeKey() []byte {
+	return []byte(t.cid.String())
+}
+
 func (t *memTransporter) Broadcast(msg types.Message) error {
 	logger.Debugf("[%s] Broadcast: %s", t.cid, msg)
 	for cid, peer := range registeredTransporters {

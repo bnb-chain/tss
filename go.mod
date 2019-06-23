@@ -4,7 +4,7 @@ go 1.12
 
 require (
 	github.com/bgentry/speakeasy v0.1.0
-	github.com/binance-chain/tss-lib v0.0.0-20190612105229-ed44dc8f564e
+	github.com/binance-chain/tss-lib v0.0.0-20190616090923-d8ccd94c6b48
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/go-cmp v0.3.0 // indirect
 	github.com/ipfs/go-ds-leveldb v0.0.2

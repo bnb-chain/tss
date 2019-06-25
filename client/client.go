@@ -9,7 +9,7 @@ import (
 
 	"github.com/bgentry/speakeasy"
 	"github.com/binance-chain/tss-lib/keygen"
-	"github.com/binance-chain/tss-lib/types"
+	"github.com/binance-chain/tss-lib/tss"
 	"github.com/ipfs/go-log"
 
 	"github.com/binance-chain/tss/common"
@@ -30,13 +30,13 @@ func init() {
 }
 
 func NewTssClient(config common.TssConfig, mock bool, done chan<- bool) *TssClient {
-	partyID := types.NewPartyID(string(config.Id), config.Moniker)
-	unsortedPartyIds := make(types.UnSortedPartyIDs, 0, config.Parties)
+	partyID := tss.NewPartyID(string(config.Id), config.Moniker)
+	unsortedPartyIds := make(tss.UnSortedPartyIDs, 0, config.Parties)
 	unsortedPartyIds = append(unsortedPartyIds, partyID)
 	if !mock {
 		for _, peer := range config.P2PConfig.ExpectedPeers {
 			unsortedPartyIds = append(unsortedPartyIds,
-				types.NewPartyID(
+				tss.NewPartyID(
 					string(p2p.GetClientIdFromExpecetdPeers(peer)),
 					p2p.GetMonikerFromExpectedPeers(peer)))
 		}
@@ -44,15 +44,15 @@ func NewTssClient(config common.TssConfig, mock bool, done chan<- bool) *TssClie
 		for i := 0; i < config.Parties; i++ {
 			id, _ := strconv.Atoi(string(config.Id))
 			if i != id {
-				unsortedPartyIds = append(unsortedPartyIds, types.NewPartyID(strconv.Itoa(i), strconv.Itoa(i)))
+				unsortedPartyIds = append(unsortedPartyIds, tss.NewPartyID(strconv.Itoa(i), strconv.Itoa(i)))
 			}
 		}
 	}
-	sortedIds := types.SortPartyIDs(unsortedPartyIds)
-	p2pCtx := types.NewPeerContext(sortedIds)
-	params := keygen.NewKGParameters(p2pCtx, partyID, config.Parties, config.Threshold)
+	sortedIds := tss.SortPartyIDs(unsortedPartyIds)
+	p2pCtx := tss.NewPeerContext(sortedIds)
+	params := tss.NewParameters(p2pCtx, partyID, config.Parties, config.Threshold)
 	// TODO: decide buffer size of this channel
-	sendCh := make(chan types.Message, 250)
+	sendCh := make(chan tss.Message, 250)
 	saveCh := make(chan keygen.LocalPartySaveData, 250)
 	localParty := keygen.NewLocalParty(params, sendCh, saveCh)
 	logger.Infof("[%s] initialized localParty: %s", config.Moniker, localParty)
@@ -102,7 +102,7 @@ func (tss *TssClient) sendDummyMessageRoutine() {
 	}
 }
 
-func (tss *TssClient) sendMessageRoutine(sendCh <-chan types.Message) {
+func (tss *TssClient) sendMessageRoutine(sendCh <-chan tss.Message) {
 	for msg := range sendCh {
 		dest := msg.GetTo()
 		if dest == nil {

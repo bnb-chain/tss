@@ -45,7 +45,9 @@ type P2PConfig struct {
 	// client only config
 	BootstrapPeers       addrList `mapstructure:"bootstraps" json:"bootstraps"`
 	RelayPeers           addrList `mapstructure:"relays" json:"relays"`
-	ExpectedPeers        []string `mapstructure:"peers" json:"peers"` // expected peer list, <moniker>@<TssClientId>
+	PeerAddrs            []string `mapstructure:"peer_addrs" json:"peer_addrs"` // used for some peer has known connectable ip:port so that connection to them doesn't require bootstrap and relay nodes. i.e. in a LAN environment, if ip ports are preallocated, BootstrapPeers and RelayPeers can be empty with all parties host port set
+	ExpectedPeers        []string `mapstructure:"peers" json:"peers"`           // expected peer list, <moniker>@<TssClientId>
+	DefaultBootstap      bool     `mapstructure:"default_bootstrap", json:"default_bootstrap"`
 	BroadcastSanityCheck bool     `mapstructure:"broadcast_sanity_check" json:"broadcast_sanity_check"`
 }
 
@@ -87,7 +89,9 @@ func bindP2pConfigs() {
 	pflag.String("p2p.log_level", "debug", "log level")
 	pflag.StringSlice("p2p.bootstraps", []string{}, "bootstrap server list in multiaddr format, i.e. /ip4/127.0.0.1/tcp/27148/p2p/12D3KooWMXTGW6uHbVs7QiHEYtzVa4RunbugxRcJhGU43qAvfAa1")
 	pflag.StringSlice("p2p.relays", []string{}, "relay server list")
+	pflag.StringSlice("p2p.peer_addrs", []string{}, "peer's multiple addresses")
 	pflag.StringSlice("p2p.peers", []string{}, "peers in this threshold scheme")
+	pflag.Bool("p2p.default_bootstrap", false, "whether to use default bootstrap")
 	pflag.Bool("p2p.broadcast_sanity_check", true, "whether verify broadcasted message's hash with peers")
 }
 
@@ -173,8 +177,11 @@ func ReadConfig() (TssConfig, error) {
 
 	// validate configs
 	if len(config.P2PConfig.BootstrapPeers) == 0 {
-		fmt.Println("!!!NOTICE!!! cannot find bootstraps servers in config, would use libp2p default bootstraps")
-		config.P2PConfig.BootstrapPeers = dht.DefaultBootstrapPeers
+		fmt.Println("!!!NOTICE!!! cannot find bootstraps servers in config")
+		if config.P2PConfig.DefaultBootstap {
+			fmt.Println("!!!NOTICE!!! Would use libp2p's default bootstraps")
+			config.P2PConfig.BootstrapPeers = dht.DefaultBootstrapPeers
+		}
 	}
 	if config.KDFConfig.KeyLength < 32 {
 		panic("Length of the generated key (or password hash). must be 32 bytes or more")

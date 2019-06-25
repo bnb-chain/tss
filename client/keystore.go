@@ -13,9 +13,9 @@ import (
 	"io/ioutil"
 	"math/big"
 
+	"github.com/binance-chain/tss-lib/crypto"
 	"github.com/binance-chain/tss-lib/crypto/paillier"
 	"github.com/binance-chain/tss-lib/keygen"
-	"github.com/binance-chain/tss-lib/types"
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/sha3"
 
@@ -54,8 +54,8 @@ type secretFields struct {
 // derived from keygen.LocalPartySaveData
 type publicFields struct {
 	ShareID           *big.Int
-	BigXj             []*types.ECPoint      // Xj
-	ECDSAPub          *types.ECPoint        // y
+	BigXj             []*crypto.ECPoint     // Xj
+	ECDSAPub          *crypto.ECPoint       // y
 	PaillierPks       []*paillier.PublicKey // pkj
 	NTildej, H1j, H2j []*big.Int
 }

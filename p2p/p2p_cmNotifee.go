@@ -1,7 +1,7 @@
 package p2p
 
 import (
-	inet "github.com/libp2p/go-libp2p-net"
+	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/multiformats/go-multiaddr"
 )
 
@@ -9,26 +9,26 @@ type cmNotifee struct {
 	t *p2pTransporter
 }
 
-var _ inet.Notifiee = (*cmNotifee)(nil)
+var _ network.Notifiee = (*cmNotifee)(nil)
 
-func (nn *cmNotifee) Connected(n inet.Network, c inet.Conn) {
+func (nn *cmNotifee) Connected(n network.Network, c network.Conn) {
 	logger.Debugf("[Connected] %s (%s)", c.RemotePeer().Pretty(), c.RemoteMultiaddr().String())
 }
 
-func (nn *cmNotifee) Disconnected(n inet.Network, c inet.Conn) {
+func (nn *cmNotifee) Disconnected(n network.Network, c network.Conn) {
 	logger.Debugf("[Disconnected] %s (%s)", c.RemotePeer().Pretty(), c.RemoteMultiaddr().String())
 	//nn.t.streams.Delete(c.RemotePeer().Pretty())
 	// TODO: trigger reconnect
 }
 
-func (nn *cmNotifee) Listen(n inet.Network, addr multiaddr.Multiaddr) {}
+func (nn *cmNotifee) Listen(n network.Network, addr multiaddr.Multiaddr) {}
 
-func (nn *cmNotifee) ListenClose(n inet.Network, addr multiaddr.Multiaddr) {}
+func (nn *cmNotifee) ListenClose(n network.Network, addr multiaddr.Multiaddr) {}
 
-func (nn *cmNotifee) OpenedStream(n inet.Network, s inet.Stream) {
+func (nn *cmNotifee) OpenedStream(n network.Network, s network.Stream) {
 	logger.Debugf("[OpenedStream] %s (%s)", s.Conn().RemotePeer().Pretty(), s.Protocol())
 }
 
-func (nn *cmNotifee) ClosedStream(n inet.Network, s inet.Stream) {
+func (nn *cmNotifee) ClosedStream(n network.Network, s network.Stream) {
 	logger.Debugf("[ClosedStream] %s (%s)", s.Conn().RemotePeer().Pretty(), s.Protocol())
 }

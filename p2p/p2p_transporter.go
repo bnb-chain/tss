@@ -13,19 +13,20 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/binance-chain/tss-lib/types"
+	"github.com/binance-chain/tss-lib/tss"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	"github.com/libp2p/go-libp2p"
 	relay "github.com/libp2p/go-libp2p-circuit"
+	ifconnmgr "github.com/libp2p/go-libp2p-core/connmgr"
 	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
-	host "github.com/libp2p/go-libp2p-host"
-	ifconnmgr "github.com/libp2p/go-libp2p-interface-connmgr"
+	"github.com/libp2p/go-libp2p-core/protocol"
 	libp2pdht "github.com/libp2p/go-libp2p-kad-dht"
 	opts "github.com/libp2p/go-libp2p-kad-dht/opts"
-	inet "github.com/libp2p/go-libp2p-net"
 	pstore "github.com/libp2p/go-libp2p-peerstore"
-	protocol "github.com/libp2p/go-libp2p-protocol"
+	"github.com/libp2p/go-libp2p-peerstore/pstoremem"
 	swarm "github.com/libp2p/go-libp2p-swarm"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/whyrusleeping/yamux"
@@ -34,7 +35,7 @@ import (
 )
 
 const (
-	protocalId       = "/tss/binance/0.0.1"
+	protocolId       = "/tss/binance/0.0.1"
 	loggerName       = "trans"
 	receiveChBufSize = 500
 )
@@ -48,12 +49,12 @@ type p2pTransporter struct {
 
 	pathToRouteTable string
 	expectedPeers    []peer.ID
-	streams          *sync.Map // map[peer.ID.Pretty()]inet.Stream
+	streams          *sync.Map // map[peer.ID.Pretty()]network.Stream
 	encoders         map[common.TssClientId]*gob.Encoder
 	numOfStreams     int32 // atomic int of len(streams)
 	bootstrapPeers   []multiaddr.Multiaddr
 	relayPeers       []multiaddr.Multiaddr
-	notifee          inet.Notifiee
+	notifee          network.Notifiee
 
 	// sanity check related field
 	broadcastSanityCheck bool
@@ -62,16 +63,16 @@ type p2pTransporter struct {
 	pendingCheckHashMsg  map[p2pMessageKey]*P2pMessageWithHash   // guarded by sanityCheckMtx
 	receivedPeersHashMsg map[p2pMessageKey][]*P2pMessageWithHash // guarded by sanityCheckMtx
 
-	receiveCh chan types.Message
+	receiveCh chan tss.Message
 	host      host.Host
 }
 
 // encapsulation of messages that need to be broadcasted
 // only send/receive this message on broadcast_sanity_check turn on
 type P2pMessageWithHash struct {
-	types.MessageMetadata
+	tss.MessageMetadata
 	Hash      [sha256.Size]byte
-	originMsg *types.Message
+	originMsg *tss.Message
 }
 
 func (m P2pMessageWithHash) GetType() string {
@@ -102,10 +103,19 @@ func NewP2PTransporter(home string, config common.P2PConfig) common.Transporter 
 
 	t.ctx = context.Background()
 	t.pathToRouteTable = path.Join(home, "rt/")
-	for _, expectedPeer := range config.ExpectedPeers {
+	ps := pstoremem.NewPeerstore()
+	for idx, expectedPeer := range config.ExpectedPeers {
 		if pid, err := peer.IDB58Decode(string(GetClientIdFromExpecetdPeers(expectedPeer))); err != nil {
 			panic(err)
 		} else {
+			if len(config.PeerAddrs) > idx && config.PeerAddrs[idx] != "" {
+				maddr, err := multiaddr.NewMultiaddr(config.PeerAddrs[idx])
+				if err != nil {
+					logger.Errorf("invalid peeraddr: %s", config.PeerAddrs[idx])
+				} else {
+					ps.AddAddr(pid, maddr, time.Hour)
+				}
+			}
 			t.expectedPeers = append(t.expectedPeers, pid)
 		}
 	}
@@ -115,7 +125,7 @@ func NewP2PTransporter(home string, config common.P2PConfig) common.Transporter 
 	// TODO: relay addr need further confirm
 	// The correct address should be /p2p-circuit/p2p/<dest ID> rather than /p2p-circuit/p2p/<relay ID>
 	for _, relayPeerAddr := range config.RelayPeers {
-		relayPeerInfo, err := pstore.InfoFromP2pAddr(relayPeerAddr)
+		relayPeerInfo, err := peer.AddrInfoFromP2pAddr(relayPeerAddr)
 		if err != nil {
 			panic(err)
 		}
@@ -125,6 +135,7 @@ func NewP2PTransporter(home string, config common.P2PConfig) common.Transporter 
 		}
 		t.relayPeers = append(t.relayPeers, relayAddr)
 	}
+
 	t.notifee = &cmNotifee{t}
 	t.broadcastSanityCheck = config.BroadcastSanityCheck
 	if t.broadcastSanityCheck {
@@ -134,7 +145,7 @@ func NewP2PTransporter(home string, config common.P2PConfig) common.Transporter 
 	}
 	t.ioMtx = &sync.Mutex{}
 
-	t.receiveCh = make(chan types.Message, receiveChBufSize)
+	t.receiveCh = make(chan tss.Message, receiveChBufSize)
 	// load private key of node id
 	var privKey crypto.PrivKey
 	pathToNodeKey := path.Join(home, "node_key")
@@ -157,6 +168,7 @@ func NewP2PTransporter(home string, config common.P2PConfig) common.Transporter 
 
 	host, err := libp2p.New(
 		t.ctx,
+		libp2p.Peerstore(ps),
 		libp2p.ConnectionManager(t),
 		libp2p.ListenAddrs(addr),
 		libp2p.Identity(privKey),
@@ -166,7 +178,7 @@ func NewP2PTransporter(home string, config common.P2PConfig) common.Transporter 
 	if err != nil {
 		panic(err)
 	}
-	host.SetStreamHandler(protocalId, t.handleStream)
+	host.SetStreamHandler(protocolId, t.handleStream)
 	t.host = host
 	logger.Info("Host created. We are:", host.ID())
 	logger.Info(host.Addrs())
@@ -181,7 +193,7 @@ func (t *p2pTransporter) NodeKey() []byte {
 	return t.nodeKey
 }
 
-func (t *p2pTransporter) Broadcast(msg types.Message) error {
+func (t *p2pTransporter) Broadcast(msg tss.Message) error {
 	logger.Debug("Broadcast: ", msg)
 	var err error
 	t.streams.Range(func(to, stream interface{}) bool {
@@ -194,7 +206,7 @@ func (t *p2pTransporter) Broadcast(msg types.Message) error {
 	return err
 }
 
-func (t *p2pTransporter) Send(msg types.Message, to common.TssClientId) error {
+func (t *p2pTransporter) Send(msg tss.Message, to common.TssClientId) error {
 	t.ioMtx.Lock()
 	defer t.ioMtx.Unlock()
 
@@ -211,7 +223,7 @@ func (t *p2pTransporter) Send(msg types.Message, to common.TssClientId) error {
 	return nil
 }
 
-func (t p2pTransporter) ReceiveCh() <-chan types.Message {
+func (t p2pTransporter) ReceiveCh() <-chan tss.Message {
 	return t.receiveCh
 }
 
@@ -222,7 +234,7 @@ func (t p2pTransporter) Close() (err error) {
 		if stream == nil {
 			return true
 		}
-		if e := stream.(inet.Stream).Close(); e != nil {
+		if e := stream.(network.Stream).Close(); e != nil {
 			err = e
 			return false
 		}
@@ -233,13 +245,13 @@ func (t p2pTransporter) Close() (err error) {
 
 // implementation of ConnManager
 
-func (t *p2pTransporter) Notifee() inet.Notifiee {
+func (t *p2pTransporter) Notifee() network.Notifiee {
 	return t.notifee
 }
 
 // implementation of
 
-func (t *p2pTransporter) handleStream(stream inet.Stream) {
+func (t *p2pTransporter) handleStream(stream network.Stream) {
 	pid := stream.Conn().RemotePeer().Pretty()
 	logger.Infof("Connected to: %s(%s)", pid, stream.Protocol())
 
@@ -249,10 +261,10 @@ func (t *p2pTransporter) handleStream(stream inet.Stream) {
 	}
 }
 
-func (t *p2pTransporter) readDataRoutine(pid string, stream inet.Stream) {
+func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 	decoder := gob.NewDecoder(stream)
 	for {
-		var msg types.Message
+		var msg tss.Message
 		if err := decoder.Decode(&msg); err == nil {
 			logger.Debugf("Received message: %s from peer: %s", msg.String(), pid)
 
@@ -270,20 +282,20 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream inet.Stream) {
 				} else {
 					logger.Errorf("peer %s configuration is not consistent - sanity check is enabled", pid)
 				}
-			case types.Message:
+			case tss.Message:
 				if t.broadcastSanityCheck && m.GetTo() == nil {
 					// we cannot use gob encoding here because the type spec registered relies on message sequence
 					// in other word, it might be not deterministic https://stackoverflow.com/a/33228913/1147187
 					if jsonBytes, err := json.Marshal(msg); err == nil {
 						hash := sha256.Sum256(jsonBytes)
 						logger.Debugf("Encoded message %s: %x (hash: %x)", m, jsonBytes, hash)
-						msgWithHash := P2pMessageWithHash{types.MessageMetadata{m.GetTo(), m.GetFrom(), m.GetType()}, hash, &msg}
+						msgWithHash := P2pMessageWithHash{tss.MessageMetadata{m.GetTo(), m.GetFrom(), m.GetType()}, hash, &msg}
 						t.sanityCheckMtx.Lock()
 						t.pendingCheckHashMsg[keyOf(msgWithHash)] = &msgWithHash
 						for _, p := range t.expectedPeers {
 							if p.Pretty() != m.GetFrom().ID {
 								// send our hashing of this message
-								var msgToSend types.Message
+								var msgToSend tss.Message
 								msgToSend = msgWithHash
 								t.Send(msgToSend, common.TssClientId(p.Pretty()))
 							}
@@ -348,7 +360,7 @@ func (t *p2pTransporter) initConnection(dht *libp2pdht.IpfsDHT) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.streams.Range(func(pid, stream interface{}) bool {
-		go t.readDataRoutine(pid.(string), stream.(inet.Stream))
+		go t.readDataRoutine(pid.(string), stream.(network.Stream))
 		return true
 	})
 }
@@ -366,35 +378,57 @@ func (t *p2pTransporter) connectRoutine(dht *libp2pdht.IpfsDHT, pid peer.ID) {
 		default:
 			for {
 				time.Sleep(1000 * time.Millisecond)
-				_, err := dht.FindPeer(t.ctx, pid)
-				if err == nil {
-					logger.Debug("Found peer:", pid)
-				} else {
-					logger.Warningf("Cannot resolve addr of peer: %s, err: %s", pid, err.Error())
-					continue
-				}
-
-				if atomic.LoadInt32(&t.numOfStreams) == int32(len(t.expectedPeers)) {
-					return
-				}
-				logger.Debug("Connecting to:", pid)
-				stream, err := t.host.NewStream(t.ctx, pid, protocol.ID(protocalId))
-
-				if err != nil {
-					logger.Info("Normal Connection failed:", err)
-					if err := t.tryRelaying(pid); err != nil {
-						continue
+				if len(t.host.Peerstore().Addrs(pid)) == 0 {
+					_, err := dht.FindPeer(t.ctx, pid)
+					if err == nil {
+						logger.Debug("Found peer:", pid)
 					} else {
+						logger.Warningf("Cannot resolve addr of peer: %s, err: %s", pid, err.Error())
+						continue
+					}
+
+					if atomic.LoadInt32(&t.numOfStreams) == int32(len(t.expectedPeers)) {
+						// if those peers have connected to us, we give up connect them
+						return
+					}
+					logger.Debug("Connecting to:", pid)
+					stream, err := t.host.NewStream(t.ctx, pid, protocol.ID(protocolId))
+
+					if err != nil {
+						logger.Info("Normal Connection failed:", err)
+						if err := t.tryRelaying(pid); err != nil {
+							continue
+						} else {
+							return
+						}
+					} else {
+						t.handleStream(stream)
 						return
 					}
 				} else {
-					t.handleStream(stream)
-					return
+					err := t.host.Connect(t.ctx, peer.AddrInfo{pid, t.host.Peerstore().Addrs(pid)})
+					if err != nil {
+						logger.Info("Direct Connection failed, will retry, err:", err)
+						continue
+					} else {
+						if atomic.LoadInt32(&t.numOfStreams) == int32(len(t.expectedPeers)) {
+							// if those peers have connected to us, we give up connect them
+							return
+						}
+
+						stream, err := t.host.NewStream(t.ctx, pid, protocol.ID(protocolId))
+						if err != nil {
+							logger.Info("Direct Connection failed, Will give up")
+							panic(err)
+						} else {
+							t.handleStream(stream)
+							return
+						}
+					}
 				}
 			}
 		}
 	}
-
 }
 
 func (t *p2pTransporter) tryRelaying(pid peer.ID) error {
@@ -409,7 +443,7 @@ func (t *p2pTransporter) tryRelaying(pid peer.ID) error {
 		logger.Warning("Relay Connection failed:", err)
 		return err
 	}
-	stream, err := t.host.NewStream(t.ctx, pid, protocalId)
+	stream, err := t.host.NewStream(t.ctx, pid, protocolId)
 	if err != nil {
 		logger.Warning("Relay Stream failed:", err)
 		return err

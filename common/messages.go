@@ -3,7 +3,7 @@ package common
 import (
 	"encoding/gob"
 
-	"github.com/binance-chain/tss-lib/types"
+	"github.com/binance-chain/tss-lib/tss"
 )
 
 func init() {
@@ -19,11 +19,11 @@ func (m DummyMsg) String() string {
 }
 
 // always broadcast
-func (m DummyMsg) GetTo() *types.PartyID {
+func (m DummyMsg) GetTo() *tss.PartyID {
 	return nil
 }
 
-func (m DummyMsg) GetFrom() *types.PartyID {
+func (m DummyMsg) GetFrom() *tss.PartyID {
 	return nil
 }
 

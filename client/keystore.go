@@ -16,6 +16,7 @@ import (
 	"github.com/binance-chain/tss-lib/crypto"
 	"github.com/binance-chain/tss-lib/crypto/paillier"
 	"github.com/binance-chain/tss-lib/keygen"
+	"github.com/binance-chain/tss-lib/tss"
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/sha3"
 
@@ -58,6 +59,56 @@ type publicFields struct {
 	ECDSAPub          *crypto.ECPoint       // y
 	PaillierPks       []*paillier.PublicKey // pkj
 	NTildej, H1j, H2j []*big.Int
+	Index             int
+	Ks                []*big.Int
+}
+
+// crypto.ECPoint is not json marshallable
+func (data *publicFields) MarshalJSON() ([]byte, error) {
+	bigXj, err := crypto.FlattenECPoints(data.BigXj)
+	if err != nil {
+		return nil, errors.New("failed to flatten bigXjs")
+	}
+	ecdsaPub, err := crypto.FlattenECPoints([]*crypto.ECPoint{data.ECDSAPub})
+	if err != nil {
+		return nil, errors.New("failed to flatten ecdsa public key")
+	}
+
+	type Alias publicFields
+	return json.Marshal(&struct {
+		BigXj    []*big.Int
+		ECDSAPub []*big.Int
+		*Alias
+	}{
+		BigXj:    bigXj,
+		ECDSAPub: ecdsaPub,
+		Alias:    (*Alias)(data),
+	})
+}
+
+func (data *publicFields) UnmarshalJSON(payload []byte) error {
+	type Alias publicFields
+	aux := &struct {
+		BigXj    []*big.Int
+		ECDSAPub []*big.Int
+		*Alias
+	}{
+		Alias: (*Alias)(data),
+	}
+	if err := json.Unmarshal(payload, &aux); err != nil {
+		return err
+	}
+	if bigXj, err := crypto.UnFlattenECPoints(tss.EC(), aux.BigXj); err == nil {
+		data.BigXj = bigXj
+	} else {
+		return err
+	}
+	if pub, err := crypto.UnFlattenECPoints(tss.EC(), aux.ECDSAPub); err == nil && len(pub) == 1 {
+		data.ECDSAPub = pub[0]
+	} else {
+		return err
+	}
+	return nil
 }
 
 // Split LocalPartySaveData into priv.json and pub.json
@@ -91,9 +142,11 @@ func Save(keygenResult *keygen.LocalPartySaveData, nodeKey []byte, config common
 		keygenResult.NTildej,
 		keygenResult.H1j,
 		keygenResult.H2j,
+		keygenResult.Index,
+		keygenResult.Ks,
 	}
 
-	pub, err := json.Marshal(pFields)
+	pub, err := json.Marshal(&pFields)
 	if err != nil {
 		panic(err)
 	}
@@ -144,6 +197,9 @@ func Load(passphrase string, rPriv, rPub io.Reader) (saveData *keygen.LocalParty
 		pFields.NTildej,
 		pFields.H1j,
 		pFields.H2j,
+		pFields.Index,
+		pFields.Ks,
+		nil,
 	}, sFields.NodeKey
 }
 

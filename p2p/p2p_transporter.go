@@ -216,6 +216,8 @@ func (t *p2pTransporter) Send(msg tss.Message, to common.TssClientId) error {
 	if ok && stream != nil {
 		enc := t.encoders[to]
 		if err := enc.Encode(&msg); err != nil {
+			// TODO: send an signal for quit
+			logger.Errorf("failed to encode gob message: %v, sending quit", err)
 			return err
 		}
 		logger.Debugf("Sent: %s, To: %s", msg, to)

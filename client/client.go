@@ -1,16 +1,28 @@
 package client
 
 import (
+	"crypto/ecdsa"
+	"crypto/sha256"
 	"encoding/gob"
+	"fmt"
+	"math/big"
 	"os"
 	"path"
 	"strconv"
 	"time"
 
 	"github.com/bgentry/speakeasy"
+	lib "github.com/binance-chain/tss-lib/common"
+	"github.com/binance-chain/tss-lib/crypto"
+	"github.com/binance-chain/tss-lib/crypto/paillier"
 	"github.com/binance-chain/tss-lib/keygen"
+	"github.com/binance-chain/tss-lib/signing"
 	"github.com/binance-chain/tss-lib/tss"
+	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcutil/bech32"
 	"github.com/ipfs/go-log"
+	"github.com/pkg/errors"
+	"golang.org/x/crypto/ripemd160"
 
 	"github.com/binance-chain/tss/common"
 	"github.com/binance-chain/tss/p2p"
@@ -20,7 +32,7 @@ var logger = log.Logger("tss")
 
 type TssClient struct {
 	config      common.TssConfig
-	localParty  *keygen.LocalParty
+	localParty  tss.Party
 	transporter common.Transporter
 }
 
@@ -30,31 +42,84 @@ func init() {
 }
 
 func NewTssClient(config common.TssConfig, mock bool, done chan<- bool) *TssClient {
-	partyID := tss.NewPartyID(string(config.Id), config.Moniker)
+	id := string(config.Id)
+	key := lib.SHA512_256([]byte(id)) // TODO: discuss should we really need pass p2p nodeid pubkey into NewPartyID? (what if in memory implementation)
+	partyID := tss.NewPartyID(id, config.Moniker, new(big.Int).SetBytes(key))
 	unsortedPartyIds := make(tss.UnSortedPartyIDs, 0, config.Parties)
 	unsortedPartyIds = append(unsortedPartyIds, partyID)
+
+	signers := make(map[string]int, 0)
+	if config.Mode == "sign" {
+		if len(config.Signers) < config.Threshold+1 {
+			panic(fmt.Errorf("no enough signers (%d) to meet requirement: %d", len(config.Signers), config.Threshold+1))
+		}
+		if len(config.Signers) != len(config.Indexes) {
+			panic(fmt.Errorf("each signer should have their index configured"))
+		}
+		for i, signer := range config.Signers {
+			index, err := strconv.Atoi(config.Indexes[i])
+			if err != nil {
+				panic(fmt.Errorf("indexes cannot be converted to integer"))
+			}
+			signers[signer] = index
+		}
+		if _, ok := signers[config.Moniker]; !ok {
+			panic(fmt.Errorf("this node is not in signers list"))
+		}
+	}
+	signingExpectedPeers := make([]string, 0, config.Parties)
 	if !mock {
 		for _, peer := range config.P2PConfig.ExpectedPeers {
+			id := string(p2p.GetClientIdFromExpecetdPeers(peer))
+			moniker := p2p.GetMonikerFromExpectedPeers(peer)
+			key := lib.SHA512_256([]byte(id))
+			if config.Mode == "sign" {
+				if _, ok := signers[moniker]; !ok {
+					continue
+				}
+				signingExpectedPeers = append(signingExpectedPeers, peer)
+			}
 			unsortedPartyIds = append(unsortedPartyIds,
 				tss.NewPartyID(
-					string(p2p.GetClientIdFromExpecetdPeers(peer)),
-					p2p.GetMonikerFromExpectedPeers(peer)))
+					id,
+					moniker,
+					new(big.Int).SetBytes(key)))
 		}
 	} else {
 		for i := 0; i < config.Parties; i++ {
 			id, _ := strconv.Atoi(string(config.Id))
 			if i != id {
-				unsortedPartyIds = append(unsortedPartyIds, tss.NewPartyID(strconv.Itoa(i), strconv.Itoa(i)))
+				id := strconv.Itoa(i)
+				key := lib.SHA512_256([]byte(id))
+				unsortedPartyIds = append(unsortedPartyIds, tss.NewPartyID(id, id, new(big.Int).SetBytes(key)))
 			}
 		}
 	}
 	sortedIds := tss.SortPartyIDs(unsortedPartyIds)
 	p2pCtx := tss.NewPeerContext(sortedIds)
-	params := tss.NewParameters(p2pCtx, partyID, config.Parties, config.Threshold)
 	// TODO: decide buffer size of this channel
-	sendCh := make(chan tss.Message, 250)
 	saveCh := make(chan keygen.LocalPartySaveData, 250)
-	localParty := keygen.NewLocalParty(params, sendCh, saveCh)
+	signCh := make(chan signing.LocalPartySignData, 250)
+	sendCh := make(chan tss.Message, 250)
+
+	var localParty tss.Party
+	if config.Mode == "keygen" {
+		params := tss.NewParameters(p2pCtx, partyID, config.Parties, config.Threshold)
+		localParty = keygen.NewLocalParty(params, sendCh, saveCh)
+	} else if config.Mode == "sign" {
+		key := LoadSavedKey(config, sortedIds, signers)
+		pubKey := btcec.PublicKey(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()})
+		logger.Infof("[%s] public key: %X\n", config.Moniker, pubKey.SerializeCompressed())
+		address, _ := getAddress(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()})
+		logger.Infof("[%s] address is: %s\n", config.Moniker, address)
+		message, ok := big.NewInt(0).SetString(config.Message, 10)
+		if !ok {
+			panic(fmt.Errorf("message to be sign: %s is not a valid big.Int", config.Mode))
+		}
+		params := tss.NewParameters(p2pCtx, partyID, config.Parties, config.Threshold)
+		localParty = signing.NewLocalParty(message, params, key, sendCh, signCh)
+	}
+
 	logger.Infof("[%s] initialized localParty: %s", config.Moniker, localParty)
 	c := TssClient{
 		config:     config,
@@ -63,63 +128,73 @@ func NewTssClient(config common.TssConfig, mock bool, done chan<- bool) *TssClie
 	if mock {
 		c.transporter = p2p.GetMemTransporter(config.Id)
 	} else {
+		if config.Mode == "sign" {
+			config.ExpectedPeers = signingExpectedPeers
+		}
 		// will block until peers are connected
 		c.transporter = p2p.NewP2PTransporter(config.Home, config.P2PConfig)
 	}
 
 	// has to start local party before network routines in case 2 other peers msg comes before self fully initialized
-	if err := c.localParty.StartKeygenRound1(); err != nil {
+	if err := c.localParty.Start(); err != nil {
 		panic(err)
 	}
 
 	go c.sendMessageRoutine(sendCh)
 	go c.saveDataRoutine(saveCh, done)
+	go c.saveSignatureRoutine(signCh, done)
 	//go c.sendDummyMessageRoutine()
 	go c.handleMessageRoutine()
 
 	return &c
 }
 
-func (tss *TssClient) handleMessageRoutine() {
-	for msg := range tss.transporter.ReceiveCh() {
-		logger.Infof("[%s] received message: %s", tss.config.Moniker, msg)
-		ok, err := tss.localParty.Update(msg)
+func (client *TssClient) handleMessageRoutine() {
+	for msg := range client.transporter.ReceiveCh() {
+		logger.Infof("[%s] received message: %s", client.config.Moniker, msg)
+		ok, err := tss.BaseUpdate(client.localParty, msg, client.config.Mode)
 		if err != nil {
-			logger.Errorf("[%s] error updating local party state: %v", tss.config.Moniker, err)
+			logger.Errorf("[%s] error updating local party state: %v", client.config.Moniker, err)
 		} else if !ok {
-			logger.Warningf("[%s] Update still waiting for round to finish", tss.config.Moniker)
+			logger.Warningf("[%s] Update still waiting for round to finish", client.config.Moniker)
 		} else {
-			logger.Debugf("[%s] update success", tss.config.Moniker)
+			logger.Debugf("[%s] update success", client.config.Moniker)
 		}
 	}
 }
 
 // just used for debugging p2p communication
-func (tss *TssClient) sendDummyMessageRoutine() {
+func (client *TssClient) sendDummyMessageRoutine() {
 	for {
-		tss.transporter.Broadcast(common.DummyMsg{string(tss.config.Id)})
+		client.transporter.Broadcast(common.DummyMsg{string(client.config.Id)})
 		time.Sleep(10 * time.Second)
 	}
 }
 
-func (tss *TssClient) sendMessageRoutine(sendCh <-chan tss.Message) {
+func (client *TssClient) sendMessageRoutine(sendCh <-chan tss.Message) {
 	for msg := range sendCh {
 		dest := msg.GetTo()
 		if dest == nil {
-			tss.transporter.Broadcast(msg)
+			client.transporter.Broadcast(msg)
 		} else {
-			tss.transporter.Send(msg, common.TssClientId(dest.ID))
+			client.transporter.Send(msg, common.TssClientId(dest.ID))
 		}
 	}
 }
 
-func (tss *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData, done chan<- bool) {
+func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData, done chan<- bool) {
 	for msg := range saveCh {
-		logger.Infof("[%s] received save data", tss.config.Moniker)
+		logger.Infof("[%s] received save data", client.config.Moniker)
+		address, err := getAddress(ecdsa.PublicKey{tss.EC(), msg.ECDSAPub.X(), msg.ECDSAPub.Y()})
+		if err != nil {
+			logger.Errorf("[%s] failed to generate address from public key :%v", client.config.Moniker, err)
+		} else {
+			logger.Infof("[%s] bech32 address is: %s", client.config.Moniker, address)
+		}
 
 		var passphrase string
-		if tss.config.Password != "" {
-			passphrase = tss.config.Password
+		if client.config.Password != "" {
+			passphrase = client.config.Password
 		} else {
 			if p, err := speakeasy.Ask("please input password to secure secret key:"); err == nil {
 				passphrase = p
@@ -128,19 +203,92 @@ func (tss *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData, d
 			}
 		}
 
-		wPriv, err := os.OpenFile(path.Join(tss.config.Home, "sk.json"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400)
+		wPriv, err := os.OpenFile(path.Join(client.config.Home, "sk.json"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400)
 		if err != nil {
 			panic(err)
 		}
-		wPub, err := os.OpenFile(path.Join(tss.config.Home, "pk.json"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400)
+		defer wPriv.Close() // defer within loop is fine here as for one party there would be only one element from saveCh
+		wPub, err := os.OpenFile(path.Join(client.config.Home, "pk.json"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400)
 		if err != nil {
 			panic(err)
 		}
-		Save(&msg, tss.transporter.NodeKey(), tss.config.KDFConfig, passphrase, wPriv, wPub)
+		defer wPub.Close() // defer within loop is fine here as for one party there would be only one element from saveCh
+		Save(&msg, client.transporter.NodeKey(), client.config.KDFConfig, passphrase, wPriv, wPub)
 
 		if done != nil {
 			done <- true
 		}
 		break
 	}
+}
+
+func (client *TssClient) saveSignatureRoutine(signCh <-chan signing.LocalPartySignData, done chan<- bool) {
+	for signature := range signCh {
+		logger.Infof("[%s] received signature: %X", client.config.Moniker, signature.Signature)
+		done <- true
+	}
+}
+
+func LoadSavedKey(config common.TssConfig, sortedIds tss.SortedPartyIDs, signers map[string]int) keygen.LocalPartySaveData {
+	wPriv, err := os.OpenFile(path.Join(config.Home, "sk.json"), os.O_RDONLY, 0400)
+	if err != nil {
+		panic(err)
+	}
+	defer wPriv.Close()
+	wPub, err := os.OpenFile(path.Join(config.Home, "pk.json"), os.O_RDONLY, 0400)
+	if err != nil {
+		panic(err)
+	}
+	defer wPub.Close()
+	result, _ := Load(config.Password, wPriv, wPub) // TODO: validate nodeKey
+	filteredBigXj := make([]*crypto.ECPoint, 0)
+	filteredPaillierPks := make([]*paillier.PublicKey, 0)
+	filteredNTildej := make([]*big.Int, 0)
+	filteredH1j := make([]*big.Int, 0)
+	filteredH2j := make([]*big.Int, 0)
+	filteredKs := make([]*big.Int, 0)
+	for _, partyId := range sortedIds {
+		keygenIdx := signers[partyId.Moniker]
+		filteredBigXj = append(filteredBigXj, result.BigXj[keygenIdx])
+		filteredPaillierPks = append(filteredPaillierPks, result.PaillierPks[keygenIdx])
+		filteredNTildej = append(filteredNTildej, result.NTildej[keygenIdx])
+		filteredH1j = append(filteredH1j, result.H1j[keygenIdx])
+		filteredH2j = append(filteredH2j, result.H2j[keygenIdx])
+		filteredKs = append(filteredKs, result.Ks[keygenIdx])
+	}
+	filteredResult := keygen.LocalPartySaveData{
+		result.Xi,
+		result.ShareID,
+		result.PaillierSk,
+		filteredBigXj,
+		result.ECDSAPub,
+		filteredPaillierPks,
+		filteredNTildej,
+		filteredH1j,
+		filteredH2j,
+		result.Index,
+		filteredKs,
+		nil,
+	}
+
+	return filteredResult
+}
+
+func getAddress(key ecdsa.PublicKey) (string, error) {
+	btcecPubKey := btcec.PublicKey(key)
+	// be consistent with tendermint/crypto
+	compressed := btcecPubKey.SerializeCompressed()
+	hasherSHA256 := sha256.New()
+	hasherSHA256.Write(compressed[:]) // does not error
+	sha := hasherSHA256.Sum(nil)
+
+	hasherRIPEMD160 := ripemd160.New()
+	hasherRIPEMD160.Write(sha) // does not error
+
+	address := []byte(hasherRIPEMD160.Sum(nil))
+	converted, err := bech32.ConvertBits(address, 8, 5, true) // TODO: error check
+	if err != nil {
+		return "", errors.Wrap(err, "encoding bech32 failed")
+	}
+	return bech32.Encode("bnb", converted)
 }

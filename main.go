@@ -16,9 +16,9 @@ func initLogLevel(cfg common.TssConfig) {
 	log.SetLogLevel("p2p_utils", cfg.P2PConfig.LogLevel)
 
 	// libp2p loggers
-	log.SetLogLevel("dht", cfg.P2PConfig.LogLevel)
-	log.SetLogLevel("discovery", cfg.P2PConfig.LogLevel)
-	log.SetLogLevel("swarm2", cfg.P2PConfig.LogLevel)
+	log.SetLogLevel("dht", "error")
+	log.SetLogLevel("discovery", "error")
+	log.SetLogLevel("swarm2", "error")
 }
 
 func main() {
@@ -30,7 +30,11 @@ func main() {
 	initLogLevel(cfg)
 
 	switch cfg.Mode {
-	case "client":
+	case "keygen":
+		done := make(chan bool)
+		client.NewTssClient(cfg, false, done)
+		<-done
+	case "sign":
 		done := make(chan bool)
 		client.NewTssClient(cfg, false, done)
 		<-done

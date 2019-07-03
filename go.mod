@@ -4,7 +4,7 @@ go 1.12
 
 require (
 	github.com/bgentry/speakeasy v0.1.0
-	github.com/binance-chain/tss-lib v0.0.0-20190702060733-97ba21b98e3c
+	github.com/binance-chain/tss-lib v0.0.0-20190703073031-535dea2a990c
 	github.com/btcsuite/btcd v0.0.0-20190629003639-c26ffa870fd8
 	github.com/btcsuite/btcutil v0.0.0-20190425235716-9e5f4b9a998d
 	github.com/btcsuite/goleveldb v1.0.0 // indirect
@@ -43,5 +43,5 @@ require (
 	golang.org/x/net v0.0.0-20190628185345-da137c7871d7 // indirect
 	golang.org/x/sys v0.0.0-20190626221950-04f50cda93cb // indirect
 	golang.org/x/text v0.3.2 // indirect
-	golang.org/x/tools v0.0.0-20190628222527-fb37f6ba8261 // indirect
+	golang.org/x/tools v0.0.0-20190701194522-38ae2c8f6412 // indirect
 )

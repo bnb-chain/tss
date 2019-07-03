@@ -268,7 +268,6 @@ func LoadSavedKey(config common.TssConfig, sortedIds tss.SortedPartyIDs, signers
 		filteredH2j,
 		result.Index,
 		filteredKs,
-		nil,
 	}
 
 	return filteredResult
@@ -290,5 +289,5 @@ func getAddress(key ecdsa.PublicKey) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "encoding bech32 failed")
 	}
-	return bech32.Encode("bnb", converted)
+	return bech32.Encode("tbnb", converted)
 }

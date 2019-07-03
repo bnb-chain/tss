@@ -199,7 +199,6 @@ func Load(passphrase string, rPriv, rPub io.Reader) (saveData *keygen.LocalParty
 		pFields.H2j,
 		pFields.Index,
 		pFields.Ks,
-		nil,
 	}, sFields.NodeKey
 }
 

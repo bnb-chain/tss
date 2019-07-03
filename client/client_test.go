@@ -1,6 +1,9 @@
 package client
 
 import (
+	"math/rand"
+	"os"
+	"path"
 	"strconv"
 	"testing"
 	"time"
@@ -38,13 +41,22 @@ func TestWhole(t *testing.T) {
 	start := time.Now()
 	doneCh := make(chan bool, TestParticipants)
 
+	homeBase := path.Join(os.TempDir(), "tss", strconv.Itoa(rand.Int()))
 	for i := 0; i < TestParticipants; i++ {
+		home := path.Join(homeBase, strconv.Itoa(i))
+		err := os.MkdirAll(home, 0700)
+		if err != nil {
+			t.Fatal(err)
+		}
 		tssConfig := common.TssConfig{
 			Id:        common.TssClientId(strconv.Itoa(i)),
 			Moniker:   strconv.Itoa(i),
 			Threshold: TestParticipants / 2,
 			Parties:   TestParticipants,
-			Mode:      "client",
+			Mode:      "keygen",
+			Password:  "1234qwerasdf",
+			Home:      home,
+			KDFConfig: common.DefaultKDFConfig(),
 		}
 		NewTssClient(tssConfig, true, doneCh)
 	}
@@ -56,5 +68,9 @@ func TestWhole(t *testing.T) {
 		if i == TestParticipants {
 			break
 		}
+	}
+	err := os.RemoveAll(homeBase)
+	if err != nil {
+		t.Fatal(err)
 	}
 }

@@ -139,10 +139,13 @@ func ReadConfig() (TssConfig, error) {
 	pflag.Parse()
 
 	viper.BindPFlags(pflag.CommandLine)
+	return ReadConfigFromHome(viper.GetViper(), viper.GetString("home"))
+}
+
+func ReadConfigFromHome(v *viper.Viper, home string) (TssConfig, error) {
 	viper.SetConfigName("config")
-	cfgPath := viper.GetString("home")
-	viper.AddConfigPath(cfgPath)
-	err = viper.ReadInConfig()
+	viper.AddConfigPath(home)
+	err := viper.ReadInConfig()
 	if err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			panic(err)

@@ -34,6 +34,14 @@ type TssClient struct {
 	config      common.TssConfig
 	localParty  tss.Party
 	transporter common.Transporter
+
+	params *tss.Parameters
+	key    *keygen.LocalPartySaveData
+
+	saveCh chan keygen.LocalPartySaveData
+	signCh chan signing.LocalPartySignData
+	sendCh chan tss.Message
+	done   chan<- bool
 }
 
 func init() {
@@ -97,34 +105,35 @@ func NewTssClient(config common.TssConfig, mock bool, done chan<- bool) *TssClie
 	}
 	sortedIds := tss.SortPartyIDs(unsortedPartyIds)
 	p2pCtx := tss.NewPeerContext(sortedIds)
-	// TODO: decide buffer size of this channel
-	saveCh := make(chan keygen.LocalPartySaveData, 250)
-	signCh := make(chan signing.LocalPartySignData, 250)
-	sendCh := make(chan tss.Message, 250)
+	saveCh := make(chan keygen.LocalPartySaveData)
+	signCh := make(chan signing.LocalPartySignData)
+	sendCh := make(chan tss.Message, len(sortedIds)*10*2) // max signing messages 10 times hash confirmation messages
+	c := TssClient{
+		config: config,
 
+		saveCh: saveCh,
+		signCh: signCh,
+		sendCh: sendCh,
+		done:   done,
+	}
 	var localParty tss.Party
 	if config.Mode == "keygen" {
 		params := tss.NewParameters(p2pCtx, partyID, config.Parties, config.Threshold)
 		localParty = keygen.NewLocalParty(params, sendCh, saveCh)
+		c.localParty = localParty
 	} else if config.Mode == "sign" {
 		key := LoadSavedKey(config, sortedIds, signers)
 		pubKey := btcec.PublicKey(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()})
 		logger.Infof("[%s] public key: %X\n", config.Moniker, pubKey.SerializeCompressed())
 		address, _ := getAddress(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()})
 		logger.Infof("[%s] address is: %s\n", config.Moniker, address)
-		message, ok := big.NewInt(0).SetString(config.Message, 10)
-		if !ok {
-			panic(fmt.Errorf("message to be sign: %s is not a valid big.Int", config.Mode))
-		}
 		params := tss.NewParameters(p2pCtx, partyID, config.Parties, config.Threshold)
-		localParty = signing.NewLocalParty(message, params, key, sendCh, signCh)
+		c.key = &key
+		c.params = params
 	}
 
 	logger.Infof("[%s] initialized localParty: %s", config.Moniker, localParty)
-	c := TssClient{
-		config:     config,
-		localParty: localParty,
-	}
+
 	if mock {
 		c.transporter = p2p.GetMemTransporter(config.Id)
 	} else {
@@ -135,24 +144,32 @@ func NewTssClient(config common.TssConfig, mock bool, done chan<- bool) *TssClie
 		c.transporter = p2p.NewP2PTransporter(config.Home, config.P2PConfig)
 	}
 
-	// has to start local party before network routines in case 2 other peers msg comes before self fully initialized
-	if err := c.localParty.Start(); err != nil {
-		panic(err)
-	}
-
-	go c.sendMessageRoutine(sendCh)
-	go c.saveDataRoutine(saveCh, done)
-	go c.saveSignatureRoutine(signCh, done)
-	//go c.sendDummyMessageRoutine()
-	go c.handleMessageRoutine()
-
 	return &c
+}
+
+func (client *TssClient) Start() {
+	if client.config.Mode == "sign" {
+		message, ok := big.NewInt(0).SetString(client.config.Message, 10)
+		if !ok {
+			panic(fmt.Errorf("message to be sign: %s is not a valid big.Int", client.config.Message))
+		}
+		client.signImpl(message)
+	} else {
+		if err := client.localParty.Start(); err != nil {
+			panic(err)
+		}
+
+		go client.sendMessageRoutine(client.sendCh)
+		go client.saveDataRoutine(client.saveCh, client.done)
+		//go c.sendDummyMessageRoutine()
+		go client.handleMessageRoutine()
+	}
 }
 
 func (client *TssClient) handleMessageRoutine() {
 	for msg := range client.transporter.ReceiveCh() {
 		logger.Infof("[%s] received message: %s", client.config.Moniker, msg)
-		ok, err := tss.BaseUpdate(client.localParty, msg, client.config.Mode)
+		ok, err := client.localParty.Update(msg, client.config.Mode)
 		if err != nil {
 			logger.Errorf("[%s] error updating local party state: %v", client.config.Moniker, err)
 		} else if !ok {
@@ -219,13 +236,6 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 			done <- true
 		}
 		break
-	}
-}
-
-func (client *TssClient) saveSignatureRoutine(signCh <-chan signing.LocalPartySignData, done chan<- bool) {
-	for signature := range signCh {
-		logger.Infof("[%s] received signature: %X", client.config.Moniker, signature.Signature)
-		done <- true
 	}
 }
 

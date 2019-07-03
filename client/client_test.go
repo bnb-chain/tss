@@ -58,7 +58,8 @@ func TestWhole(t *testing.T) {
 			Home:      home,
 			KDFConfig: common.DefaultKDFConfig(),
 		}
-		NewTssClient(tssConfig, true, doneCh)
+		client := NewTssClient(tssConfig, true, doneCh)
+		client.Start()
 	}
 
 	i := 0

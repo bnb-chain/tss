@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -12,13 +13,18 @@ import (
 	"io"
 	"io/ioutil"
 	"math/big"
+	"path"
 
 	"github.com/binance-chain/tss-lib/crypto"
 	"github.com/binance-chain/tss-lib/crypto/paillier"
 	"github.com/binance-chain/tss-lib/keygen"
 	"github.com/binance-chain/tss-lib/tss"
+	"github.com/btcsuite/btcd/btcec"
+	"github.com/tendermint/tendermint/crypto/secp256k1"
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/sha3"
+
+	tmCrypto "github.com/tendermint/tendermint/crypto"
 
 	"github.com/binance-chain/tss/common"
 )
@@ -200,6 +206,23 @@ func Load(passphrase string, rPriv, rPub io.Reader) (saveData *keygen.LocalParty
 		pFields.Index,
 		pFields.Ks,
 	}, sFields.NodeKey
+}
+
+func LoadPubkey(home string) (tmCrypto.PubKey, error) {
+	var pFields publicFields
+	pBytes, err := ioutil.ReadFile(path.Join(home, "pk.json"))
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(pBytes, &pFields); err != nil {
+		return nil, err
+	}
+	ecdsaPubKey := &ecdsa.PublicKey{tss.EC(), pFields.ECDSAPub.X(), pFields.ECDSAPub.Y()}
+	btcecPubKey := (*btcec.PublicKey)(ecdsaPubKey)
+
+	var pubkeyBytes secp256k1.PubKeySecp256k1
+	copy(pubkeyBytes[:], btcecPubKey.SerializeCompressed())
+	return pubkeyBytes, nil
 }
 
 func encryptSecret(data, auth []byte, config common.KDFConfig) ([]byte, error) {

@@ -35,6 +35,7 @@ func (*TssClient) Equals(key crypto.PrivKey) bool {
 }
 
 func (client *TssClient) signImpl(m *big.Int) ([]byte, error) {
+	logger.Infof("[%s] message to be signed: %s\n", client.config.Moniker, m.String())
 	client.localParty = signing.NewLocalParty(m, client.params, *client.key, client.sendCh, client.signCh)
 
 	// has to start local party before network routines in case 2 other peers' msg comes before self fully initialized
@@ -42,19 +43,14 @@ func (client *TssClient) signImpl(m *big.Int) ([]byte, error) {
 		panic(err)
 	}
 
+	done := make(chan bool)
 	go client.sendMessageRoutine(client.sendCh)
 	go client.handleMessageRoutine()
+	go client.saveSignatureRoutine(client.signCh, done)
 
-	var sig []byte
-	for signature := range client.signCh {
-		logger.Debugf("[%s] received signature: %X", client.config.Moniker, signature.Signature)
-		sig = signature.Signature
-		if client.done != nil {
-			client.done <- true
-		}
-	}
-
-	return sig, nil
+	<-done
+	logger.Debugf("[%s] received signature: %X", client.config.Moniker, client.signature)
+	return client.signature, nil
 }
 
 // copied from https://github.com/btcsuite/btcd/blob/c26ffa870fd817666a857af1bf6498fabba1ffe3/btcec/signature.go#L263

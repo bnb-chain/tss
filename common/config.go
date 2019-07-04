@@ -143,9 +143,9 @@ func ReadConfig() (TssConfig, error) {
 }
 
 func ReadConfigFromHome(v *viper.Viper, home string) (TssConfig, error) {
-	viper.SetConfigName("config")
-	viper.AddConfigPath(home)
-	err := viper.ReadInConfig()
+	v.SetConfigName("config")
+	v.AddConfigPath(home)
+	err := v.ReadInConfig()
 	if err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			panic(err)
@@ -155,9 +155,7 @@ func ReadConfigFromHome(v *viper.Viper, home string) (TssConfig, error) {
 	}
 
 	var config TssConfig
-	all := viper.AllSettings()
-	fmt.Println(all)
-	err = viper.Unmarshal(&config, func(config *mapstructure.DecoderConfig) {
+	err = v.Unmarshal(&config, func(config *mapstructure.DecoderConfig) {
 		config.DecodeHook = func(from, to reflect.Type, data interface{}) (interface{}, error) {
 			if from.Kind() == reflect.Slice && from.Elem().Kind() == reflect.String && to == reflect.TypeOf(addrList{}) {
 				var al addrList

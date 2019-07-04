@@ -31,15 +31,11 @@ func main() {
 
 	switch cfg.Mode {
 	case "keygen":
-		done := make(chan bool)
-		c := client.NewTssClient(cfg, false, done)
+		c := client.NewTssClient(cfg, false)
 		c.Start()
-		<-done
 	case "sign":
-		done := make(chan bool)
-		c := client.NewTssClient(cfg, false, done)
+		c := client.NewTssClient(cfg, false)
 		c.Start()
-		<-done
 	case "server":
 		server.NewTssBootstrapServer(cfg.Home, cfg.P2PConfig)
 		select {}

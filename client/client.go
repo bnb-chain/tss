@@ -35,13 +35,13 @@ type TssClient struct {
 	localParty  tss.Party
 	transporter common.Transporter
 
-	params *tss.Parameters
-	key    *keygen.LocalPartySaveData
+	params    *tss.Parameters
+	key       *keygen.LocalPartySaveData
+	signature []byte
 
 	saveCh chan keygen.LocalPartySaveData
 	signCh chan signing.LocalPartySignData
 	sendCh chan tss.Message
-	done   chan<- bool
 }
 
 func init() {
@@ -49,7 +49,7 @@ func init() {
 	gob.Register(p2p.P2pMessageWithHash{})
 }
 
-func NewTssClient(config common.TssConfig, mock bool, done chan<- bool) *TssClient {
+func NewTssClient(config common.TssConfig, mock bool) *TssClient {
 	id := string(config.Id)
 	key := lib.SHA512_256([]byte(id)) // TODO: discuss should we really need pass p2p nodeid pubkey into NewPartyID? (what if in memory implementation)
 	partyID := tss.NewPartyID(id, config.Moniker, new(big.Int).SetBytes(key))
@@ -114,7 +114,6 @@ func NewTssClient(config common.TssConfig, mock bool, done chan<- bool) *TssClie
 		saveCh: saveCh,
 		signCh: signCh,
 		sendCh: sendCh,
-		done:   done,
 	}
 	var localParty tss.Party
 	if config.Mode == "keygen" {
@@ -159,10 +158,12 @@ func (client *TssClient) Start() {
 			panic(err)
 		}
 
+		done := make(chan bool)
 		go client.sendMessageRoutine(client.sendCh)
-		go client.saveDataRoutine(client.saveCh, client.done)
+		go client.saveDataRoutine(client.saveCh, done)
 		//go c.sendDummyMessageRoutine()
 		go client.handleMessageRoutine()
+		<-done
 	}
 }
 
@@ -234,6 +235,18 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 
 		if done != nil {
 			done <- true
+			close(done)
+		}
+		break
+	}
+}
+
+func (client *TssClient) saveSignatureRoutine(signCh <-chan signing.LocalPartySignData, done chan<- bool) {
+	for signature := range signCh {
+		client.signature = signature.Signature
+		if done != nil {
+			done <- true
+			close(done)
 		}
 		break
 	}

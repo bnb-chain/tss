@@ -50,32 +50,49 @@ func init() {
 }
 
 func NewTssClient(config common.TssConfig, mock bool) *TssClient {
+
 	id := string(config.Id)
 	key := lib.SHA512_256([]byte(id)) // TODO: discuss should we really need pass p2p nodeid pubkey into NewPartyID? (what if in memory implementation)
 	partyID := tss.NewPartyID(id, config.Moniker, new(big.Int).SetBytes(key))
 	unsortedPartyIds := make(tss.UnSortedPartyIDs, 0, config.Parties)
 	unsortedPartyIds = append(unsortedPartyIds, partyID)
 
-	signers := make(map[string]int, 0)
+	signers := make(map[string]int, 0) // used for filtering correct shares from LocalPartySaveData
 	if config.Mode == "sign" {
 		if len(config.Signers) < config.Threshold+1 {
 			panic(fmt.Errorf("no enough signers (%d) to meet requirement: %d", len(config.Signers), config.Threshold+1))
 		}
-		if len(config.Signers) != len(config.Indexes) {
-			panic(fmt.Errorf("each signer should have their index configured"))
+
+		for _, signer := range config.Signers {
+			signers[signer] = 0
 		}
-		for i, signer := range config.Signers {
-			index, err := strconv.Atoi(config.Indexes[i])
-			if err != nil {
-				panic(fmt.Errorf("indexes cannot be converted to integer"))
-			}
-			signers[signer] = index
-		}
+
 		if _, ok := signers[config.Moniker]; !ok {
 			panic(fmt.Errorf("this node is not in signers list"))
 		}
+
+		allPartyIds := make(tss.UnSortedPartyIDs, 0, config.Parties) // all parties, used for calculating party's index during keygen
+		allPartyIds = append(allPartyIds, partyID)
+		for _, peer := range config.P2PConfig.ExpectedPeers {
+			id := string(p2p.GetClientIdFromExpecetdPeers(peer))
+			moniker := p2p.GetMonikerFromExpectedPeers(peer)
+			key := lib.SHA512_256([]byte(id))
+			allPartyIds = append(allPartyIds,
+				tss.NewPartyID(
+					id,
+					moniker,
+					new(big.Int).SetBytes(key)))
+		}
+
+		sortedIds := tss.SortPartyIDs(allPartyIds)
+		for _, id := range sortedIds {
+			if _, ok := signers[id.Moniker]; ok {
+				signers[id.Moniker] = id.Index
+			}
+		}
 	}
-	signingExpectedPeers := make([]string, 0, config.Parties)
+
+	signingExpectedPeers := make([]string, 0, config.Parties) // used to override peers
 	if !mock {
 		for _, peer := range config.P2PConfig.ExpectedPeers {
 			id := string(p2p.GetClientIdFromExpecetdPeers(peer))

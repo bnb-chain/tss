@@ -83,7 +83,6 @@ type TssConfig struct {
 	Password    string
 	Message     string   // string represented big.Int, will refactor later
 	Signers     []string // monikers of signers
-	Indexes     []string // indexes of signers,
 	// has to be string here as viper's intSlice support seems doesn't work:
 	// https://github.com/spf13/viper/issues/613, TODO: generate this automatically
 	Home string
@@ -121,7 +120,6 @@ func bindClientConfigs() {
 	pflag.String("password", "", "password, should only be used for testing. If empty, you will be prompted for password to save/load the secret share")
 	pflag.String("message", "", "message(in *big.Int.String() format) to be signed, only used in sign mode")
 	pflag.StringSlice("signers", []string{}, "monikers of singers separated by comma")
-	pflag.StringSlice("indexes", []string{}, "indexes of signers during keygen phase")
 }
 
 func ReadConfig() (TssConfig, error) {

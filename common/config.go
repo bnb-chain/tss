@@ -78,10 +78,14 @@ type TssConfig struct {
 	Moniker     string
 	Threshold   int
 	Parties     int
-	Mode        string // client, server, setup
+	Mode        string // keygen, sign, server, setup
 	ProfileAddr string `mapstructure:"profile_addr" json:"profile_addr"`
 	Password    string
-	Home        string
+	Message     string   // string represented big.Int, will refactor later
+	Signers     []string // monikers of signers
+	// has to be string here as viper's intSlice support seems doesn't work:
+	// https://github.com/spf13/viper/issues/613, TODO: generate this automatically
+	Home string
 }
 
 func bindP2pConfigs() {
@@ -89,7 +93,7 @@ func bindP2pConfigs() {
 	pflag.String("p2p.log_level", "debug", "log level")
 	pflag.StringSlice("p2p.bootstraps", []string{}, "bootstrap server list in multiaddr format, i.e. /ip4/127.0.0.1/tcp/27148/p2p/12D3KooWMXTGW6uHbVs7QiHEYtzVa4RunbugxRcJhGU43qAvfAa1")
 	pflag.StringSlice("p2p.relays", []string{}, "relay server list")
-	pflag.StringSlice("p2p.peer_addrs", []string{}, "peer's multiple addresses")
+	pflag.StringSlice("p2p.peemor_addrs", []string{}, "peer's multiple addresses")
 	pflag.StringSlice("p2p.peers", []string{}, "peers in this threshold scheme")
 	pflag.Bool("p2p.default_bootstrap", false, "whether to use default bootstrap")
 	pflag.Bool("p2p.broadcast_sanity_check", true, "whether verify broadcasted message's hash with peers")
@@ -109,11 +113,13 @@ func bindKdfConfigs() {
 func bindClientConfigs() {
 	pflag.String("id", "", "id of current node")
 	pflag.String("moniker", "", "moniker of current node")
-	pflag.Int("threshold", 2, "threshold of this scheme")
+	pflag.Int("threshold", 1, "threshold of this scheme")
 	pflag.Int("parties", 3, "total parities of this scheme")
-	pflag.String("mode", "client", "optional values: client,server,setup")
+	pflag.String("mode", "keygen", "optional values: keygen,sign,server,setup")
 	pflag.String("profile_addr", "", "host:port of go pprof")
 	pflag.String("password", "", "password, should only be used for testing. If empty, you will be prompted for password to save/load the secret share")
+	pflag.String("message", "", "message(in *big.Int.String() format) to be signed, only used in sign mode")
+	pflag.StringSlice("signers", []string{}, "monikers of singers separated by comma")
 }
 
 func ReadConfig() (TssConfig, error) {
@@ -131,10 +137,13 @@ func ReadConfig() (TssConfig, error) {
 	pflag.Parse()
 
 	viper.BindPFlags(pflag.CommandLine)
-	viper.SetConfigName("config")
-	cfgPath := viper.GetString("home")
-	viper.AddConfigPath(cfgPath)
-	err = viper.ReadInConfig()
+	return ReadConfigFromHome(viper.GetViper(), viper.GetString("home"))
+}
+
+func ReadConfigFromHome(v *viper.Viper, home string) (TssConfig, error) {
+	v.SetConfigName("config")
+	v.AddConfigPath(home)
+	err := v.ReadInConfig()
 	if err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			panic(err)
@@ -144,7 +153,7 @@ func ReadConfig() (TssConfig, error) {
 	}
 
 	var config TssConfig
-	err = viper.Unmarshal(&config, func(config *mapstructure.DecoderConfig) {
+	err = v.Unmarshal(&config, func(config *mapstructure.DecoderConfig) {
 		config.DecodeHook = func(from, to reflect.Type, data interface{}) (interface{}, error) {
 			if from.Kind() == reflect.Slice && from.Elem().Kind() == reflect.String && to == reflect.TypeOf(addrList{}) {
 				var al addrList

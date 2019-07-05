@@ -35,18 +35,18 @@ require (
 	github.com/libp2p/go-libp2p-core v0.0.6
 	github.com/libp2p/go-libp2p-crypto v0.1.0
 	github.com/libp2p/go-libp2p-host v0.1.0
-	github.com/libp2p/go-libp2p-interface-connmgr v0.1.0
+	github.com/libp2p/go-libp2p-interface-connmgr v0.1.0 // indirect
 	github.com/libp2p/go-libp2p-kad-dht v0.1.1
-	github.com/libp2p/go-libp2p-net v0.1.0
-	github.com/libp2p/go-libp2p-peer v0.2.0
+	github.com/libp2p/go-libp2p-net v0.1.0 // indirect
 	github.com/libp2p/go-libp2p-peerstore v0.1.1
-	github.com/libp2p/go-libp2p-protocol v0.1.0
+	github.com/libp2p/go-libp2p-protocol v0.1.0 // indirect
 	github.com/libp2p/go-libp2p-swarm v0.1.1
 	github.com/magiconair/properties v1.8.1 // indirect
 	github.com/miekg/dns v1.1.15 // indirect
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/multiformats/go-multiaddr v0.0.4
 	github.com/multiformats/go-multihash v0.0.6 // indirect
+	github.com/otiai10/mint v1.2.4 // indirect
 	github.com/pelletier/go-toml v1.4.0 // indirect
 	github.com/pkg/errors v0.8.1
 	github.com/prometheus/common v0.6.0 // indirect

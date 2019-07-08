@@ -8,7 +8,7 @@ tt=$(date '+%s')
 
 rm -rf ./configs
 ./keygen.sh $1 $2 ./configs
-sleep 40
+sleep 30
 ./prepare_sign.sh $t $tt
 
 mv ./configs/ ./configs_${tt}/
@@ -24,12 +24,12 @@ do
 $bnbcli --home $bnbcli_home keys add --tss -t tss --tss-home ./configs_${tt}/$i/ party$i
 done
 
-./kill_all.sh
 for i in {0..20}
 do
     mkdir -p ./configs_${tt}/signlog/$i/
+    ./kill_all.sh
     ./sign.sh $t ./configs_${tt}/ ${bnbcli} ${bnbcli_home} $i
-    sleep 40
+    sleep 30
 done
 
 sequence=$(curl https://testnet-dex.binance.org/api/v1/account/${address} | sed -n 's/.*sequence\":\(.*\)\}$/\1/p')

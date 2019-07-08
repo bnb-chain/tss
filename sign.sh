@@ -8,7 +8,7 @@ iter=$5
 
 go build
 echo "start server"
-tss --home="./network/server" --p2p.listen="/ip4/127.0.0.1/tcp/27148" --mode="server" > server.log 2>&1 &
+./tss --home="./network/server" --p2p.listen="/ip4/127.0.0.1/tcp/27148" --mode="server" > server.log 2>&1 &
 sleep 5
 for (( i=0; i<=$t; i++ ))
 do

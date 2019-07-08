@@ -93,7 +93,7 @@ func bindP2pConfigs() {
 	pflag.String("p2p.log_level", "info", "log level")
 	pflag.StringSlice("p2p.bootstraps", []string{}, "bootstrap server list in multiaddr format, i.e. /ip4/127.0.0.1/tcp/27148/p2p/12D3KooWMXTGW6uHbVs7QiHEYtzVa4RunbugxRcJhGU43qAvfAa1")
 	pflag.StringSlice("p2p.relays", []string{}, "relay server list")
-	pflag.StringSlice("p2p.peemor_addrs", []string{}, "peer's multiple addresses")
+	pflag.StringSlice("p2p.peer_addrs", []string{}, "peer's multiple addresses")
 	pflag.StringSlice("p2p.peers", []string{}, "peers in this threshold scheme")
 	pflag.Bool("p2p.default_bootstrap", false, "whether to use default bootstrap")
 	pflag.Bool("p2p.broadcast_sanity_check", true, "whether verify broadcasted message's hash with peers")

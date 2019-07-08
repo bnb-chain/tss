@@ -15,8 +15,8 @@ import (
 	lib "github.com/binance-chain/tss-lib/common"
 	"github.com/binance-chain/tss-lib/crypto"
 	"github.com/binance-chain/tss-lib/crypto/paillier"
-	"github.com/binance-chain/tss-lib/keygen"
-	"github.com/binance-chain/tss-lib/signing"
+	"github.com/binance-chain/tss-lib/ecdsa/keygen"
+	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/binance-chain/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/btcsuite/btcutil/bech32"
@@ -93,8 +93,9 @@ func NewTssClient(config common.TssConfig, mock bool) *TssClient {
 	}
 
 	signingExpectedPeers := make([]string, 0, config.Parties) // used to override peers
+	signingExpectedAddrs := make([]string, 0, config.Parties)
 	if !mock {
-		for _, peer := range config.P2PConfig.ExpectedPeers {
+		for i, peer := range config.P2PConfig.ExpectedPeers {
 			id := string(p2p.GetClientIdFromExpecetdPeers(peer))
 			moniker := p2p.GetMonikerFromExpectedPeers(peer)
 			key := lib.SHA512_256([]byte(id))
@@ -103,6 +104,9 @@ func NewTssClient(config common.TssConfig, mock bool) *TssClient {
 					continue
 				}
 				signingExpectedPeers = append(signingExpectedPeers, peer)
+				if len(config.P2PConfig.PeerAddrs) == len(config.P2PConfig.ExpectedPeers) {
+					signingExpectedAddrs = append(signingExpectedAddrs, config.P2PConfig.PeerAddrs[i])
+				}
 			}
 			unsortedPartyIds = append(unsortedPartyIds,
 				tss.NewPartyID(
@@ -137,6 +141,7 @@ func NewTssClient(config common.TssConfig, mock bool) *TssClient {
 		params := tss.NewParameters(p2pCtx, partyID, config.Parties, config.Threshold)
 		localParty = keygen.NewLocalParty(params, sendCh, saveCh)
 		c.localParty = localParty
+		logger.Infof("[%s] initialized localParty: %s", config.Moniker, localParty)
 	} else if config.Mode == "sign" {
 		key := LoadSavedKey(config, sortedIds, signers)
 		pubKey := btcec.PublicKey(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()})
@@ -148,13 +153,12 @@ func NewTssClient(config common.TssConfig, mock bool) *TssClient {
 		c.params = params
 	}
 
-	logger.Infof("[%s] initialized localParty: %s", config.Moniker, localParty)
-
 	if mock {
 		c.transporter = p2p.GetMemTransporter(config.Id)
 	} else {
 		if config.Mode == "sign" {
 			config.ExpectedPeers = signingExpectedPeers
+			config.PeerAddrs = signingExpectedAddrs
 		}
 		// will block until peers are connected
 		c.transporter = p2p.NewP2PTransporter(config.Home, config.P2PConfig)

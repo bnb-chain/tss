@@ -4,7 +4,7 @@ import (
 	"crypto/elliptic"
 	"math/big"
 
-	"github.com/binance-chain/tss-lib/signing"
+	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/binance-chain/tss-lib/tss"
 	"github.com/tendermint/tendermint/crypto"
 )
@@ -37,6 +37,7 @@ func (*TssClient) Equals(key crypto.PrivKey) bool {
 func (client *TssClient) signImpl(m *big.Int) ([]byte, error) {
 	logger.Infof("[%s] message to be signed: %s\n", client.config.Moniker, m.String())
 	client.localParty = signing.NewLocalParty(m, client.params, *client.key, client.sendCh, client.signCh)
+	logger.Infof("[%s] initialized localParty: %s", client.config.Moniker, client.localParty)
 
 	// has to start local party before network routines in case 2 other peers' msg comes before self fully initialized
 	if err := client.localParty.Start(); err != nil {

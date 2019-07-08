@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/binance-chain/tss-lib/keygen"
+	"github.com/binance-chain/tss-lib/ecdsa/keygen"
 
 	"github.com/binance-chain/tss/common"
 )

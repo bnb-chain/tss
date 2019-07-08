@@ -5,8 +5,8 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"sync"
 	"testing"
-	"time"
 
 	"github.com/ipfs/go-log"
 
@@ -38,8 +38,7 @@ func TestWhole(t *testing.T) {
 		p2p.NewMemTransporter(common.TssClientId(strconv.Itoa(i)))
 	}
 
-	start := time.Now()
-	doneCh := make(chan bool, TestParticipants)
+	wg := sync.WaitGroup{}
 
 	homeBase := path.Join(os.TempDir(), "tss", strconv.Itoa(rand.Int()))
 	for i := 0; i < TestParticipants; i++ {
@@ -58,18 +57,15 @@ func TestWhole(t *testing.T) {
 			Home:      home,
 			KDFConfig: common.DefaultKDFConfig(),
 		}
-		client := NewTssClient(tssConfig, true, doneCh)
-		client.Start()
+		client := NewTssClient(tssConfig, true)
+		wg.Add(1)
+		go func() {
+			client.Start()
+			wg.Done()
+		}()
 	}
 
-	i := 0
-	for range doneCh {
-		logger.Debugf("party i: keygen complete. took %s\n", time.Since(start))
-		i++
-		if i == TestParticipants {
-			break
-		}
-	}
+	wg.Wait()
 	err := os.RemoveAll(homeBase)
 	if err != nil {
 		t.Fatal(err)

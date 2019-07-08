@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -220,7 +221,7 @@ func (t *p2pTransporter) Send(msg tss.Message, to common.TssClientId) error {
 			logger.Errorf("failed to encode gob message: %v, sending quit", err)
 			return err
 		}
-		logger.Debugf("Sent: %s, To: %s", msg, to)
+		logger.Debugf("Sent: %s, To: %s, Via (memory addr of stream): %p", msg, to, stream)
 	}
 	return nil
 }
@@ -268,7 +269,7 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 	for {
 		var msg tss.Message
 		if err := decoder.Decode(&msg); err == nil {
-			logger.Debugf("Received message: %s from peer: %s", msg.String(), pid)
+			logger.Debugf("Received message: %s from peer: %s, via (memory addr of stream): %p", msg.String(), pid, stream)
 
 			switch m := msg.(type) {
 			case P2pMessageWithHash:
@@ -352,7 +353,8 @@ func (t *p2pTransporter) initConnection(dht *libp2pdht.IpfsDHT) {
 			continue
 		}
 
-		if pid == t.host.ID() {
+		// we only connect parties whose id greater than us
+		if strings.Compare(t.host.ID().String(), pid.String()) >= 0 {
 			continue
 		}
 		go t.connectRoutine(dht, pid)
@@ -436,7 +438,7 @@ func (t *p2pTransporter) connectRoutine(dht *libp2pdht.IpfsDHT, pid peer.ID) {
 func (t *p2pTransporter) tryRelaying(pid peer.ID) error {
 	t.host.Network().(*swarm.Swarm).Backoff().Clear(pid)
 	relayaddr, err := multiaddr.NewMultiaddr("/p2p-circuit/p2p/" + pid.Pretty())
-	relayInfo := pstore.PeerInfo{
+	relayInfo := peer.AddrInfo{
 		ID:    pid,
 		Addrs: []multiaddr.Multiaddr{relayaddr},
 	}
@@ -487,7 +489,7 @@ func (t *p2pTransporter) setupDHTClient() *libp2pdht.IpfsDHT {
 	// Connect to relay peers to get NAT support
 	// TODO: exclude relay peers that are same with bootstrap peers
 	for _, relayAddr := range t.relayPeers {
-		relayPeerInfo, err := pstore.InfoFromP2pAddr(relayAddr)
+		relayPeerInfo, err := peer.AddrInfoFromP2pAddr(relayAddr)
 		if err != nil {
 			panic(err)
 		}

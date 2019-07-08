@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/binance-chain/tss-lib/tss"
-	leveldb "github.com/ipfs/go-ds-leveldb"
+	"github.com/ipfs/go-datastore"
 	"github.com/libp2p/go-libp2p"
 	relay "github.com/libp2p/go-libp2p-circuit"
 	ifconnmgr "github.com/libp2p/go-libp2p-core/connmgr"
@@ -455,10 +455,11 @@ func (t *p2pTransporter) tryRelaying(pid peer.ID) error {
 }
 
 func (t *p2pTransporter) setupDHTClient() *libp2pdht.IpfsDHT {
-	ds, err := leveldb.NewDatastore(t.pathToRouteTable, nil)
-	if err != nil {
-		panic(err)
-	}
+	//ds, err := leveldb.NewDatastore(t.pathToRouteTable, nil)
+	//if err != nil {
+	//	panic(err)
+	//}
+	ds := datastore.NewMapDatastore()
 
 	kademliaDHT, err := libp2pdht.New(
 		t.ctx,

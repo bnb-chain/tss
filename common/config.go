@@ -90,7 +90,7 @@ type TssConfig struct {
 
 func bindP2pConfigs() {
 	pflag.String("p2p.listen", "/ip4/0.0.0.0/tcp/27148", "Adds a multiaddress to the listen list")
-	pflag.String("p2p.log_level", "debug", "log level")
+	pflag.String("p2p.log_level", "info", "log level")
 	pflag.StringSlice("p2p.bootstraps", []string{}, "bootstrap server list in multiaddr format, i.e. /ip4/127.0.0.1/tcp/27148/p2p/12D3KooWMXTGW6uHbVs7QiHEYtzVa4RunbugxRcJhGU43qAvfAa1")
 	pflag.StringSlice("p2p.relays", []string{}, "relay server list")
 	pflag.StringSlice("p2p.peemor_addrs", []string{}, "peer's multiple addresses")

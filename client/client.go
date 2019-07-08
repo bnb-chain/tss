@@ -219,6 +219,10 @@ func (client *TssClient) sendMessageRoutine(sendCh <-chan tss.Message) {
 
 func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData, done chan<- bool) {
 	for msg := range saveCh {
+		// Used for debugging signature verification failed issue, never uncomment in production!
+		//plainJson, err := json.Marshal(msg)
+		//ioutil.WriteFile(path.Join(client.config.Home, "plain.json"), plainJson, 0400)
+
 		logger.Infof("[%s] received save data", client.config.Moniker)
 		address, err := getAddress(ecdsa.PublicKey{tss.EC(), msg.ECDSAPub.X(), msg.ECDSAPub.Y()})
 		if err != nil {

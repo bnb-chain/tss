@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go v0.41.0 // indirect
 	github.com/OneOfOne/xxhash v1.2.5 // indirect
 	github.com/bgentry/speakeasy v0.1.0
-	github.com/binance-chain/tss-lib v0.0.0-20190704063910-b6006d231880
+	github.com/binance-chain/tss-lib v0.0.0-20190708023154-cbb4063057fe
 	github.com/btcsuite/btcd v0.0.0-20190629003639-c26ffa870fd8
 	github.com/btcsuite/btcutil v0.0.0-20190425235716-9e5f4b9a998d
 	github.com/btcsuite/goleveldb v1.0.0 // indirect
@@ -20,6 +20,7 @@ require (
 	github.com/go-kit/kit v0.9.0 // indirect
 	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.9.3 // indirect
+	github.com/ipfs/go-datastore v0.0.5
 	github.com/ipfs/go-ds-badger v0.0.5 // indirect
 	github.com/ipfs/go-ds-leveldb v0.0.2
 	github.com/ipfs/go-ipfs-delay v0.0.1 // indirect

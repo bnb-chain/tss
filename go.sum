@@ -135,6 +135,8 @@ github.com/binance-chain/tss-lib v0.0.0-20190704063910-b6006d231880 h1:rnd3X6YWS
 github.com/binance-chain/tss-lib v0.0.0-20190704063910-b6006d231880/go.mod h1:xvd8A8mu2QWzUeLQCyYZLoP4SmEkpcTbOrkPkzKvPyU=
 github.com/binance-chain/tss-lib v0.0.0-20190708023154-cbb4063057fe h1:iLfEatjKts8sgEdWE1mIGYaMuuUMdShga6+0jI4DVRA=
 github.com/binance-chain/tss-lib v0.0.0-20190708023154-cbb4063057fe/go.mod h1:xvd8A8mu2QWzUeLQCyYZLoP4SmEkpcTbOrkPkzKvPyU=
+github.com/binance-chain/tss-lib v0.0.0-20190708110617-ab8c49421566 h1:Z9vzQPH+ZfDIPbAdAz+QkXac6WjT1YpeNMKGnEfCb9o=
+github.com/binance-chain/tss-lib v0.0.0-20190708110617-ab8c49421566/go.mod h1:xvd8A8mu2QWzUeLQCyYZLoP4SmEkpcTbOrkPkzKvPyU=
 github.com/btcsuite/btcd v0.0.0-20190115013929-ed77733ec07d/go.mod h1:d3C0AkH6BRcvO8T0UEPu53cnw4IbV63x1bEjildYhO0=
 github.com/btcsuite/btcd v0.0.0-20190213025234-306aecffea32 h1:qkOC5Gd33k54tobS36cXdAzJbeHaduLtnLQQwNoIi78=
 github.com/btcsuite/btcd v0.0.0-20190213025234-306aecffea32/go.mod h1:DrZx5ec/dmnfpw9KyYoQyYo7d0KEvTkk/5M/vbZjAr8=

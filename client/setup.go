@@ -56,10 +56,6 @@ func Setup(cfg common.TssConfig) {
 			tssConfig.P2PConfig.PeerAddrs = make([]string, cfg.Parties, cfg.Parties)
 			copy(tssConfig.P2PConfig.PeerAddrs, cfg.P2PConfig.PeerAddrs)
 			tssConfig.P2PConfig.PeerAddrs = append(tssConfig.P2PConfig.PeerAddrs[:i], tssConfig.P2PConfig.PeerAddrs[i+1:]...)
-
-			//for idx, peer := range tssConfig.P2PConfig.ExpectedPeers {
-			//	tssConfig.P2PConfig.PeerAddrs[idx] += "/p2p/" + string(p2p.GetClientIdFromExpecetdPeers(peer))
-			//}
 		}
 
 		tssConfig.Id = p2p.GetClientIdFromExpecetdPeers(allPeerIds[i])

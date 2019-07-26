@@ -1,9 +1,12 @@
 package p2p
 
 import (
+	"crypto/rand"
 	"fmt"
 	"github.com/ipfs/go-log"
-	host "github.com/libp2p/go-libp2p-host"
+	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/peer"
 	libp2pdht "github.com/libp2p/go-libp2p-kad-dht"
 	"strings"
 	"time"
@@ -37,4 +40,18 @@ func GetMonikerFromExpectedPeers(peer string) string {
 
 func GetClientIdFromExpecetdPeers(peer string) common.TssClientId {
 	return common.TssClientId(strings.SplitN(peer, "@", 2)[1])
+}
+
+// generate node identifier key
+func NewP2pPrivKey() (crypto.PrivKey, peer.ID, error) {
+	privKey, _, err := crypto.GenerateEd25519Key(rand.Reader)
+	if err != nil {
+		return nil, "", err
+	}
+
+	pid, err := peer.IDFromPublicKey(privKey.GetPublic())
+	if err != nil {
+		return nil, "", err
+	}
+	return privKey, pid, nil
 }

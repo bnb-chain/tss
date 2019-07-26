@@ -9,13 +9,13 @@ import (
 	"os"
 	"path"
 	"strconv"
-	"time"
 
 	"github.com/bgentry/speakeasy"
 	lib "github.com/binance-chain/tss-lib/common"
 	"github.com/binance-chain/tss-lib/crypto"
 	"github.com/binance-chain/tss-lib/crypto/paillier"
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
+	"github.com/binance-chain/tss-lib/ecdsa/regroup"
 	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/binance-chain/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec"
@@ -30,18 +30,42 @@ import (
 
 var logger = log.Logger("tss")
 
+type ClientMode uint8
+
+const (
+	KeygenMode ClientMode = iota
+	SignMode
+	RegroupMode
+)
+
+func (m ClientMode) String() string {
+	switch m {
+	case KeygenMode:
+		return "keygen"
+	case SignMode:
+		return "sign"
+	case RegroupMode:
+		return "regroup"
+	default:
+		panic("unknown mode")
+	}
+}
+
 type TssClient struct {
 	config      common.TssConfig
 	localParty  tss.Party
 	transporter common.Transporter
 
-	params    *tss.Parameters
-	key       *keygen.LocalPartySaveData
-	signature []byte
+	params        *tss.Parameters
+	regroupParams *tss.ReGroupParameters
+	key           *keygen.LocalPartySaveData
+	signature     []byte
 
 	saveCh chan keygen.LocalPartySaveData
 	signCh chan signing.LocalPartySignData
 	sendCh chan tss.Message
+
+	mode ClientMode
 }
 
 func init() {
@@ -49,47 +73,34 @@ func init() {
 	gob.Register(p2p.P2pMessageWithHash{})
 }
 
-func NewTssClient(config common.TssConfig, mock bool) *TssClient {
-
+func NewTssClient(config common.TssConfig, mode ClientMode, mock bool) *TssClient {
 	id := string(config.Id)
 	key := lib.SHA512_256([]byte(id)) // TODO: discuss should we really need pass p2p nodeid pubkey into NewPartyID? (what if in memory implementation)
 	partyID := tss.NewPartyID(id, config.Moniker, new(big.Int).SetBytes(key))
 	unsortedPartyIds := make(tss.UnSortedPartyIDs, 0, config.Parties)
-	unsortedPartyIds = append(unsortedPartyIds, partyID)
+	if mode == RegroupMode {
+		isOld := false
+		for _, moniker := range config.Signers {
+			if moniker == config.Moniker {
+				isOld = true
+				break
+			}
+		}
+		if isOld {
+			unsortedPartyIds = append(unsortedPartyIds, partyID)
+		}
+	} else {
+		unsortedPartyIds = append(unsortedPartyIds, partyID)
+	}
+	unsortedNewPartyIds := make(tss.UnSortedPartyIDs, 0, config.NewParties)
 
-	signers := make(map[string]int, 0) // used for filtering correct shares from LocalPartySaveData
-	if config.Mode == "sign" {
+	signers := make(map[string]int, 0) // used by sign and regroup mode for filtering correct shares from LocalPartySaveData
+	if mode == SignMode || mode == RegroupMode {
 		if len(config.Signers) < config.Threshold+1 {
 			panic(fmt.Errorf("no enough signers (%d) to meet requirement: %d", len(config.Signers), config.Threshold+1))
 		}
 
-		for _, signer := range config.Signers {
-			signers[signer] = 0
-		}
-
-		if _, ok := signers[config.Moniker]; !ok {
-			panic(fmt.Errorf("this node is not in signers list"))
-		}
-
-		allPartyIds := make(tss.UnSortedPartyIDs, 0, config.Parties) // all parties, used for calculating party's index during keygen
-		allPartyIds = append(allPartyIds, partyID)
-		for _, peer := range config.P2PConfig.ExpectedPeers {
-			id := string(p2p.GetClientIdFromExpecetdPeers(peer))
-			moniker := p2p.GetMonikerFromExpectedPeers(peer)
-			key := lib.SHA512_256([]byte(id))
-			allPartyIds = append(allPartyIds,
-				tss.NewPartyID(
-					id,
-					moniker,
-					new(big.Int).SetBytes(key)))
-		}
-
-		sortedIds := tss.SortPartyIDs(allPartyIds)
-		for _, id := range sortedIds {
-			if _, ok := signers[id.Moniker]; ok {
-				signers[id.Moniker] = id.Index
-			}
-		}
+		updatePeerOriginalIndexes(config, partyID, signers)
 	}
 
 	signingExpectedPeers := make([]string, 0, config.Parties) // used to override peers
@@ -99,7 +110,7 @@ func NewTssClient(config common.TssConfig, mock bool) *TssClient {
 			id := string(p2p.GetClientIdFromExpecetdPeers(peer))
 			moniker := p2p.GetMonikerFromExpectedPeers(peer)
 			key := lib.SHA512_256([]byte(id))
-			if config.Mode == "sign" {
+			if mode == SignMode || mode == RegroupMode {
 				if _, ok := signers[moniker]; !ok {
 					continue
 				}
@@ -113,6 +124,23 @@ func NewTssClient(config common.TssConfig, mock bool) *TssClient {
 					id,
 					moniker,
 					new(big.Int).SetBytes(key)))
+		}
+		if mode == RegroupMode {
+			for _, peer := range config.P2PConfig.ExpectedNewPeers {
+				id := string(p2p.GetClientIdFromExpecetdPeers(peer))
+				moniker := p2p.GetMonikerFromExpectedPeers(peer)
+				key := lib.SHA512_256([]byte(id))
+				if moniker != config.Moniker {
+					unsortedNewPartyIds = append(unsortedNewPartyIds,
+						tss.NewPartyID(
+							id,
+							moniker,
+							new(big.Int).SetBytes(key)))
+				} else {
+					// make sure the index in this party id is updated
+					unsortedNewPartyIds = append(unsortedNewPartyIds, partyID)
+				}
+			}
 		}
 	} else {
 		for i := 0; i < config.Parties; i++ {
@@ -135,14 +163,16 @@ func NewTssClient(config common.TssConfig, mock bool) *TssClient {
 		saveCh: saveCh,
 		signCh: signCh,
 		sendCh: sendCh,
+
+		mode: mode,
 	}
 	var localParty tss.Party
-	if config.Mode == "keygen" {
+	if mode == KeygenMode {
 		params := tss.NewParameters(p2pCtx, partyID, config.Parties, config.Threshold)
 		localParty = keygen.NewLocalParty(params, sendCh, saveCh)
 		c.localParty = localParty
 		logger.Infof("[%s] initialized localParty: %s", config.Moniker, localParty)
-	} else if config.Mode == "sign" {
+	} else if mode == SignMode {
 		key := LoadSavedKey(config, sortedIds, signers)
 		pubKey := btcec.PublicKey(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()})
 		logger.Infof("[%s] public key: %X\n", config.Moniker, pubKey.SerializeCompressed())
@@ -151,30 +181,51 @@ func NewTssClient(config common.TssConfig, mock bool) *TssClient {
 		params := tss.NewParameters(p2pCtx, partyID, config.Parties, config.Threshold)
 		c.key = &key
 		c.params = params
+	} else if mode == RegroupMode {
+		sortedNewIds := tss.SortPartyIDs(unsortedNewPartyIds)
+		newP2pCtx := tss.NewPeerContext(sortedNewIds)
+		params := tss.NewReGroupParameters(p2pCtx, newP2pCtx, partyID, config.Parties, config.Threshold, config.NewParties, config.NewThreshold)
+		c.regroupParams = params
+
+		if _, ok := signers[common.TssCfg.Moniker]; ok {
+			key := LoadSavedKey(config, sortedIds, signers)
+			c.key = &key
+			localParty = regroup.NewLocalParty(params, key, sendCh, saveCh)
+		} else {
+			// TODO do this better!
+			save := keygen.LocalPartySaveData{
+				BigXj:       make([]*crypto.ECPoint, common.TssCfg.NewParties),
+				PaillierPks: make([]*paillier.PublicKey, common.TssCfg.NewParties),
+				NTildej:     make([]*big.Int, common.TssCfg.NewParties),
+				H1j:         make([]*big.Int, common.TssCfg.NewParties),
+				H2j:         make([]*big.Int, common.TssCfg.NewParties),
+			}
+			localParty = regroup.NewLocalParty(params, save, sendCh, saveCh)
+		}
+		c.localParty = localParty
 	}
 
 	if mock {
 		c.transporter = p2p.GetMemTransporter(config.Id)
 	} else {
-		if config.Mode == "sign" {
+		if mode == SignMode {
 			config.ExpectedPeers = signingExpectedPeers
 			config.PeerAddrs = signingExpectedAddrs
 		}
+		if mode == RegroupMode {
+			config.ExpectedPeers = append(signingExpectedPeers, config.ExpectedNewPeers...)
+			config.PeerAddrs = append(signingExpectedAddrs, config.NewPeerAddrs...)
+		}
 		// will block until peers are connected
-		c.transporter = p2p.NewP2PTransporter(config.Home, config.P2PConfig)
+		c.transporter = p2p.NewP2PTransporter(config.Home, config.Id.String(), config.P2PConfig)
 	}
 
 	return &c
 }
 
 func (client *TssClient) Start() {
-	if client.config.Mode == "sign" {
-		message, ok := big.NewInt(0).SetString(client.config.Message, 10)
-		if !ok {
-			panic(fmt.Errorf("message to be sign: %s is not a valid big.Int", client.config.Message))
-		}
-		client.signImpl(message)
-	} else {
+	switch client.mode {
+	case KeygenMode:
 		if err := client.localParty.Start(); err != nil {
 			panic(err)
 		}
@@ -185,13 +236,30 @@ func (client *TssClient) Start() {
 		//go c.sendDummyMessageRoutine()
 		go client.handleMessageRoutine()
 		<-done
+	case RegroupMode:
+		if err := client.localParty.Start(); err != nil {
+			panic(err)
+		}
+
+		done := make(chan bool)
+		go client.sendMessageRoutine(client.sendCh)
+		go client.saveDataRoutine(client.saveCh, done)
+		//go c.sendDummyMessageRoutine()
+		go client.handleMessageRoutine()
+		<-done
+	case SignMode:
+		message, ok := big.NewInt(0).SetString(client.config.Message, 10)
+		if !ok {
+			panic(fmt.Errorf("message to be sign: %s is not a valid big.Int", client.config.Message))
+		}
+		client.signImpl(message)
 	}
 }
 
 func (client *TssClient) handleMessageRoutine() {
 	for msg := range client.transporter.ReceiveCh() {
 		logger.Infof("[%s] received message: %s", client.config.Moniker, msg)
-		ok, err := client.localParty.Update(msg, client.config.Mode)
+		ok, err := client.localParty.Update(msg, client.mode.String())
 		if err != nil {
 			logger.Errorf("[%s] error updating local party state: %v", client.config.Moniker, err)
 		} else if !ok {
@@ -202,21 +270,13 @@ func (client *TssClient) handleMessageRoutine() {
 	}
 }
 
-// just used for debugging p2p communication
-func (client *TssClient) sendDummyMessageRoutine() {
-	for {
-		client.transporter.Broadcast(common.DummyMsg{string(client.config.Id)})
-		time.Sleep(10 * time.Second)
-	}
-}
-
 func (client *TssClient) sendMessageRoutine(sendCh <-chan tss.Message) {
 	for msg := range sendCh {
 		dest := msg.GetTo()
-		if dest == nil {
+		if dest == nil || len(dest) > 1 {
 			client.transporter.Broadcast(msg)
 		} else {
-			client.transporter.Send(msg, common.TssClientId(dest.ID))
+			client.transporter.Send(msg, common.TssClientId(dest[0].ID))
 		}
 	}
 }
@@ -235,28 +295,17 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 			logger.Infof("[%s] bech32 address is: %s", client.config.Moniker, address)
 		}
 
-		var passphrase string
-		if client.config.Password != "" {
-			passphrase = client.config.Password
-		} else {
-			if p, err := speakeasy.Ask("please input password to secure secret key:"); err == nil {
-				passphrase = p
-			} else {
-				panic(err)
-			}
-		}
-
-		wPriv, err := os.OpenFile(path.Join(client.config.Home, "sk.json"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400)
+		wPriv, err := os.OpenFile(path.Join(client.config.Home, "sk.json"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 		if err != nil {
 			panic(err)
 		}
 		defer wPriv.Close() // defer within loop is fine here as for one party there would be only one element from saveCh
-		wPub, err := os.OpenFile(path.Join(client.config.Home, "pk.json"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400)
+		wPub, err := os.OpenFile(path.Join(client.config.Home, "pk.json"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 		if err != nil {
 			panic(err)
 		}
 		defer wPub.Close() // defer within loop is fine here as for one party there would be only one element from saveCh
-		Save(&msg, client.transporter.NodeKey(), client.config.KDFConfig, passphrase, wPriv, wPub)
+		Save(&msg, client.transporter.NodeKey(), client.config.KDFConfig, client.config.Password, wPriv, wPub)
 
 		if done != nil {
 			done <- true
@@ -288,7 +337,17 @@ func LoadSavedKey(config common.TssConfig, sortedIds tss.SortedPartyIDs, signers
 		panic(err)
 	}
 	defer wPub.Close()
-	result, _ := Load(config.Password, wPriv, wPub) // TODO: validate nodeKey
+	var passphrase string
+	if config.Password != "" {
+		passphrase = config.Password
+	} else {
+		if p, err := speakeasy.Ask("please input password to secure secret key:"); err == nil {
+			passphrase = p
+		} else {
+			panic(err)
+		}
+	}
+	result, _ := Load(passphrase, wPriv, wPub) // TODO: validate nodeKey
 	filteredBigXj := make([]*crypto.ECPoint, 0)
 	filteredPaillierPks := make([]*paillier.PublicKey, 0)
 	filteredNTildej := make([]*big.Int, 0)
@@ -309,13 +368,13 @@ func LoadSavedKey(config common.TssConfig, sortedIds tss.SortedPartyIDs, signers
 		result.ShareID,
 		result.PaillierSk,
 		filteredBigXj,
-		result.ECDSAPub,
 		filteredPaillierPks,
 		filteredNTildej,
 		filteredH1j,
 		filteredH2j,
 		result.Index,
 		filteredKs,
+		result.ECDSAPub,
 	}
 
 	return filteredResult
@@ -338,4 +397,31 @@ func getAddress(key ecdsa.PublicKey) (string, error) {
 		return "", errors.Wrap(err, "encoding bech32 failed")
 	}
 	return bech32.Encode("tbnb", converted)
+}
+
+// assign original keygen index to signers (old parties in regroup)
+func updatePeerOriginalIndexes(config common.TssConfig, partyID *tss.PartyID, signers map[string]int) {
+	for _, signer := range config.Signers {
+		signers[signer] = 0
+	}
+
+	allPartyIds := make(tss.UnSortedPartyIDs, 0, config.Parties) // all parties, used for calculating party's index during keygen
+	allPartyIds = append(allPartyIds, partyID)
+	for _, peer := range config.P2PConfig.ExpectedPeers {
+		id := string(p2p.GetClientIdFromExpecetdPeers(peer))
+		moniker := p2p.GetMonikerFromExpectedPeers(peer)
+		key := lib.SHA512_256([]byte(id))
+		allPartyIds = append(allPartyIds,
+			tss.NewPartyID(
+				id,
+				moniker,
+				new(big.Int).SetBytes(key)))
+	}
+
+	sortedIds := tss.SortPartyIDs(allPartyIds)
+	for _, id := range sortedIds {
+		if _, ok := signers[id.Moniker]; ok {
+			signers[id.Moniker] = id.Index
+		}
+	}
 }

@@ -1,22 +1,20 @@
 package common
 
 import (
-	"flag"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
-	"os"
-	"path"
 	"reflect"
 	"strings"
 
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/mitchellh/mapstructure"
-	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
 	"github.com/multiformats/go-multiaddr"
 )
+
+var TssCfg TssConfig
 
 // A new type we need for writing a custom flag parser
 type addrList []multiaddr.Multiaddr
@@ -45,10 +43,19 @@ type P2PConfig struct {
 	// client only config
 	BootstrapPeers       addrList `mapstructure:"bootstraps" json:"bootstraps"`
 	RelayPeers           addrList `mapstructure:"relays" json:"relays"`
-	PeerAddrs            []string `mapstructure:"peer_addrs" json:"peer_addrs"` // used for some peer has known connectable ip:port so that connection to them doesn't require bootstrap and relay nodes. i.e. in a LAN environment, if ip ports are preallocated, BootstrapPeers and RelayPeers can be empty with all parties host port set
-	ExpectedPeers        []string `mapstructure:"peers" json:"peers"`           // expected peer list, <moniker>@<TssClientId>
+	PeerAddrs            []string `mapstructure:"peer_addrs" json:"peer_addrs"`         // used for some peer has known connectable ip:port so that connection to them doesn't require bootstrap and relay nodes. i.e. in a LAN environment, if ip ports are preallocated, BootstrapPeers and RelayPeers can be empty with all parties host port set
+	ExpectedPeers        []string `mapstructure:"peers" json:"peers"`                   // expected peer list, <moniker>@<TssClientId>
+	NewPeerAddrs         []string `mapstructure:"new_peer_addrs" json:"new_peer_addrs"` // same with `PeerAddrs` but for new parties for regroup
+	ExpectedNewPeers     []string `mapstructure:"new_peers" json:"new_peers"`           // expected new peer list used for regroup, <moniker>@<TssClientId>, after regroup success, this field will replace ExpectedPeers
 	DefaultBootstap      bool     `mapstructure:"default_bootstrap", json:"default_bootstrap"`
 	BroadcastSanityCheck bool     `mapstructure:"broadcast_sanity_check" json:"broadcast_sanity_check"`
+}
+
+func DefaultP2PConfig() P2PConfig {
+	return P2PConfig{
+		LogLevel:             "INFO",
+		BroadcastSanityCheck: true,
+	}
 }
 
 // Argon2 parameters, setting should refer 9th section of https://github.com/P-H-C/phc-winner-argon2/blob/master/argon2-specs.pdf
@@ -74,79 +81,35 @@ type TssConfig struct {
 	P2PConfig `mapstructure:"p2p" json:"p2p"`
 	KDFConfig `mapstructure:"kdf" json:"kdf"`
 
-	Id          TssClientId
-	Moniker     string
-	Threshold   int
-	Parties     int
-	Mode        string // keygen, sign, server, setup
-	ProfileAddr string `mapstructure:"profile_addr" json:"profile_addr"`
-	Password    string
-	Message     string   // string represented big.Int, will refactor later
-	Signers     []string // monikers of signers
-	// has to be string here as viper's intSlice support seems doesn't work:
-	// https://github.com/spf13/viper/issues/613, TODO: generate this automatically
+	Id           TssClientId
+	Moniker      string
+	Threshold    int
+	Parties      int
+	NewThreshold int    `mapstructure:"new_threshold" json:"new_threshold"`
+	NewParties   int    `mapstructure:"new_parties" json:"new_parties"`
+	ProfileAddr  string `mapstructure:"profile_addr" json:"profile_addr"`
+	Password     string
+	Message      string   // string represented big.Int, will refactor later
+	Signers      []string // monikers of signers for signing transaction or regroup, self moniker should be included
+	Silent       bool
+
 	Home string
 }
 
-func bindP2pConfigs() {
-	pflag.String("p2p.listen", "/ip4/0.0.0.0/tcp/27148", "Adds a multiaddress to the listen list")
-	pflag.String("p2p.log_level", "info", "log level")
-	pflag.StringSlice("p2p.bootstraps", []string{}, "bootstrap server list in multiaddr format, i.e. /ip4/127.0.0.1/tcp/27148/p2p/12D3KooWMXTGW6uHbVs7QiHEYtzVa4RunbugxRcJhGU43qAvfAa1")
-	pflag.StringSlice("p2p.relays", []string{}, "relay server list")
-	pflag.StringSlice("p2p.peer_addrs", []string{}, "peer's multiple addresses")
-	pflag.StringSlice("p2p.peers", []string{}, "peers in this threshold scheme")
-	pflag.Bool("p2p.default_bootstrap", false, "whether to use default bootstrap")
-	pflag.Bool("p2p.broadcast_sanity_check", true, "whether verify broadcasted message's hash with peers")
-}
-
-// more detail explaination of these parameters can be found:
-// https://github.com/P-H-C/phc-winner-argon2/blob/master/argon2-specs.pdf
-// https://www.alexedwards.net/blog/how-to-hash-and-verify-passwords-with-argon2-in-go
-func bindKdfConfigs() {
-	pflag.Uint32("kdf.memory", 65536, "The amount of memory used by the algorithm (in kibibytes)")
-	pflag.Uint32("kdf.iterations", 13, "The number of iterations (or passes) over the memory.")
-	pflag.Uint8("kdf.parallelism", 4, "The number of threads (or lanes) used by the algorithm.")
-	pflag.Uint32("kdf.salt_length", 16, "Length of the random salt. 16 bytes is recommended for password hashing.")
-	pflag.Uint32("kdf.key_length", 48, "Length of the generated key (or password hash). must be 32 bytes or more")
-}
-
-func bindClientConfigs() {
-	pflag.String("id", "", "id of current node")
-	pflag.String("moniker", "", "moniker of current node")
-	pflag.Int("threshold", 1, "threshold of this scheme")
-	pflag.Int("parties", 3, "total parities of this scheme")
-	pflag.String("mode", "keygen", "optional values: keygen,sign,server,setup")
-	pflag.String("profile_addr", "", "host:port of go pprof")
-	pflag.String("password", "", "password, should only be used for testing. If empty, you will be prompted for password to save/load the secret share")
-	pflag.String("message", "", "message(in *big.Int.String() format) to be signed, only used in sign mode")
-	pflag.StringSlice("signers", []string{}, "monikers of singers separated by comma")
-}
-
-func ReadConfig() (TssConfig, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		panic(err)
+func DefaultTssConfig() TssConfig {
+	return TssConfig{
+		P2PConfig: DefaultP2PConfig(),
+		KDFConfig: DefaultKDFConfig(),
 	}
-	pflag.String("home", path.Join(home, ".tss"), "Path to config/route_table/node_key/tss_key files, configs in config file can be overriden by command line arguments")
-
-	bindP2pConfigs()
-	bindKdfConfigs()
-	bindClientConfigs()
-
-	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
-	pflag.Parse()
-
-	viper.BindPFlags(pflag.CommandLine)
-	return ReadConfigFromHome(viper.GetViper(), viper.GetString("home"))
 }
 
-func ReadConfigFromHome(v *viper.Viper, home string) (TssConfig, error) {
+func ReadConfigFromHome(v *viper.Viper, home string) error {
 	v.SetConfigName("config")
 	v.AddConfigPath(home)
 	err := v.ReadInConfig()
 	if err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			panic(err)
+			return err
 		} else {
 			fmt.Println("!!!NOTICE!!! cannot find config.json, would use config in command line parameter")
 		}
@@ -181,7 +144,7 @@ func ReadConfigFromHome(v *viper.Viper, home string) (TssConfig, error) {
 		}
 	})
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// validate configs
@@ -193,7 +156,7 @@ func ReadConfigFromHome(v *viper.Viper, home string) (TssConfig, error) {
 		}
 	}
 	if config.KDFConfig.KeyLength < 32 {
-		panic("Length of the generated key (or password hash). must be 32 bytes or more")
+		return fmt.Errorf("Length of the generated key (or password hash). must be 32 bytes or more")
 	}
 
 	if config.ProfileAddr != "" {
@@ -202,5 +165,6 @@ func ReadConfigFromHome(v *viper.Viper, home string) (TssConfig, error) {
 		}()
 	}
 
-	return config, nil
+	TssCfg = config
+	return nil
 }

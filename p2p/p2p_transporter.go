@@ -50,9 +50,9 @@ type p2pTransporter struct {
 
 	pathToRouteTable string
 	expectedPeers    []peer.ID
-	streams          *sync.Map // map[peer.ID.Pretty()]network.Stream
-	encoders         map[common.TssClientId]*gob.Encoder
-	numOfStreams     int32 // atomic int of len(streams)
+	streams          sync.Map // map[peer.ID.Pretty()]network.Stream
+	encoders         sync.Map // map[common.TssClientId]*gob.Encoder
+	numOfStreams     int32    // atomic int of len(streams)
 	bootstrapPeers   []multiaddr.Multiaddr
 	relayPeers       []multiaddr.Multiaddr
 	notifee          network.Notifiee
@@ -99,7 +99,7 @@ var _ common.Transporter = (*p2pTransporter)(nil)
 
 // Constructor of p2pTransporter
 // Once this is done, the transportation is ready to use
-func NewP2PTransporter(home string, config common.P2PConfig) common.Transporter {
+func NewP2PTransporter(home string, nodeId string, config common.P2PConfig) common.Transporter {
 	t := &p2pTransporter{}
 
 	t.ctx = context.Background()
@@ -109,6 +109,9 @@ func NewP2PTransporter(home string, config common.P2PConfig) common.Transporter 
 		if pid, err := peer.IDB58Decode(string(GetClientIdFromExpecetdPeers(expectedPeer))); err != nil {
 			panic(err)
 		} else {
+			if pid.Pretty() == nodeId {
+				continue
+			}
 			if len(config.PeerAddrs) > idx && config.PeerAddrs[idx] != "" {
 				maddr, err := multiaddr.NewMultiaddr(config.PeerAddrs[idx])
 				if err != nil {
@@ -120,8 +123,6 @@ func NewP2PTransporter(home string, config common.P2PConfig) common.Transporter 
 			t.expectedPeers = append(t.expectedPeers, pid)
 		}
 	}
-	t.streams = &sync.Map{}
-	t.encoders = make(map[common.TssClientId]*gob.Encoder)
 	t.bootstrapPeers = config.BootstrapPeers
 	// TODO: relay addr need further confirm
 	// The correct address should be /p2p-circuit/p2p/<dest ID> rather than /p2p-circuit/p2p/<relay ID>
@@ -198,9 +199,22 @@ func (t *p2pTransporter) Broadcast(msg tss.Message) error {
 	logger.Debug("Broadcast: ", msg)
 	var err error
 	t.streams.Range(func(to, stream interface{}) bool {
-		if e := t.Send(msg, common.TssClientId(to.(string))); e != nil {
-			err = e
-			return false
+		shouldSend := false
+		if msg.GetTo() == nil {
+			shouldSend = true
+		} else {
+			for _, dest := range msg.GetTo() {
+				if to.(string) == dest.ID {
+					shouldSend = true
+					break
+				}
+			}
+		}
+		if shouldSend {
+			if e := t.Send(msg, common.TssClientId(to.(string))); e != nil {
+				err = e
+				return false
+			}
 		}
 		return true
 	})
@@ -215,8 +229,8 @@ func (t *p2pTransporter) Send(msg tss.Message, to common.TssClientId) error {
 	// TODO: stream.Write should be protected by their lock?
 	stream, ok := t.streams.Load(to.String())
 	if ok && stream != nil {
-		enc := t.encoders[to]
-		if err := enc.Encode(&msg); err != nil {
+		enc, _ := t.encoders.Load(to)
+		if err := enc.(*gob.Encoder).Encode(&msg); err != nil {
 			// TODO: send an signal for quit
 			logger.Errorf("failed to encode gob message: %v, sending quit", err)
 			return err
@@ -259,7 +273,7 @@ func (t *p2pTransporter) handleStream(stream network.Stream) {
 	logger.Infof("Connected to: %s(%s)", pid, stream.Protocol())
 
 	if _, loaded := t.streams.LoadOrStore(pid, stream); !loaded {
-		t.encoders[common.TssClientId(pid)] = gob.NewEncoder(stream)
+		t.encoders.Store(common.TssClientId(pid), gob.NewEncoder(stream))
 		atomic.AddInt32(&t.numOfStreams, 1)
 	}
 }
@@ -277,7 +291,13 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 					key := keyOf(m)
 					t.sanityCheckMtx.Lock()
 					t.receivedPeersHashMsg[key] = append(t.receivedPeersHashMsg[key], &m)
-					if t.verifiedPeersBroadcastMsgGuarded(key) {
+					var numOfDest int
+					if m.GetTo() == nil {
+						numOfDest = len(t.expectedPeers)
+					} else {
+						numOfDest = len(m.GetTo())
+					}
+					if t.verifiedPeersBroadcastMsgGuarded(key, numOfDest) {
 						t.receiveCh <- *t.pendingCheckHashMsg[key].originMsg
 						delete(t.pendingCheckHashMsg, key)
 					}
@@ -286,24 +306,39 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 					logger.Errorf("peer %s configuration is not consistent - sanity check is enabled", pid)
 				}
 			case tss.Message:
-				if t.broadcastSanityCheck && m.GetTo() == nil {
+				if t.broadcastSanityCheck && m.IsBroadcast() {
 					// we cannot use gob encoding here because the type spec registered relies on message sequence
 					// in other word, it might be not deterministic https://stackoverflow.com/a/33228913/1147187
 					if jsonBytes, err := json.Marshal(msg); err == nil {
 						hash := sha256.Sum256(jsonBytes)
 						logger.Debugf("Encoded message %s: %x (hash: %x)", m, jsonBytes, hash)
-						msgWithHash := P2pMessageWithHash{tss.MessageMetadata{m.GetTo(), m.GetFrom(), m.GetType()}, hash, &msg}
+						// TODO: ToOldCommittee is blindly set to false here
+						msgWithHash := P2pMessageWithHash{tss.MessageMetadata{m.GetTo(), m.GetFrom(), m.GetType(), false}, hash, &msg}
 						t.sanityCheckMtx.Lock()
 						t.pendingCheckHashMsg[keyOf(msgWithHash)] = &msgWithHash
-						for _, p := range t.expectedPeers {
-							if p.Pretty() != m.GetFrom().ID {
-								// send our hashing of this message
-								var msgToSend tss.Message
-								msgToSend = msgWithHash
-								t.Send(msgToSend, common.TssClientId(p.Pretty()))
+						var numOfDest int
+						if m.GetTo() == nil {
+							numOfDest = len(t.expectedPeers)
+							for _, p := range t.expectedPeers {
+								if p.Pretty() != m.GetFrom().ID {
+									// send our hashing of this message
+									var msgToSend tss.Message
+									msgToSend = msgWithHash
+									t.Send(msgToSend, common.TssClientId(p.Pretty()))
+								}
+							}
+						} else {
+							numOfDest = len(m.GetTo())
+							for _, p := range m.GetTo() {
+								if p.ID != m.GetFrom().ID {
+									// send our hashing of this message
+									var msgToSend tss.Message
+									msgToSend = msgWithHash
+									t.Send(msgToSend, common.TssClientId(p.ID))
+								}
 							}
 						}
-						if t.verifiedPeersBroadcastMsgGuarded(keyOf(msgWithHash)) {
+						if t.verifiedPeersBroadcastMsgGuarded(keyOf(msgWithHash), numOfDest) {
 							t.receiveCh <- m
 							delete(t.pendingCheckHashMsg, keyOf(msgWithHash))
 						}
@@ -328,11 +363,11 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 }
 
 // guarded by t.sanityCheckMtx
-func (t *p2pTransporter) verifiedPeersBroadcastMsgGuarded(key p2pMessageKey) bool {
+func (t *p2pTransporter) verifiedPeersBroadcastMsgGuarded(key p2pMessageKey, numOfDest int) bool {
 	if t.pendingCheckHashMsg[key] == nil {
 		logger.Debugf("didn't receive the main message: %s yet", key)
 		return false
-	} else if len(t.receivedPeersHashMsg[key])+1 != len(t.expectedPeers) {
+	} else if len(t.receivedPeersHashMsg[key])+1 != numOfDest {
 		logger.Debugf("didn't receive enough peer's hash messages: %s yet", key)
 		return false
 	} else {

@@ -60,7 +60,6 @@ func Setup(cfg common.TssConfig) {
 
 		tssConfig.Id = p2p.GetClientIdFromExpecetdPeers(allPeerIds[i])
 		tssConfig.Moniker = p2p.GetMonikerFromExpectedPeers(allPeerIds[i])
-		tssConfig.Mode = "keygen"
 
 		bytes, err := json.MarshalIndent(&tssConfig, "", "    ")
 		if err != nil {

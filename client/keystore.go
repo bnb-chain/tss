@@ -197,7 +197,6 @@ func Load(passphrase string, rPriv, rPub io.Reader) (saveData *keygen.LocalParty
 		sFields.PaillierSk,
 
 		pFields.BigXj,
-		pFields.ECDSAPub,
 		pFields.PaillierPks,
 
 		pFields.NTildej,
@@ -205,6 +204,7 @@ func Load(passphrase string, rPriv, rPub io.Reader) (saveData *keygen.LocalParty
 		pFields.H2j,
 		pFields.Index,
 		pFields.Ks,
+		pFields.ECDSAPub,
 	}, sFields.NodeKey
 }
 

@@ -287,6 +287,20 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 		//plainJson, err := json.Marshal(msg)
 		//ioutil.WriteFile(path.Join(client.config.Home, "plain.json"), plainJson, 0400)
 
+		if client.mode == RegroupMode {
+			isNewCommitee := false
+			for _, peer := range common.TssCfg.ExpectedNewPeers {
+				id := p2p.GetClientIdFromExpecetdPeers(peer)
+				if id == common.TssCfg.Id {
+					isNewCommitee = true
+					break
+				}
+			}
+			if !isNewCommitee {
+				continue
+			}
+		}
+
 		logger.Infof("[%s] received save data", client.config.Moniker)
 		address, err := getAddress(ecdsa.PublicKey{tss.EC(), msg.ECDSAPub.X(), msg.ECDSAPub.Y()})
 		if err != nil {

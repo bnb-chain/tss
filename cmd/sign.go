@@ -14,7 +14,7 @@ func init() {
 var signCmd = &cobra.Command{
 	Use:   "sign",
 	Short: "sign a transaction",
-	Long:  "sign a transcation using local share, signers will be prompted to fill in",
+	Long:  "sign a transaction using local share, signers will be prompted to fill in",
 	PreRun: func(cmd *cobra.Command, args []string) {
 		common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home"))
 		initLogLevel(common.TssCfg)

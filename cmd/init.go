@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/spf13/cobra"
@@ -48,7 +49,7 @@ func makeHomeDir(home string) {
 	if _, err := os.Stat(home); err == nil {
 		// home already exists
 		reader := bufio.NewReader(os.Stdin)
-		answer, err := GetString("Home already exist, do you like override it[y/n]: ", reader)
+		answer, err := GetString("Home already exist, do you like override it[y/N]: ", reader)
 		if err != nil {
 			panic(err)
 		}
@@ -78,6 +79,9 @@ func setMoniker() {
 	moniker, err := GetString("please set moniker of this party: ", reader)
 	if err != nil {
 		panic(err)
+	}
+	if strings.Contains(moniker, "@") {
+		panic(fmt.Errorf("moniker should not contains @ sign"))
 	}
 	common.TssCfg.Moniker = moniker
 }

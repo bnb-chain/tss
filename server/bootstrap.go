@@ -2,19 +2,21 @@ package server
 
 import (
 	"context"
-	"github.com/binance-chain/tss/common"
-	"github.com/binance-chain/tss/p2p"
+	"io/ioutil"
+	"os"
+	"path"
+
 	"github.com/ipfs/go-ds-leveldb"
 	"github.com/ipfs/go-log"
 	"github.com/libp2p/go-libp2p"
 	relay "github.com/libp2p/go-libp2p-circuit"
-	crypto "github.com/libp2p/go-libp2p-crypto"
+	"github.com/libp2p/go-libp2p-core/crypto"
 	libp2pdht "github.com/libp2p/go-libp2p-kad-dht"
 	opts "github.com/libp2p/go-libp2p-kad-dht/opts"
 	"github.com/multiformats/go-multiaddr"
-	"io/ioutil"
-	"os"
-	"path"
+
+	"github.com/binance-chain/tss/common"
+	"github.com/binance-chain/tss/p2p"
 )
 
 var logger = log.Logger("srv")

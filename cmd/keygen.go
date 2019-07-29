@@ -30,7 +30,8 @@ var keygenCmd = &cobra.Command{
 		initLogLevel(common.TssCfg)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		setN()
+		checkBootstrap(cmd, args)
+		checkN()
 		setT()
 		setPeers()
 		setPassphrase()
@@ -41,20 +42,22 @@ var keygenCmd = &cobra.Command{
 	},
 }
 
-func setN() {
-	if common.TssCfg.Parties > 0 {
-		return
-	}
-
+func checkBootstrap(cmd *cobra.Command, args []string) {
 	reader := bufio.NewReader(os.Stdin)
-	n, err := GetInt("please set total parties(n): ", reader)
+	answer, err := GetString("Do you like re-bootstrap again?[y/N]: ", reader)
 	if err != nil {
 		panic(err)
 	}
-	if n <= 1 {
-		panic(fmt.Errorf("n should greater than 1"))
+	if answer == "y" || answer == "Y" || answer == "Yes" || answer == "YES" {
+		bootstrap.Run(cmd, args)
+		common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home"))
 	}
-	common.TssCfg.Parties = n
+}
+
+func checkN() {
+	if common.TssCfg.Parties > 0 && len(common.TssCfg.ExpectedPeers) != common.TssCfg.Parties-1 {
+		panic("peers are not correctly set during bootstrap")
+	}
 }
 
 func setT() {

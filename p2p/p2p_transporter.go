@@ -26,7 +26,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/protocol"
 	libp2pdht "github.com/libp2p/go-libp2p-kad-dht"
 	opts "github.com/libp2p/go-libp2p-kad-dht/opts"
-	pstore "github.com/libp2p/go-libp2p-peerstore"
 	"github.com/libp2p/go-libp2p-peerstore/pstoremem"
 	swarm "github.com/libp2p/go-libp2p-swarm"
 	"github.com/multiformats/go-multiaddr"
@@ -510,7 +509,7 @@ func (t *p2pTransporter) setupDHTClient() *libp2pdht.IpfsDHT {
 
 	// Connect to bootstrap peers
 	for _, bootstrapAddr := range t.bootstrapPeers {
-		bootstrapPeerInfo, err := pstore.InfoFromP2pAddr(bootstrapAddr)
+		bootstrapPeerInfo, err := peer.AddrInfoFromP2pAddr(bootstrapAddr)
 		if err != nil {
 			panic(err)
 		}

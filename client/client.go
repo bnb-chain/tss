@@ -202,7 +202,7 @@ func NewTssClient(config common.TssConfig, mode ClientMode, mock bool) *TssClien
 		c.localParty = localParty
 		logger.Infof("[%s] initialized localParty: %s", config.Moniker, localParty)
 	} else if mode == SignMode {
-		key := LoadSavedKey(config, sortedIds, signers)
+		key := loadSavedKeyForSign(config, sortedIds, signers)
 		pubKey := btcec.PublicKey(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()})
 		logger.Infof("[%s] public key: %X\n", config.Moniker, pubKey.SerializeCompressed())
 		address, _ := getAddress(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()})
@@ -224,7 +224,7 @@ func NewTssClient(config common.TssConfig, mode ClientMode, mock bool) *TssClien
 		c.regroupParams = params
 
 		if _, ok := signers[common.TssCfg.Moniker]; ok {
-			key := LoadSavedKey(config, sortedIds, signers)
+			key := loadSavedKeyForRegroup(config, sortedIds, signers)
 			c.key = &key
 			localParty = regroup.NewLocalParty(params, key, sendCh, saveCh)
 		} else {
@@ -249,8 +249,22 @@ func NewTssClient(config common.TssConfig, mode ClientMode, mock bool) *TssClien
 			config.PeerAddrs = signingExpectedAddrs
 		}
 		if mode == RegroupMode {
-			config.ExpectedPeers = append(signingExpectedPeers, config.ExpectedNewPeers...)
-			config.PeerAddrs = append(signingExpectedAddrs, config.NewPeerAddrs...)
+			config.ExpectedPeers = signingExpectedPeers
+			config.PeerAddrs = signingExpectedAddrs
+
+			for i, newPeer := range config.ExpectedNewPeers {
+				exist := false
+				for _, existPeer := range config.ExpectedPeers {
+					if newPeer == existPeer {
+						exist = true
+						break
+					}
+				}
+				if !exist {
+					config.ExpectedPeers = append(config.ExpectedPeers, config.ExpectedNewPeers[i])
+					config.PeerAddrs = append(config.PeerAddrs, config.NewPeerAddrs[i])
+				}
+			}
 		}
 		// will block until peers are connected
 		c.transporter = p2p.NewP2PTransporter(config.Home, config.Id.String(), nil, &config.P2PConfig)
@@ -376,28 +390,8 @@ func (client *TssClient) saveSignatureRoutine(signCh <-chan signing.LocalPartySi
 	}
 }
 
-func LoadSavedKey(config common.TssConfig, sortedIds tss.SortedPartyIDs, signers map[string]int) keygen.LocalPartySaveData {
-	wPriv, err := os.OpenFile(path.Join(config.Home, "sk.json"), os.O_RDONLY, 0400)
-	if err != nil {
-		panic(err)
-	}
-	defer wPriv.Close()
-	wPub, err := os.OpenFile(path.Join(config.Home, "pk.json"), os.O_RDONLY, 0400)
-	if err != nil {
-		panic(err)
-	}
-	defer wPub.Close()
-	var passphrase string
-	if config.Password != "" {
-		passphrase = config.Password
-	} else {
-		if p, err := speakeasy.Ask("please input password to secure secret key:"); err == nil {
-			passphrase = p
-		} else {
-			panic(err)
-		}
-	}
-	result, _ := Load(passphrase, wPriv, wPub) // TODO: validate nodeKey
+func loadSavedKeyForSign(config common.TssConfig, sortedIds tss.SortedPartyIDs, signers map[string]int) keygen.LocalPartySaveData {
+	result := loadSavedKey(config)
 	filteredBigXj := make([]*crypto.ECPoint, 0)
 	filteredPaillierPks := make([]*paillier.PublicKey, 0)
 	filteredNTildej := make([]*big.Int, 0)
@@ -428,6 +422,49 @@ func LoadSavedKey(config common.TssConfig, sortedIds tss.SortedPartyIDs, signers
 	}
 
 	return filteredResult
+}
+
+func loadSavedKeyForRegroup(config common.TssConfig, sortedIds tss.SortedPartyIDs, signers map[string]int) keygen.LocalPartySaveData {
+	result := loadSavedKeyForSign(config, sortedIds, signers)
+
+	if config.IsNewCommittee {
+		// TODO: negociate with Luke to see how to fill non-loaded keys here
+		for i := len(signers); i < config.NewParties; i++ {
+			result.BigXj = append(result.BigXj, result.BigXj[len(signers)-1])
+			result.PaillierPks = append(result.PaillierPks, result.PaillierPks[len(signers)-1])
+			result.NTildej = append(result.NTildej, result.NTildej[len(signers)-1])
+			result.H1j = append(result.H1j, result.H1j[len(signers)-1])
+			result.H2j = append(result.H2j, result.H2j[len(signers)-1])
+			result.Ks = append(result.Ks, result.Ks[len(signers)-1])
+		}
+	}
+	return result
+}
+
+func loadSavedKey(config common.TssConfig) keygen.LocalPartySaveData {
+	wPriv, err := os.OpenFile(path.Join(config.Home, "sk.json"), os.O_RDONLY, 0400)
+	if err != nil {
+		panic(err)
+	}
+	defer wPriv.Close()
+	wPub, err := os.OpenFile(path.Join(config.Home, "pk.json"), os.O_RDONLY, 0400)
+	if err != nil {
+		panic(err)
+	}
+	defer wPub.Close()
+	var passphrase string
+	if config.Password != "" {
+		passphrase = config.Password
+	} else {
+		if p, err := speakeasy.Ask("please input password to secure secret key:"); err == nil {
+			passphrase = p
+		} else {
+			panic(err)
+		}
+	}
+
+	result, _ := Load(passphrase, wPriv, wPub) // TODO: validate nodeKey
+	return *result
 }
 
 func getAddress(key ecdsa.PublicKey) (string, error) {

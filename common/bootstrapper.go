@@ -41,6 +41,8 @@ func (b *Bootstrapper) HandleBootstrapMsg(peerMsg BootstrapMessage) error {
 				Id:         id,
 				Moniker:    moniker,
 				RemoteAddr: peerMsg.Addr,
+				IsOld:      peerMsg.IsOld,
+				IsNew:      peerMsg.IsNew,
 			}
 			b.Peers.Store(id, pi)
 		}
@@ -70,7 +72,7 @@ func (b *Bootstrapper) IsFinished() bool {
 			}
 			return true
 		})
-		return numOfOld == b.Cfg.Threshold && numOfNew == b.Cfg.NewParties
+		return numOfOld >= b.Cfg.Threshold && numOfNew+1 >= b.Cfg.NewParties
 	default:
 		return false
 	}

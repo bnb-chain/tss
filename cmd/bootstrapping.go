@@ -22,13 +22,14 @@ import (
 
 func init() {
 	rootCmd.AddCommand(bootstrap)
-	bootstrap.AddCommand(channel)
+	rootCmd.AddCommand(channel)
 }
 
 var bootstrap = &cobra.Command{
-	Use:   "bootstrap",
-	Short: "bootstrapping for network configuration",
-	Long:  "bootstrapping for network configuration. Will try connect to configured address and get peer's id and moniker",
+	Use:    "bootstrap",
+	Short:  "bootstrapping for network configuration",
+	Long:   "bootstrapping for network configuration. Will try connect to configured address and get peer's id and moniker",
+	Hidden: true,
 	PreRun: func(cmd *cobra.Command, args []string) {
 		home := viper.GetString("home")
 		common.ReadConfigFromHome(viper.GetViper(), home)
@@ -119,8 +120,9 @@ var bootstrap = &cobra.Command{
 }
 
 var channel = &cobra.Command{
-	Use:   "channel",
-	Short: "generate a channel id for bootstrapping",
+	Use:              "channel",
+	Short:            "generate a channel id for bootstrapping",
+	TraverseChildren: false,
 	Run: func(cmd *cobra.Command, args []string) {
 		channelId, err := rand.Int(rand.Reader, big.NewInt(999))
 		if err != nil {

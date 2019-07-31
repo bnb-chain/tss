@@ -12,9 +12,10 @@ func init() {
 }
 
 var serverCmd = &cobra.Command{
-	Use:   "server",
-	Short: "bootstrap and relay server helps node (dynamic ip) discovery and NAT traversal",
-	Long:  "bootstrap and relay server helps node (dynamic ip) discovery and NAT traversal",
+	Use:    "server",
+	Short:  "bootstrap and relay server helps node (dynamic ip) discovery and NAT traversal",
+	Long:   "bootstrap and relay server helps node (dynamic ip) discovery and NAT traversal",
+	Hidden: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		server.NewTssBootstrapServer(common.TssCfg.Home, common.TssCfg.P2PConfig)
 		select {}

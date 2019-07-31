@@ -305,7 +305,11 @@ func (t *p2pTransporter) handleSigner(stream network.Stream) {
 	logger.Infof("Connected to: %s(%s)", pid, stream.Protocol())
 
 	encoder := gob.NewEncoder(stream)
-	if msg, err := common.NewBootstrapMessage(t.bootstrapper.ChannelId, t.bootstrapper.ChannelPassword, common.TssCfg.Moniker, common.TssCfg.Id, t.cfg.ListenAddr, common.TssCfg.IsOldCommittee, common.TssCfg.IsNewCommittee); err == nil {
+	// TODO: figure out why sometimes the localaddr is 0.0.0.0
+	localAddr := stream.Conn().LocalMultiaddr().String()
+	logger.Infof("local addr in message: %s", localAddr)
+	localAddr = strings.Replace(localAddr, "0.0.0.0", "127.0.0.1", 1)
+	if msg, err := common.NewBootstrapMessage(t.bootstrapper.ChannelId, t.bootstrapper.ChannelPassword, common.TssCfg.Moniker, common.TssCfg.Id, localAddr, common.TssCfg.IsOldCommittee, common.TssCfg.IsNewCommittee); err == nil {
 		encoder.Encode(msg)
 	} else {
 		logger.Errorf("failed to encrypt bootstrap message: %v", err)
@@ -314,7 +318,9 @@ func (t *p2pTransporter) handleSigner(stream network.Stream) {
 	decoder := gob.NewDecoder(stream)
 	var peerMsg common.BootstrapMessage
 	decoder.Decode(&peerMsg)
-	t.bootstrapper.HandleBootstrapMsg(peerMsg)
+	if err := t.bootstrapper.HandleBootstrapMsg(peerMsg); err != nil {
+		logger.Errorf("%v", err)
+	}
 }
 
 func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
@@ -390,11 +396,11 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 				}
 			}
 		} else {
-			logger.Error("failed to decode message: ", err)
 			switch err {
 			case yamux.ErrConnectionReset:
 				break // connManager would handle the reconnection
 			default:
+				logger.Error("failed to decode message: ", err)
 			}
 			time.Sleep(100 * time.Millisecond)
 		}

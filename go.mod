@@ -4,7 +4,7 @@ go 1.12
 
 require (
 	github.com/bgentry/speakeasy v0.1.0
-	github.com/binance-chain/tss-lib v0.0.0-20190731061849-39ca39f62646
+	github.com/binance-chain/tss-lib v0.0.0-20190731102442-4c34dc04a97e
 	github.com/btcsuite/btcd v0.0.0-20190629003639-c26ffa870fd8
 	github.com/btcsuite/btcutil v0.0.0-20190425235716-9e5f4b9a998d
 	github.com/divan/num2words v0.0.0-20170904212200-57dba452f942

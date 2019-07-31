@@ -46,41 +46,44 @@ func initConfigAndLogLevel() {
 }
 
 func bindP2pConfigs() {
-	rootCmd.PersistentFlags().String("p2p.listen", "", "Adds a multiaddress to the listen list")
-	rootCmd.PersistentFlags().String("p2p.log_level", "info", "log level")
-	rootCmd.PersistentFlags().StringSlice("p2p.bootstraps", []string{}, "bootstrap server list in multiaddr format, i.e. /ip4/127.0.0.1/tcp/27148/p2p/12D3KooWMXTGW6uHbVs7QiHEYtzVa4RunbugxRcJhGU43qAvfAa1")
-	rootCmd.PersistentFlags().StringSlice("p2p.relays", []string{}, "relay server list")
-	rootCmd.PersistentFlags().StringSlice("p2p.peer_addrs", []string{}, "peer's multiple addresses")
-	rootCmd.PersistentFlags().StringSlice("p2p.peers", []string{}, "peers in this threshold scheme")
-	rootCmd.PersistentFlags().Bool("p2p.default_bootstrap", false, "whether to use default bootstrap")
-	rootCmd.PersistentFlags().Bool("p2p.broadcast_sanity_check", true, "whether verify broadcast message's hash with peers")
+	initCmd.PersistentFlags().String("p2p.listen", "", "Adds a multiaddress to the listen list")
+	//rootCmd.PersistentFlags().String("p2p.log_level", "info", "log level")
+	//rootCmd.PersistentFlags().StringSlice("p2p.bootstraps", []string{}, "bootstrap server list in multiaddr format, i.e. /ip4/127.0.0.1/tcp/27148/p2p/12D3KooWMXTGW6uHbVs7QiHEYtzVa4RunbugxRcJhGU43qAvfAa1")
+	//rootCmd.PersistentFlags().StringSlice("p2p.relays", []string{}, "relay server list")
+	//rootCmd.PersistentFlags().StringSlice("p2p.peer_addrs", []string{}, "peer's multiple addresses")
+	//rootCmd.PersistentFlags().StringSlice("p2p.peers", []string{}, "peers in this threshold scheme")
+	//rootCmd.PersistentFlags().Bool("p2p.default_bootstrap", false, "whether to use default bootstrap")
+	//rootCmd.PersistentFlags().Bool("p2p.broadcast_sanity_check", true, "whether verify broadcast message's hash with peers")
 }
 
 // more detail explaination of these parameters can be found:
 // https://github.com/P-H-C/phc-winner-argon2/blob/master/argon2-specs.pdf
 // https://www.alexedwards.net/blog/how-to-hash-and-verify-passwords-with-argon2-in-go
 func bindKdfConfigs() {
-	rootCmd.PersistentFlags().Uint32("kdf.memory", 65536, "The amount of memory used by the algorithm (in kibibytes)")
-	rootCmd.PersistentFlags().Uint32("kdf.iterations", 13, "The number of iterations (or passes) over the memory.")
-	rootCmd.PersistentFlags().Uint8("kdf.parallelism", 4, "The number of threads (or lanes) used by the algorithm.")
-	rootCmd.PersistentFlags().Uint32("kdf.salt_length", 16, "Length of the random salt. 16 bytes is recommended for password hashing.")
-	rootCmd.PersistentFlags().Uint32("kdf.key_length", 48, "Length of the generated key (or password hash). must be 32 bytes or more")
+	//rootCmd.PersistentFlags().Uint32("kdf.memory", 65536, "The amount of memory used by the algorithm (in kibibytes)")
+	//rootCmd.PersistentFlags().Uint32("kdf.iterations", 13, "The number of iterations (or passes) over the memory.")
+	//rootCmd.PersistentFlags().Uint8("kdf.parallelism", 4, "The number of threads (or lanes) used by the algorithm.")
+	//rootCmd.PersistentFlags().Uint32("kdf.salt_length", 16, "Length of the random salt. 16 bytes is recommended for password hashing.")
+	//rootCmd.PersistentFlags().Uint32("kdf.key_length", 48, "Length of the generated key (or password hash). must be 32 bytes or more")
 }
 
 func bindClientConfigs() {
-	rootCmd.PersistentFlags().String("id", "", "id of current node")
-	rootCmd.PersistentFlags().String("moniker", "", "moniker of current node")
-	rootCmd.PersistentFlags().Int("threshold", 0, "threshold of this scheme")
-	rootCmd.PersistentFlags().Int("parties", 0, "total parities of this scheme")
-	rootCmd.PersistentFlags().Int("new_threshold", 0, "new threshold of regrouped scheme")
-	rootCmd.PersistentFlags().Int("new_parties", 0, "new total parties of regrouped scheme")
-	rootCmd.PersistentFlags().String("profile_addr", "", "host:port of go pprof")
-	rootCmd.PersistentFlags().String("password", "", "password, should only be used for testing. If empty, you will be prompted for password to save/load the secret share")
-	rootCmd.PersistentFlags().String("message", "", "message(in *big.Int.String() format) to be signed, only used in sign mode")
+	//rootCmd.PersistentFlags().String("id", "", "id of current node")
+	initCmd.PersistentFlags().String("moniker", "", "moniker of current node")
+	keygenCmd.PersistentFlags().Int("threshold", 0, "threshold of this scheme")
+	regroupCmd.PersistentFlags().Int("threshold", 0, "threshold of this scheme")
+	keygenCmd.PersistentFlags().Int("parties", 0, "total parities of this scheme")
+	regroupCmd.PersistentFlags().Int("parties", 0, "total parities of this scheme")
+	regroupCmd.PersistentFlags().Int("new_threshold", 0, "new threshold of regrouped scheme")
+	regroupCmd.PersistentFlags().Int("new_parties", 0, "new total parties of regrouped scheme")
+	//rootCmd.PersistentFlags().String("profile_addr", "", "host:port of go pprof")
+	signCmd.PersistentFlags().String("password", "", "password, should only be used for testing. If empty, you will be prompted for password to save/load the secret share")
+	regroupCmd.PersistentFlags().String("password", "", "password, should only be used for testing. If empty, you will be prompted for password to save/load the secret share")
+	signCmd.PersistentFlags().String("message", "", "message(in *big.Int.String() format) to be signed, only used in sign mode")
 	rootCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
 	rootCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
 
-	rootCmd.PersistentFlags().Bool("silent", false, "whether to make user interactively input properties, used when properties are set in config file")
+	//rootCmd.PersistentFlags().Bool("silent", false, "whether to make user interactively input properties, used when properties are set in config file")
 }
 
 func initLogLevel(cfg common.TssConfig) {

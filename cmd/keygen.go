@@ -39,11 +39,16 @@ var keygenCmd = &cobra.Command{
 
 func checkBootstrap(cmd *cobra.Command, args []string) {
 	reader := bufio.NewReader(os.Stdin)
-	answer, err := GetBool("Do you like re-bootstrap again?[y/N]: ", false, reader)
-	if err != nil {
-		panic(err)
-	}
-	if answer {
+	if len(common.TssCfg.ExpectedPeers) > 0 {
+		answer, err := GetBool("Do you like re-bootstrap again?[y/N]: ", false, reader)
+		if err != nil {
+			panic(err)
+		}
+		if answer {
+			bootstrap.Run(cmd, args)
+			common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home"))
+		}
+	} else {
 		bootstrap.Run(cmd, args)
 		common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home"))
 	}

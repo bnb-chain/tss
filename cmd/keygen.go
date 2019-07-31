@@ -2,14 +2,10 @@ package cmd
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path"
 
 	"github.com/bgentry/speakeasy"
-	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -33,7 +29,6 @@ var keygenCmd = &cobra.Command{
 		checkBootstrap(cmd, args)
 		checkN()
 		setT()
-		setPeers()
 		setPassphrase()
 		updateConfig()
 
@@ -44,11 +39,11 @@ var keygenCmd = &cobra.Command{
 
 func checkBootstrap(cmd *cobra.Command, args []string) {
 	reader := bufio.NewReader(os.Stdin)
-	answer, err := GetString("Do you like re-bootstrap again?[y/N]: ", reader)
+	answer, err := GetBool("Do you like re-bootstrap again?[y/N]: ", false, reader)
 	if err != nil {
 		panic(err)
 	}
-	if answer == "y" || answer == "Y" || answer == "Yes" || answer == "YES" {
+	if answer {
 		bootstrap.Run(cmd, args)
 		common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home"))
 	}
@@ -79,42 +74,12 @@ func setT() {
 	common.TssCfg.Threshold = t
 }
 
-func setPeers() {
-	if len(common.TssCfg.ExpectedPeers) == common.TssCfg.Parties-1 {
-		return
-	}
-
-	reader := bufio.NewReader(os.Stdin)
-	peers := make([]string, 0, common.TssCfg.Parties-1)
-	peer_addrs := make([]string, 0, common.TssCfg.Parties-1)
-	needPeerAddr := len(common.TssCfg.BootstrapPeers) == 0 && !common.TssCfg.DefaultBootstap
-	for i := 1; i < common.TssCfg.Parties; i++ {
-		ithParty := humanize.Ordinal(i)
-		moniker, err := GetString(fmt.Sprintf("please input moniker of the %s party", ithParty), reader)
-		if err != nil {
-			panic(err)
-		}
-		id, err := GetString(fmt.Sprintf("please input id of the %s party", ithParty), reader)
-		peers = append(peers, fmt.Sprintf("%s@%s", moniker, id))
-
-		if needPeerAddr {
-			addr, err := GetString(fmt.Sprintf("please input peer listen address of the %s party (e.g. /ip4/127.0.0.1/tcp/27148)", ithParty), reader)
-			if err != nil {
-				panic(err)
-			}
-			peer_addrs = append(peer_addrs, addr)
-		}
-	}
-	common.TssCfg.ExpectedPeers = peers
-	common.TssCfg.PeerAddrs = peer_addrs
-}
-
 func setPassphrase() {
 	if common.TssCfg.Password != "" {
 		return
 	}
 
-	if p, err := speakeasy.Ask("please input password to secure secret key:"); err == nil {
+	if p, err := speakeasy.Ask("please set password to secure secret key:"); err == nil {
 		if p2, err := speakeasy.Ask("please input again:"); err == nil {
 			if p2 != p {
 				panic(fmt.Errorf("two inputs does not match, please start again"))
@@ -133,15 +98,5 @@ func setPassphrase() {
 func checkComplexityOfPassword(p string) {
 	if len(p) <= 8 {
 		panic(fmt.Errorf("password is too simple, should be longer than 8 characters"))
-	}
-}
-
-func updateConfig() {
-	bytes, err := json.MarshalIndent(&common.TssCfg, "", "    ")
-	if err != nil {
-		panic(err)
-	}
-	if err = ioutil.WriteFile(path.Join(common.TssCfg.Home, "config.json"), bytes, os.FileMode(0600)); err != nil {
-		panic(err)
 	}
 }

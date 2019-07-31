@@ -62,6 +62,6 @@ func (t *memTransporter) ReceiveCh() <-chan tss.Message {
 	return t.receiveCh
 }
 
-func (t *memTransporter) Close() error {
+func (t *memTransporter) Shutdown() error {
 	return nil
 }

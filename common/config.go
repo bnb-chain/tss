@@ -43,10 +43,10 @@ type P2PConfig struct {
 	// client only config
 	BootstrapPeers       addrList `mapstructure:"bootstraps" json:"bootstraps"`
 	RelayPeers           addrList `mapstructure:"relays" json:"relays"`
-	PeerAddrs            []string `mapstructure:"peer_addrs" json:"peer_addrs"`         // used for some peer has known connectable ip:port so that connection to them doesn't require bootstrap and relay nodes. i.e. in a LAN environment, if ip ports are preallocated, BootstrapPeers and RelayPeers can be empty with all parties host port set
-	ExpectedPeers        []string `mapstructure:"peers" json:"peers"`                   // expected peer list, <moniker>@<TssClientId>
-	NewPeerAddrs         []string `mapstructure:"new_peer_addrs" json:"new_peer_addrs"` // same with `PeerAddrs` but for new parties for regroup
-	ExpectedNewPeers     []string `mapstructure:"new_peers" json:"new_peers"`           // expected new peer list used for regroup, <moniker>@<TssClientId>, after regroup success, this field will replace ExpectedPeers
+	PeerAddrs            []string `mapstructure:"peer_addrs" json:"peer_addrs"` // used for some peer has known connectable ip:port so that connection to them doesn't require bootstrap and relay nodes. i.e. in a LAN environment, if ip ports are preallocated, BootstrapPeers and RelayPeers can be empty with all parties host port set
+	ExpectedPeers        []string `mapstructure:"peers" json:"peers"`           // expected peer list, <moniker>@<TssClientId>
+	NewPeerAddrs         []string `mapstructure:"new_peer_addrs" json:"-"`      // same with `PeerAddrs` but for new parties for regroup
+	ExpectedNewPeers     []string `mapstructure:"new_peers" json:"-"`           // expected new peer list used for regroup, <moniker>@<TssClientId>, after regroup success, this field will replace ExpectedPeers
 	DefaultBootstap      bool     `mapstructure:"default_bootstrap", json:"default_bootstrap"`
 	BroadcastSanityCheck bool     `mapstructure:"broadcast_sanity_check" json:"broadcast_sanity_check"`
 }
@@ -81,19 +81,28 @@ type TssConfig struct {
 	P2PConfig `mapstructure:"p2p" json:"p2p"`
 	KDFConfig `mapstructure:"kdf" json:"kdf"`
 
-	Id           TssClientId
-	Moniker      string
+	Id      TssClientId
+	Moniker string
+
 	Threshold    int
 	Parties      int
-	NewThreshold int    `mapstructure:"new_threshold" json:"new_threshold"`
-	NewParties   int    `mapstructure:"new_parties" json:"new_parties"`
-	ProfileAddr  string `mapstructure:"profile_addr" json:"profile_addr"`
-	Password     string
-	Message      string   // string represented big.Int, will refactor later
-	Signers      []string // monikers of signers for signing transaction or regroup, self moniker should be included
-	Silent       bool
+	NewThreshold int `mapstructure:"new_threshold" json:"new_threshold"`
+	NewParties   int `mapstructure:"new_parties" json:"new_parties"`
 
-	Home string
+	ProfileAddr     string   `mapstructure:"profile_addr" json:"profile_addr"`
+	Password        string   `json:"-"`
+	Message         string   `json:"-"` // string represented big.Int, will refactor later
+	Signers         []string `json:"-"` // monikers of signers for signing transaction or regroup, self moniker should be included
+	ChannelId       string   `mapstructure:"channel_id" json:"-"`
+	ChannelPassword string   `mapstructure:"channel_password" json:"-"`
+
+	IsOldCommittee bool          `mapstructure:"is_old" json:"-"`
+	IsNewCommittee bool          `mapstructure:"is_new" json:"-"`
+	UnknownParties int           `json:"-"`
+	BMode          BootstrapMode `json:"-"`
+
+	Silent bool
+	Home   string
 }
 
 func DefaultTssConfig() TssConfig {

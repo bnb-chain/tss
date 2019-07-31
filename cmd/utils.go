@@ -33,6 +33,22 @@ func GetString(prompt string, buf *bufio.Reader) (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
+func GetBool(prompt string, defaultValue bool, buf *bufio.Reader) (bool, error) {
+	answer, err := GetString(prompt, buf)
+	if err != nil {
+		return false, err
+	}
+	if answer == "y" || answer == "Y" || answer == "Yes" || answer == "YES" {
+		return true, nil
+	} else if answer == "n" || answer == "N" || answer == "No" || answer == "NO" {
+		return false, nil
+	} else if strings.TrimSpace(answer) == "" {
+		return defaultValue, nil
+	} else {
+		return false, fmt.Errorf("input does not make sense, please input 'y' or 'n'")
+	}
+}
+
 // inputIsTty returns true iff we have an interactive prompt,
 // where we can disable echo and request to repeat the password.
 // If false, we can optimize for piped input from another command

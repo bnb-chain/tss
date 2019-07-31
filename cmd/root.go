@@ -77,8 +77,9 @@ func bindClientConfigs() {
 	rootCmd.PersistentFlags().String("profile_addr", "", "host:port of go pprof")
 	rootCmd.PersistentFlags().String("password", "", "password, should only be used for testing. If empty, you will be prompted for password to save/load the secret share")
 	rootCmd.PersistentFlags().String("message", "", "message(in *big.Int.String() format) to be signed, only used in sign mode")
-	rootCmd.PersistentFlags().StringSlice("signers", []string{}, "monikers of singers, self moniker should be included (separated by comma)")
-	rootCmd.PersistentFlags().StringSlice("old_monikers", []string{}, "monikers of old parties take part into regroup, self moniker should be included (separated by comma)")
+	rootCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
+	rootCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
+
 	rootCmd.PersistentFlags().Bool("silent", false, "whether to make user interactively input properties, used when properties are set in config file")
 }
 

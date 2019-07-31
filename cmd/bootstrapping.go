@@ -2,23 +2,14 @@ package cmd
 
 import (
 	"bufio"
-	"bytes"
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/binary"
 	"encoding/gob"
-	"encoding/hex"
 	"fmt"
-	"io"
-	"math"
 	"math/big"
 	"net"
 	"os"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/bgentry/speakeasy"
@@ -28,14 +19,6 @@ import (
 
 	"github.com/binance-chain/tss/common"
 )
-
-type bootstrapper struct {
-	channelId     string
-	channelPasswd string
-	peerAddrs     []string
-
-	peers sync.Map // id -> peerInfo
-}
 
 func init() {
 	rootCmd.AddCommand(bootstrap)
@@ -52,18 +35,30 @@ var bootstrap = &cobra.Command{
 		initLogLevel(common.TssCfg)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		channelId := askChannelId()
-		channelPasswd := askChannelPasswd()
+		channelId := setChannelId()
+		setChannelPasswd()
 		setN()
-		peerAddrs := askPeerAddrs()
+		numOfPeers := common.TssCfg.Parties - 1
+		if common.TssCfg.BMode == common.PreRegroupMode {
+			numOfPeers = common.TssCfg.UnknownParties
+		}
+		peerAddrs := askPeerAddrs(numOfPeers)
 
-		bootstrapper := bootstrapper{
-			channelId:     channelId,
-			channelPasswd: channelPasswd,
-			peerAddrs:     peerAddrs,
+		bootstrapper := &common.Bootstrapper{
+			ChannelId:       channelId,
+			ChannelPassword: common.TssCfg.ChannelPassword,
+			PeerAddrs:       peerAddrs,
+			Cfg:             &common.TssCfg,
 		}
 
-		bootstrapMsg, err := NewBootstrapMessage(channelId, channelPasswd, common.TssCfg.Moniker, common.TssCfg.Id, common.TssCfg.ListenAddr)
+		bootstrapMsg, err := common.NewBootstrapMessage(
+			channelId,
+			common.TssCfg.ChannelPassword,
+			common.TssCfg.Moniker,
+			common.TssCfg.Id,
+			common.TssCfg.ListenAddr,
+			false,
+			false)
 		if err != nil {
 			panic(err)
 		}
@@ -83,11 +78,11 @@ var bootstrap = &cobra.Command{
 				conn, err := listener.Accept()
 				if err != nil {
 					fmt.Printf("Some connection error: %s\n", err)
+					return
 				} else {
 					fmt.Printf("%s connected to us!\n", conn.RemoteAddr().String())
+					go handleConnection(conn, bootstrapper, bootstrapMsg)
 				}
-
-				go bootstrapper.handleConnection(conn, bootstrapMsg)
 			}
 		}()
 
@@ -107,15 +102,15 @@ var bootstrap = &cobra.Command{
 						conn, err = net.Dial("tcp", dest)
 					}
 
-					go bootstrapper.handleConnection(conn, bootstrapMsg)
+					go handleConnection(conn, bootstrapper, bootstrapMsg)
 				}(peerAddr)
 			}
 
-			go bootstrapper.checkReceivedPeerInfos(done)
+			checkReceivedPeerInfos(bootstrapper, done)
 		}()
 
 		<-done
-		err = bootstrapper.persistPeerInfos()
+		err = persistPeerInfos(bootstrapper)
 		if err != nil {
 			panic(err)
 		}
@@ -132,34 +127,34 @@ var channel = &cobra.Command{
 			panic(err)
 		}
 		expireTime := time.Now().Add(30 * time.Minute).Unix()
-		fmt.Printf("channel id: %s\n", fmt.Sprintf("%.3d%s", channelId.Int64(), convertTimestampToHex(expireTime)))
+		fmt.Printf("channel id: %s\n", fmt.Sprintf("%.3d%s", channelId.Int64(), common.ConvertTimestampToHex(expireTime)))
 	},
 }
 
-func askChannelId() string {
+func setChannelId() string {
+	if common.TssCfg.ChannelId != "" {
+		return common.TssCfg.ChannelId
+	}
+
 	reader := bufio.NewReader(os.Stdin)
 	channelId, err := GetString("please set channel id of this session", reader)
 	if err != nil {
 		panic(err)
 	}
+	common.TssCfg.ChannelId = channelId
 	return channelId
 }
 
-func askChannelPasswd() string {
+func setChannelPasswd() {
+	if common.TssCfg.ChannelPassword != "" {
+		return
+	}
+
 	if p, err := speakeasy.Ask("please input password to secure secret bootstrap session:"); err == nil {
-		if p2, err := speakeasy.Ask("please input again:"); err == nil {
-			if p2 != p {
-				panic(fmt.Errorf("two inputs does not match, please start again"))
-			} else {
-				return p
-			}
-		} else {
-			panic(err)
-		}
+		common.TssCfg.ChannelPassword = p
 	} else {
 		panic(err)
 	}
-	return ""
 }
 
 func setN() {
@@ -178,13 +173,13 @@ func setN() {
 	common.TssCfg.Parties = n
 }
 
-func askPeerAddrs() []string {
+func askPeerAddrs(n int) []string {
 	reader := bufio.NewReader(os.Stdin)
 	peerAddrs := make([]string, 0, common.TssCfg.Parties-1)
 
-	for i := 1; i < common.TssCfg.Parties; i++ {
+	for i := 1; i <= n; i++ {
 		ithParty := humanize.Ordinal(i)
-		addr, err := GetString(fmt.Sprintf("please input peer listen address of the %s party (e.g. /ip4/127.0.0.1/tcp/27148)", ithParty), reader)
+		addr, err := GetString(fmt.Sprintf("please input peer listen address of the %s (out of %d) party (e.g. /ip4/127.0.0.1/tcp/27148)", ithParty, n), reader)
 		if err != nil {
 			panic(err)
 		}
@@ -193,79 +188,40 @@ func askPeerAddrs() []string {
 	return peerAddrs
 }
 
-func (b *bootstrapper) handleConnection(conn net.Conn, msg *BootstrapMessage) {
+func handleConnection(conn net.Conn, b *common.Bootstrapper, msg *common.BootstrapMessage) {
+	// TODO: support ipv6
+	realIp := strings.SplitN(conn.LocalAddr().String(), ":", 2)
+	msgForConnect := common.BootstrapMessage{
+		ChannelId: msg.ChannelId,
+		PeerInfo:  msg.PeerInfo,
+		Addr:      common.ReplaceIpInAddr(msg.Addr, realIp[0]),
+		IsOld:     msg.IsOld,
+		IsNew:     msg.IsNew,
+	}
 	conn.SetWriteDeadline(time.Now().Add(time.Second))
 	encoder := gob.NewEncoder(conn)
-	if err := encoder.Encode(msg); err != nil {
+	if err := encoder.Encode(msgForConnect); err != nil {
 		panic(err)
 	}
 
 	conn.SetReadDeadline(time.Now().Add(time.Second))
 	decoder := gob.NewDecoder(conn)
-	var peerMsg BootstrapMessage
+	var peerMsg common.BootstrapMessage
 	if err := decoder.Decode(&peerMsg); err != nil {
 		// TODO: handle error
 	} else {
-		if err := b.handleBootstrapMsg(peerMsg); err != nil {
+		if err := b.HandleBootstrapMsg(peerMsg); err != nil {
 			panic(err)
 		}
 	}
 	conn.Close()
 }
 
-type BootstrapMessage struct {
-	ChannelId string // channel id + epoch timestamp in dex
-	PeerInfo  []byte // encrypted moniker+libp2pid
-	Addr      string
-}
-
-type peerInfo struct {
-	id         string
-	moniker    string
-	remoteAddr string
-}
-
-func NewBootstrapMessage(channelId, passphrase, moniker string, id common.TssClientId, addr string) (*BootstrapMessage, error) {
-	pi, err := encrypt(passphrase, channelId, moniker, string(id))
-	if err != nil {
-		return nil, err
-	}
-	return &BootstrapMessage{
-		ChannelId: channelId,
-		PeerInfo:  pi,
-		Addr:      addr,
-	}, nil
-}
-
-func (b *bootstrapper) handleBootstrapMsg(peerMsg BootstrapMessage) error {
-	if moniker, id, err := decrypt(peerMsg.PeerInfo, b.channelId, b.channelPasswd); err != nil {
-		return err
-	} else {
-		if info, ok := b.peers.Load(id); info != nil && ok {
-			if moniker != info.(peerInfo).moniker {
-				return fmt.Errorf("received different moniker for id: %s", id)
-			}
-		} else {
-			pi := peerInfo{
-				id:         id,
-				moniker:    moniker,
-				remoteAddr: peerMsg.Addr,
-			}
-			b.peers.Store(id, pi)
-		}
-	}
-	return nil
-}
-
-func (b *bootstrapper) checkReceivedPeerInfos(done chan<- bool) {
+func checkReceivedPeerInfos(bootstrapper *common.Bootstrapper, done chan<- bool) {
 	for {
-		received := 0
-		b.peers.Range(func(_, _ interface{}) bool {
-			received++
-			return true
-		})
-		if received == len(b.peerAddrs) {
+		if bootstrapper.IsFinished() {
 			done <- true
+			close(done)
 			break
 		} else {
 			time.Sleep(time.Second)
@@ -273,14 +229,14 @@ func (b *bootstrapper) checkReceivedPeerInfos(done chan<- bool) {
 	}
 }
 
-func (b bootstrapper) persistPeerInfos() error {
+func persistPeerInfos(bootstrapper *common.Bootstrapper) error {
 	peerAddrs := make([]string, 0)
 	expectedPeers := make([]string, 0)
 	var err error
-	b.peers.Range(func(id, value interface{}) bool {
-		if pi, ok := value.(peerInfo); ok {
-			peerAddrs = append(peerAddrs, pi.remoteAddr)
-			expectedPeers = append(expectedPeers, fmt.Sprintf("%s@%s", pi.moniker, pi.id))
+	bootstrapper.Peers.Range(func(id, value interface{}) bool {
+		if pi, ok := value.(common.PeerInfo); ok {
+			peerAddrs = append(peerAddrs, pi.RemoteAddr)
+			expectedPeers = append(expectedPeers, fmt.Sprintf("%s@%s", pi.Moniker, pi.Id))
 			return true
 		} else {
 			err = fmt.Errorf("failed to parse peerInfo from received messages")
@@ -295,108 +251,6 @@ func (b bootstrapper) persistPeerInfos() error {
 	common.TssCfg.PeerAddrs = peerAddrs
 	common.TssCfg.ExpectedPeers = expectedPeers
 	return nil
-}
-
-// conversion between hex and int32 epoch seconds
-// refer: https://www.epochconverter.com/hex
-func convertTimestampToHex(timestamp int64) string {
-	buf := bytes.Buffer{}
-	if err := binary.Write(&buf, binary.BigEndian, int32(timestamp)); err != nil {
-		return ""
-	}
-	return fmt.Sprintf("%X", buf.Bytes())
-}
-
-// conversion between hex and int32 epoch seconds
-// refer: https://www.epochconverter.com/hex
-func convertHexToTimestamp(hexTimestamp string) int {
-	dst := make([]byte, 8)
-	hex.Decode(dst, []byte(hexTimestamp))
-	var epochSeconds int32
-	if err := binary.Read(bytes.NewReader(dst), binary.BigEndian, &epochSeconds); err != nil {
-		return math.MaxInt64
-	}
-	return int(epochSeconds)
-}
-
-func encrypt(passphrase, channelId, moniker, id string) ([]byte, error) {
-	text := []byte(fmt.Sprintf("%s@%s@%s", channelId, moniker, id))
-	key := sha256.Sum256([]byte(passphrase))
-
-	// generate a new aes cipher using our 32 byte long key
-	c, err := aes.NewCipher(key[:])
-	// if there are any errors, handle them
-	if err != nil {
-		return nil, err
-	}
-
-	// gcm or Galois/Counter Mode, is a mode of operation
-	// for symmetric key cryptographic block ciphers
-	// - https://en.wikipedia.org/wiki/Galois/Counter_Mode
-	gcm, err := cipher.NewGCM(c)
-	// if any error generating new GCM
-	// handle them
-	if err != nil {
-		return nil, err
-	}
-
-	// creates a new byte array the size of the nonce
-	// which must be passed to Seal
-	nonce := make([]byte, gcm.NonceSize())
-	// populates our nonce with a cryptographically secure
-	// random sequence
-	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, err
-	}
-
-	// here we encrypt our text using the Seal function
-	// Seal encrypts and authenticates plaintext, authenticates the
-	// additional data and appends the result to dst, returning the updated
-	// slice. The nonce must be NonceSize() bytes long and unique for all
-	// time, for a given key.
-	return gcm.Seal(nonce, nonce, text, nil), nil
-}
-
-func decrypt(ciphertext []byte, channelId, passphrase string) (moniker, id string, error error) {
-	key := sha256.Sum256([]byte(passphrase))
-	c, err := aes.NewCipher(key[:])
-	if err != nil {
-		error = err
-		return
-	}
-
-	gcm, err := cipher.NewGCM(c)
-	if err != nil {
-		error = err
-		return
-	}
-
-	nonceSize := gcm.NonceSize()
-	if len(ciphertext) < nonceSize {
-		error = fmt.Errorf("ciphertext is not as long as expected")
-	}
-
-	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
-	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
-	if err != nil {
-		error = err
-		return
-	}
-
-	res := strings.SplitN(string(plaintext), "@", 3)
-	if len(res) != 3 {
-		error = fmt.Errorf("wrong format of decrypted plaintext")
-		return
-	}
-	if res[0] != channelId {
-		error = fmt.Errorf("wrong channel id of message")
-	}
-	epochSeconds := convertHexToTimestamp(channelId[3:])
-	if time.Now().Unix() > int64(epochSeconds) {
-		error = fmt.Errorf("password has been expired")
-		return
-	}
-	return res[1], res[2], nil
 }
 
 func convertMultiAddrStrToNormalAddr(listenAddr string) (string, error) {

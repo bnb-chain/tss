@@ -6,7 +6,6 @@ import (
 	"os"
 	"path"
 
-	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -27,26 +26,62 @@ var regroupCmd = &cobra.Command{
 		initLogLevel(common.TssCfg)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		var isNewParty bool
+		var mustBeNewParty bool
 		if _, err := os.Stat(path.Join(common.TssCfg.Home, "sk.json")); os.IsNotExist(err) {
-			isNewParty = true
+			mustBeNewParty = true
 		}
-		if isNewParty {
+
+		if !mustBeNewParty {
+			askPassphrase()
+			setIsOld()
+			setIsNew()
+		} else {
+			common.TssCfg.IsOldCommittee = false
+			common.TssCfg.IsNewCommittee = true
+			setPassphrase()
 			setOldN()
 			setOldT()
 		}
 		setNewN()
 		setNewT()
-		setOldParties(isNewParty)
-		setNewParties()
-		if isNewParty {
-			setPassphrase()
+		setUnknownParties()
+		if common.TssCfg.UnknownParties > 0 {
+			common.TssCfg.BMode = common.PreRegroupMode
+			bootstrap.Run(cmd, args)
+			common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home"))
+			common.TssCfg.BMode = common.RegroupMode
+		} else {
+			setChannelId()
+			setChannelPasswd()
 		}
+
 		updateConfig()
 
 		c := client.NewTssClient(common.TssCfg, client.RegroupMode, false)
 		c.Start()
 	},
+}
+
+func setIsOld() {
+	reader := bufio.NewReader(os.Stdin)
+	answer, err := GetBool("Participant as an old committee?[Y/n]:", true, reader)
+	if err != nil {
+		panic(err)
+	}
+	if answer {
+		common.TssCfg.IsOldCommittee = true
+	}
+}
+
+func setIsNew() {
+	reader := bufio.NewReader(os.Stdin)
+	answer, err := GetBool("Participant as a new committee?[Y/n]:", true, reader)
+	if err != nil {
+		panic(err)
+	}
+	if answer {
+		common.TssCfg.IsNewCommittee = true
+	}
 }
 
 func setOldN() {
@@ -119,105 +154,11 @@ func setNewT() {
 	common.TssCfg.NewThreshold = t
 }
 
-func setOldParties(isNewParty bool) {
+func setUnknownParties() {
 	reader := bufio.NewReader(os.Stdin)
-	if len(common.TssCfg.Signers) >= common.TssCfg.Threshold+1 {
-		if common.TssCfg.Silent {
-			return
-		}
-
-		answer, err := GetString("Old monikers are already set, would you like to override them[y/N]: ", reader)
-		if err != nil {
-			panic(err)
-		}
-		if answer == "y" || answer == "Y" || answer == "Yes" || answer == "YES" {
-			common.TssCfg.Signers = common.TssCfg.Signers[:0]
-		} else {
-			return
-		}
+	n, err := GetInt("how many peers are unknown before:", reader)
+	if err != nil {
+		panic(err)
 	}
-
-	oldMonikers := make([]string, 0, common.TssCfg.Threshold+1)
-	if isNewParty {
-		peers := make([]string, 0, common.TssCfg.Parties-1)
-		peer_addrs := make([]string, 0, common.TssCfg.Parties-1)
-		needPeerAddr := len(common.TssCfg.BootstrapPeers) == 0 && !common.TssCfg.DefaultBootstap
-
-		for i := 1; i <= common.TssCfg.Threshold+1; i++ {
-			ithParty := humanize.Ordinal(i)
-			moniker, err := GetString(fmt.Sprintf("please input moniker of the %s old party", ithParty), reader)
-			if err != nil {
-				panic(err)
-			} else {
-				oldMonikers = append(oldMonikers, moniker)
-			}
-			id, err := GetString(fmt.Sprintf("please input id of the %s old party", ithParty), reader)
-			peers = append(peers, fmt.Sprintf("%s@%s", moniker, id))
-
-			if needPeerAddr {
-				addr, err := GetString(fmt.Sprintf("please input peer listen address of the %s old party (e.g. /ip4/127.0.0.1/tcp/27148)", ithParty), reader)
-				if err != nil {
-					panic(err)
-				}
-				peer_addrs = append(peer_addrs, addr)
-			}
-		}
-		common.TssCfg.ExpectedPeers = peers
-		common.TssCfg.PeerAddrs = peer_addrs
-	} else {
-		oldMonikers = append(oldMonikers, common.TssCfg.Moniker)
-		for i := 1; i <= common.TssCfg.Threshold; i++ {
-			ithParty := humanize.Ordinal(i)
-			moniker, err := GetString(fmt.Sprintf("please input moniker of the %s old party", ithParty), reader)
-			if err != nil {
-				panic(err)
-			} else {
-				oldMonikers = append(oldMonikers, moniker)
-			}
-		}
-	}
-	common.TssCfg.Signers = oldMonikers
-}
-
-func setNewParties() {
-	reader := bufio.NewReader(os.Stdin)
-	if len(common.TssCfg.ExpectedNewPeers) == common.TssCfg.NewParties {
-		if common.TssCfg.Silent {
-			return
-		}
-
-		answer, err := GetString("New monikers are already set, would you like to override them[y/N]: ", reader)
-		if err != nil {
-			panic(err)
-		}
-		if answer == "y" || answer == "Y" || answer == "Yes" || answer == "YES" {
-			common.TssCfg.ExpectedNewPeers = common.TssCfg.ExpectedNewPeers[:0]
-			common.TssCfg.NewPeerAddrs = common.TssCfg.NewPeerAddrs[:0]
-		} else {
-			return
-		}
-	}
-
-	peers := make([]string, 0, common.TssCfg.NewParties-1)
-	peer_addrs := make([]string, 0, common.TssCfg.NewParties-1)
-	needPeerAddr := len(common.TssCfg.BootstrapPeers) == 0 && !common.TssCfg.DefaultBootstap
-	for i := 1; i <= common.TssCfg.NewParties; i++ {
-		ithParty := humanize.Ordinal(i)
-		moniker, err := GetString(fmt.Sprintf("please input moniker of the %s new party", ithParty), reader)
-		if err != nil {
-			panic(err)
-		}
-		id, err := GetString(fmt.Sprintf("please input id of the %s new party", ithParty), reader)
-		peers = append(peers, fmt.Sprintf("%s@%s", moniker, id))
-
-		if needPeerAddr {
-			addr, err := GetString(fmt.Sprintf("please input peer listen address of the %s new party (e.g. /ip4/127.0.0.1/tcp/27148)", ithParty), reader)
-			if err != nil {
-				panic(err)
-			}
-			peer_addrs = append(peer_addrs, addr)
-		}
-	}
-	common.TssCfg.ExpectedNewPeers = peers
-	common.TssCfg.NewPeerAddrs = peer_addrs
+	common.TssCfg.UnknownParties = n
 }

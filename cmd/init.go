@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -9,7 +10,9 @@ import (
 	"path"
 	"strings"
 
+	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -32,15 +35,24 @@ var initCmd = &cobra.Command{
 		initLogLevel(common.TssCfg)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		setMoniker()
 		setP2pKey()
 		setListenAddr()
-		generateConfigFile()
+		setMoniker()
+		updateConfig()
+
+		addr, err := multiaddr.NewMultiaddr(common.TssCfg.ListenAddr)
+		if err != nil {
+			panic(err)
+		}
+		host, err := libp2p.New(context.Background(), libp2p.ListenAddrs(addr))
+		if err != nil {
+			panic(err)
+		}
 
 		fmt.Printf("Local party has been initialized under: %s\n", common.TssCfg.Home)
-		fmt.Printf("Please share following information to your peers:\n")
+		fmt.Printf("Please share one of following addresses to your peers:\n")
 		fmt.Printf("************************************************************\n")
-		fmt.Printf("moniker: %s\nid: %s\nlisten: %s\n", common.TssCfg.Moniker, common.TssCfg.Id, common.TssCfg.ListenAddr)
+		fmt.Printf("listen: %v\n", host.Addrs())
 		fmt.Printf("************************************************************\n")
 	},
 }
@@ -49,11 +61,11 @@ func makeHomeDir(home string) {
 	if _, err := os.Stat(home); err == nil {
 		// home already exists
 		reader := bufio.NewReader(os.Stdin)
-		answer, err := GetString("Home already exist, do you like override it[y/N]: ", reader)
+		answer, err := GetBool("Home already exist, do you like override it[y/N]: ", false, reader)
 		if err != nil {
 			panic(err)
 		}
-		if answer == "y" || answer == "Y" || answer == "Yes" || answer == "YES" {
+		if answer {
 			if err := os.Remove(path.Join(home, "config.json")); err != nil {
 				panic(err)
 			}
@@ -119,7 +131,7 @@ func setListenAddr() {
 	common.TssCfg.ListenAddr = addr
 }
 
-func generateConfigFile() {
+func updateConfig() {
 	bytes, err := json.MarshalIndent(&common.TssCfg, "", "    ")
 	if err != nil {
 		panic(err)

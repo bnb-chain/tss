@@ -12,5 +12,5 @@ type Transporter interface {
 	Broadcast(msg tss.Message) error
 	Send(msg tss.Message, to TssClientId) error
 	ReceiveCh() <-chan tss.Message // messages have received !consumer of this channel should not taking too long!
-	Close() error
+	Shutdown() error
 }

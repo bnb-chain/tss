@@ -34,3 +34,25 @@ func (m DummyMsg) GetType() string {
 func (m DummyMsg) ValidateBasic() bool {
 	return true
 }
+
+type BootstrapMessage struct {
+	ChannelId string // channel id + epoch timestamp in dex
+	PeerInfo  []byte // encrypted channelId+moniker+libp2pid
+	Addr      string
+	IsOld     bool
+	IsNew     bool
+}
+
+func NewBootstrapMessage(channelId, passphrase, moniker string, id TssClientId, addr string, isOld, isNew bool) (*BootstrapMessage, error) {
+	pi, err := Encrypt(passphrase, channelId, moniker, string(id))
+	if err != nil {
+		return nil, err
+	}
+	return &BootstrapMessage{
+		ChannelId: channelId,
+		PeerInfo:  pi,
+		Addr:      addr,
+		IsOld:     isOld,
+		IsNew:     isNew,
+	}, nil
+}

@@ -35,9 +35,10 @@ import (
 )
 
 const (
-	protocolId       = "/tss/binance/0.0.1"
-	loggerName       = "trans"
-	receiveChBufSize = 500
+	partyProtocolId     = "/tss/party/0.0.1"
+	bootstrapProtocolId = "/tss/bootstrap/0.0.1"
+	loggerName          = "trans"
+	receiveChBufSize    = 500
 )
 
 // P2P implementation of Transporter
@@ -46,15 +47,20 @@ type p2pTransporter struct {
 
 	nodeKey []byte
 	ctx     context.Context
+	cfg     *common.P2PConfig
 
-	pathToRouteTable string
-	expectedPeers    []peer.ID
-	streams          sync.Map // map[peer.ID.Pretty()]network.Stream
-	encoders         sync.Map // map[common.TssClientId]*gob.Encoder
-	numOfStreams     int32    // atomic int of len(streams)
-	bootstrapPeers   []multiaddr.Multiaddr
-	relayPeers       []multiaddr.Multiaddr
-	notifee          network.Notifiee
+	// for bootstrap
+	bootstrapper *common.Bootstrapper
+
+	pathToRouteTable      string
+	expectedPeers         []peer.ID
+	streams               sync.Map // map[peer.ID.Pretty()]network.Stream
+	encoders              sync.Map // map[common.TssClientId]*gob.Encoder
+	numOfStreams          int32    // atomic int of len(streams)
+	numOfBootstrapStreams int32    // atomic int of len(bootstrapStreams)
+	bootstrapPeers        []multiaddr.Multiaddr
+	relayPeers            []multiaddr.Multiaddr
+	notifee               network.Notifiee
 
 	// sanity check related field
 	broadcastSanityCheck bool
@@ -65,6 +71,8 @@ type p2pTransporter struct {
 
 	receiveCh chan tss.Message
 	host      host.Host
+
+	closed chan bool
 }
 
 // encapsulation of messages that need to be broadcasted
@@ -98,10 +106,14 @@ var _ common.Transporter = (*p2pTransporter)(nil)
 
 // Constructor of p2pTransporter
 // Once this is done, the transportation is ready to use
-func NewP2PTransporter(home string, nodeId string, config common.P2PConfig) common.Transporter {
+func NewP2PTransporter(home, nodeId string, bootstrapper *common.Bootstrapper, config *common.P2PConfig) common.Transporter {
 	t := &p2pTransporter{}
 
 	t.ctx = context.Background()
+	t.cfg = config
+	if bootstrapper != nil {
+		t.bootstrapper = bootstrapper
+	}
 	t.pathToRouteTable = path.Join(home, "rt/")
 	ps := pstoremem.NewPeerstore()
 	for idx, expectedPeer := range config.ExpectedPeers {
@@ -179,13 +191,19 @@ func NewP2PTransporter(home string, nodeId string, config common.P2PConfig) comm
 	if err != nil {
 		panic(err)
 	}
-	host.SetStreamHandler(protocolId, t.handleStream)
+	host.SetStreamHandler(partyProtocolId, t.handleStream)
+	host.SetStreamHandler(bootstrapProtocolId, t.handleSigner)
 	t.host = host
+	t.closed = make(chan bool)
 	logger.Info("Host created. We are:", host.ID())
 	logger.Info(host.Addrs())
 
 	dht := t.setupDHTClient()
-	t.initConnection(dht)
+	if bootstrapper != nil {
+		t.initBootstrapConnection(dht)
+	} else {
+		t.initConnection(dht)
+	}
 
 	return t
 }
@@ -243,20 +261,25 @@ func (t p2pTransporter) ReceiveCh() <-chan tss.Message {
 	return t.receiveCh
 }
 
-func (t p2pTransporter) Close() (err error) {
+func (t p2pTransporter) Shutdown() (err error) {
 	logger.Info("Closing p2ptransporter")
 
-	t.streams.Range(func(key, stream interface{}) bool {
-		if stream == nil {
-			return true
-		}
-		if e := stream.(network.Stream).Close(); e != nil {
-			err = e
-			return false
-		}
+	if err := t.host.Close(); err != nil {
+		return err
+	}
+	close(t.closed)
+	return
+}
+
+func (t p2pTransporter) closeStream(key, stream interface{}) bool {
+	if stream == nil {
 		return true
-	})
-	return nil
+	}
+	if e := stream.(network.Stream).Close(); e != nil {
+		logger.Error("err for closing stream: %v", e)
+		return false
+	}
+	return true
 }
 
 // implementation of ConnManager
@@ -275,6 +298,23 @@ func (t *p2pTransporter) handleStream(stream network.Stream) {
 		t.encoders.Store(common.TssClientId(pid), gob.NewEncoder(stream))
 		atomic.AddInt32(&t.numOfStreams, 1)
 	}
+}
+
+func (t *p2pTransporter) handleSigner(stream network.Stream) {
+	pid := stream.Conn().RemotePeer().Pretty()
+	logger.Infof("Connected to: %s(%s)", pid, stream.Protocol())
+
+	encoder := gob.NewEncoder(stream)
+	if msg, err := common.NewBootstrapMessage(t.bootstrapper.ChannelId, t.bootstrapper.ChannelPassword, common.TssCfg.Moniker, common.TssCfg.Id, t.cfg.ListenAddr, common.TssCfg.IsOldCommittee, common.TssCfg.IsNewCommittee); err == nil {
+		encoder.Encode(msg)
+	} else {
+		logger.Errorf("failed to encrypt bootstrap message: %v", err)
+	}
+
+	decoder := gob.NewDecoder(stream)
+	var peerMsg common.BootstrapMessage
+	decoder.Decode(&peerMsg)
+	t.bootstrapper.HandleBootstrapMsg(peerMsg)
 }
 
 func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
@@ -381,6 +421,24 @@ func (t *p2pTransporter) verifiedPeersBroadcastMsgGuarded(key p2pMessageKey, num
 	}
 }
 
+func (t *p2pTransporter) initBootstrapConnection(dht *libp2pdht.IpfsDHT) {
+	for _, pid := range t.expectedPeers {
+		// we only connect parties whose id greater than us
+		if strings.Compare(t.host.ID().String(), pid.String()) >= 0 {
+			continue
+		}
+		go t.connectRoutine(dht, pid, bootstrapProtocolId)
+	}
+
+	for {
+		if t.bootstrapper.IsFinished() {
+			break
+		} else {
+			time.Sleep(time.Second)
+		}
+	}
+}
+
 func (t *p2pTransporter) initConnection(dht *libp2pdht.IpfsDHT) {
 	for _, pid := range t.expectedPeers {
 		if stream, ok := t.streams.Load(pid.Pretty()); ok && stream != nil {
@@ -391,7 +449,7 @@ func (t *p2pTransporter) initConnection(dht *libp2pdht.IpfsDHT) {
 		if strings.Compare(t.host.ID().String(), pid.String()) >= 0 {
 			continue
 		}
-		go t.connectRoutine(dht, pid)
+		go t.connectRoutine(dht, pid, partyProtocolId)
 	}
 
 	for atomic.LoadInt32(&t.numOfStreams) < int32(len(t.expectedPeers)) {
@@ -403,7 +461,7 @@ func (t *p2pTransporter) initConnection(dht *libp2pdht.IpfsDHT) {
 	})
 }
 
-func (t *p2pTransporter) connectRoutine(dht *libp2pdht.IpfsDHT, pid peer.ID) {
+func (t *p2pTransporter) connectRoutine(dht *libp2pdht.IpfsDHT, pid peer.ID, protocolId string) {
 	timeout := time.NewTimer(15 * time.Minute)
 	defer func() {
 		timeout.Stop()
@@ -411,57 +469,67 @@ func (t *p2pTransporter) connectRoutine(dht *libp2pdht.IpfsDHT, pid peer.ID) {
 
 	for {
 		select {
+		case <-t.closed:
+			break
 		case <-timeout.C:
 			break
 		default:
-			for {
-				time.Sleep(1000 * time.Millisecond)
-				if len(t.host.Peerstore().Addrs(pid)) == 0 {
-					_, err := dht.FindPeer(t.ctx, pid)
-					if err == nil {
-						logger.Debug("Found peer:", pid)
-					} else {
-						logger.Warningf("Cannot resolve addr of peer: %s, err: %s", pid, err.Error())
-						continue
-					}
+			time.Sleep(1000 * time.Millisecond)
+			if len(t.host.Peerstore().Addrs(pid)) == 0 {
+				_, err := dht.FindPeer(t.ctx, pid)
+				if err == nil {
+					logger.Debug("Found peer:", pid)
+				} else {
+					logger.Warningf("Cannot resolve addr of peer: %s, err: %s", pid, err.Error())
+					continue
+				}
 
+				if atomic.LoadInt32(&t.numOfStreams) == int32(len(t.expectedPeers)) {
+					// if those peers have connected to us, we give up connect them
+					return
+				}
+				logger.Debug("Connecting to:", pid)
+				stream, err := t.host.NewStream(t.ctx, pid, protocol.ID(protocolId))
+
+				if err != nil {
+					logger.Info("Normal Connection failed:", err)
+					if err := t.tryRelaying(pid, protocolId); err != nil {
+						continue
+					} else {
+						return
+					}
+				} else {
+					switch protocolId {
+					case partyProtocolId:
+						t.handleStream(stream)
+					case bootstrapProtocolId:
+						t.handleSigner(stream)
+					}
+					return
+				}
+			} else {
+				err := t.host.Connect(t.ctx, peer.AddrInfo{pid, t.host.Peerstore().Addrs(pid)})
+				if err != nil {
+					logger.Info("Direct Connection failed, will retry, err:", err)
+					continue
+				} else {
 					if atomic.LoadInt32(&t.numOfStreams) == int32(len(t.expectedPeers)) {
 						// if those peers have connected to us, we give up connect them
 						return
 					}
-					logger.Debug("Connecting to:", pid)
+
 					stream, err := t.host.NewStream(t.ctx, pid, protocol.ID(protocolId))
-
 					if err != nil {
-						logger.Info("Normal Connection failed:", err)
-						if err := t.tryRelaying(pid); err != nil {
-							continue
-						} else {
-							return
-						}
+						logger.Info("Direct Connection failed, Will give up")
+						panic(err)
 					} else {
-						t.handleStream(stream)
-						return
-					}
-				} else {
-					err := t.host.Connect(t.ctx, peer.AddrInfo{pid, t.host.Peerstore().Addrs(pid)})
-					if err != nil {
-						logger.Info("Direct Connection failed, will retry, err:", err)
-						continue
-					} else {
-						if atomic.LoadInt32(&t.numOfStreams) == int32(len(t.expectedPeers)) {
-							// if those peers have connected to us, we give up connect them
-							return
-						}
-
-						stream, err := t.host.NewStream(t.ctx, pid, protocol.ID(protocolId))
-						if err != nil {
-							logger.Info("Direct Connection failed, Will give up")
-							panic(err)
-						} else {
+						switch protocolId {
+						case partyProtocolId:
 							t.handleStream(stream)
-							return
+						case bootstrapProtocolId:
+							t.handleSigner(stream)
 						}
+						return
 					}
 				}
 			}
@@ -469,7 +537,7 @@ func (t *p2pTransporter) connectRoutine(dht *libp2pdht.IpfsDHT, pid peer.ID) {
 	}
 }
 
-func (t *p2pTransporter) tryRelaying(pid peer.ID) error {
+func (t *p2pTransporter) tryRelaying(pid peer.ID, protocolId string) error {
 	t.host.Network().(*swarm.Swarm).Backoff().Clear(pid)
 	relayaddr, err := multiaddr.NewMultiaddr("/p2p-circuit/p2p/" + pid.Pretty())
 	relayInfo := peer.AddrInfo{
@@ -481,12 +549,17 @@ func (t *p2pTransporter) tryRelaying(pid peer.ID) error {
 		logger.Warning("Relay Connection failed:", err)
 		return err
 	}
-	stream, err := t.host.NewStream(t.ctx, pid, protocolId)
+	stream, err := t.host.NewStream(t.ctx, pid, protocol.ID(protocolId))
 	if err != nil {
 		logger.Warning("Relay Stream failed:", err)
 		return err
 	}
-	t.handleStream(stream)
+	switch protocolId {
+	case partyProtocolId:
+		t.handleStream(stream)
+	case bootstrapProtocolId:
+		t.handleSigner(stream)
+	}
 	return nil
 }
 

@@ -79,14 +79,7 @@ func NewTssClient(config common.TssConfig, mode ClientMode, mock bool) *TssClien
 	partyID := tss.NewPartyID(id, config.Moniker, new(big.Int).SetBytes(key))
 	unsortedPartyIds := make(tss.UnSortedPartyIDs, 0, config.Parties)
 	if mode == RegroupMode {
-		isOld := false
-		for _, moniker := range config.Signers {
-			if moniker == config.Moniker {
-				isOld = true
-				break
-			}
-		}
-		if isOld {
+		if common.TssCfg.IsOldCommittee {
 			unsortedPartyIds = append(unsortedPartyIds, partyID)
 		}
 	} else {
@@ -96,11 +89,47 @@ func NewTssClient(config common.TssConfig, mode ClientMode, mock bool) *TssClien
 
 	signers := make(map[string]int, 0) // used by sign and regroup mode for filtering correct shares from LocalPartySaveData
 	if mode == SignMode || mode == RegroupMode {
+		if mode == SignMode {
+			common.TssCfg.BMode = common.SignMode
+		}
+		if mode == RegroupMode {
+			common.TssCfg.BMode = common.RegroupMode
+		}
+		bootstrapper := &common.Bootstrapper{
+			ChannelId:       config.ChannelId,
+			ChannelPassword: config.ChannelPassword,
+			Cfg:             &common.TssCfg,
+		}
+		t := p2p.NewP2PTransporter(config.Home, config.Id.String(), bootstrapper, &config.P2PConfig)
+		t.Shutdown()
+		bootstrapper.Peers.Range(func(_, value interface{}) bool {
+			if pi, ok := value.(common.PeerInfo); ok {
+				if mode == SignMode || (mode == RegroupMode && pi.IsOld) {
+					config.Signers = append(config.Signers, pi.Moniker)
+				}
+			}
+			return true
+		})
+		if mode == SignMode || (mode == RegroupMode && common.TssCfg.IsOldCommittee) {
+			config.Signers = append(config.Signers, config.Moniker)
+		}
+
 		if len(config.Signers) < config.Threshold+1 {
 			panic(fmt.Errorf("no enough signers (%d) to meet requirement: %d", len(config.Signers), config.Threshold+1))
 		}
-
 		updatePeerOriginalIndexes(config, partyID, signers)
+
+		if mode == RegroupMode {
+			bootstrapper.Peers.Range(func(_, value interface{}) bool {
+				if pi, ok := value.(common.PeerInfo); ok {
+					if pi.IsNew {
+						config.ExpectedNewPeers = append(config.ExpectedNewPeers, fmt.Sprintf("%s@%s", pi.Moniker, pi.Id))
+						config.NewPeerAddrs = append(config.NewPeerAddrs, pi.RemoteAddr)
+					}
+				}
+				return true
+			})
+		}
 	}
 
 	signingExpectedPeers := make([]string, 0, config.Parties) // used to override peers
@@ -136,10 +165,10 @@ func NewTssClient(config common.TssConfig, mode ClientMode, mock bool) *TssClien
 							id,
 							moniker,
 							new(big.Int).SetBytes(key)))
-				} else {
-					// make sure the index in this party id is updated
-					unsortedNewPartyIds = append(unsortedNewPartyIds, partyID)
 				}
+			}
+			if config.IsNewCommittee {
+				unsortedNewPartyIds = append(unsortedNewPartyIds, partyID)
 			}
 		}
 	} else {
@@ -184,7 +213,14 @@ func NewTssClient(config common.TssConfig, mode ClientMode, mock bool) *TssClien
 	} else if mode == RegroupMode {
 		sortedNewIds := tss.SortPartyIDs(unsortedNewPartyIds)
 		newP2pCtx := tss.NewPeerContext(sortedNewIds)
-		params := tss.NewReGroupParameters(p2pCtx, newP2pCtx, partyID, config.Parties, config.Threshold, config.NewParties, config.NewThreshold)
+		params := tss.NewReGroupParameters(
+			p2pCtx,
+			newP2pCtx,
+			partyID,
+			config.Parties,
+			config.Threshold,
+			config.NewParties,
+			config.NewThreshold)
 		c.regroupParams = params
 
 		if _, ok := signers[common.TssCfg.Moniker]; ok {
@@ -217,7 +253,7 @@ func NewTssClient(config common.TssConfig, mode ClientMode, mock bool) *TssClien
 			config.PeerAddrs = append(signingExpectedAddrs, config.NewPeerAddrs...)
 		}
 		// will block until peers are connected
-		c.transporter = p2p.NewP2PTransporter(config.Home, config.Id.String(), config.P2PConfig)
+		c.transporter = p2p.NewP2PTransporter(config.Home, config.Id.String(), nil, &config.P2PConfig)
 	}
 
 	return &c

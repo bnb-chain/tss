@@ -22,12 +22,14 @@ require (
 	github.com/libp2p/go-libp2p-kad-dht v0.1.1
 	github.com/libp2p/go-libp2p-peerstore v0.1.1
 	github.com/libp2p/go-libp2p-swarm v0.1.1
+	github.com/libp2p/go-yamux v1.2.3
 	github.com/magiconair/properties v1.8.1 // indirect
 	github.com/mattn/go-isatty v0.0.8
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/multiformats/go-multiaddr v0.0.4
 	github.com/multiformats/go-multihash v0.0.6 // indirect
 	github.com/pelletier/go-toml v1.4.0 // indirect
+	github.com/phayes/freeport v0.0.0-20180830031419-95f893ade6f2
 	github.com/pkg/errors v0.8.1
 	github.com/smartystreets/goconvey v0.0.0-20190710185942-9d28bd7c0945 // indirect
 	github.com/spf13/afero v1.2.2 // indirect

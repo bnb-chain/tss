@@ -13,6 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/phayes/freeport"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -31,7 +32,9 @@ var initCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		home := viper.GetString("home")
 		makeHomeDir(home)
-		common.ReadConfigFromHome(viper.GetViper(), home)
+		if err := common.ReadConfigFromHome(viper.GetViper(), home); err != nil {
+			panic(err)
+		}
 		initLogLevel(common.TssCfg)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
@@ -120,15 +123,11 @@ func setListenAddr() {
 		return
 	}
 
-	reader := bufio.NewReader(os.Stdin)
-	addr, err := GetString("please set listen multiaddr of this party: (/ip4/0.0.0.0/tcp/27148)", reader)
+	port, err := freeport.GetFreePort()
 	if err != nil {
 		panic(err)
 	}
-	if addr == "" {
-		addr = "/ip4/0.0.0.0/tcp/27148"
-	}
-	common.TssCfg.ListenAddr = addr
+	common.TssCfg.ListenAddr = fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port)
 }
 
 func updateConfig() {

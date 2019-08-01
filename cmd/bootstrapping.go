@@ -2,10 +2,8 @@ package cmd
 
 import (
 	"bufio"
-	"crypto/rand"
 	"encoding/gob"
 	"fmt"
-	"math/big"
 	"net"
 	"os"
 	"regexp"
@@ -22,17 +20,18 @@ import (
 
 func init() {
 	rootCmd.AddCommand(bootstrap)
-	rootCmd.AddCommand(channel)
 }
 
 var bootstrap = &cobra.Command{
 	Use:    "bootstrap",
 	Short:  "bootstrapping for network configuration",
 	Long:   "bootstrapping for network configuration. Will try connect to configured address and get peer's id and moniker",
-	Hidden: true,
+	Hidden: true, // This command would be used as a step of other commands rather than a standalone one
 	PreRun: func(cmd *cobra.Command, args []string) {
 		home := viper.GetString("home")
-		common.ReadConfigFromHome(viper.GetViper(), home)
+		if err := common.ReadConfigFromHome(viper.GetViper(), home); err != nil {
+			panic(err)
+		}
 		initLogLevel(common.TssCfg)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
@@ -68,7 +67,10 @@ var bootstrap = &cobra.Command{
 		if err != nil {
 			panic(err)
 		}
-		listener, _ := net.Listen("tcp", src)
+		listener, err := net.Listen("tcp", src)
+		if err != nil {
+			panic(err)
+		}
 
 		defer listener.Close()
 
@@ -115,21 +117,7 @@ var bootstrap = &cobra.Command{
 		if err != nil {
 			panic(err)
 		}
-		updateConfig()
-	},
-}
-
-var channel = &cobra.Command{
-	Use:              "channel",
-	Short:            "generate a channel id for bootstrapping",
-	TraverseChildren: false,
-	Run: func(cmd *cobra.Command, args []string) {
-		channelId, err := rand.Int(rand.Reader, big.NewInt(999))
-		if err != nil {
-			panic(err)
-		}
-		expireTime := time.Now().Add(30 * time.Minute).Unix()
-		fmt.Printf("channel id: %s\n", fmt.Sprintf("%.3d%s", channelId.Int64(), common.ConvertTimestampToHex(expireTime)))
+		//updateConfig()
 	},
 }
 
@@ -176,8 +164,11 @@ func setN() {
 }
 
 func askPeerAddrs(n int) []string {
+	if len(common.TssCfg.PeerAddrs) == n {
+		return common.TssCfg.PeerAddrs
+	}
 	reader := bufio.NewReader(os.Stdin)
-	peerAddrs := make([]string, 0, common.TssCfg.Parties-1)
+	peerAddrs := make([]string, 0, n)
 
 	for i := 1; i <= n; i++ {
 		ithParty := humanize.Ordinal(i)

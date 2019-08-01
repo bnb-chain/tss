@@ -22,7 +22,9 @@ var keygenCmd = &cobra.Command{
 	Short: "key generation",
 	Long:  "generate secret share of t of n scheme",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home"))
+		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home")); err != nil {
+			panic(err)
+		}
 		initLogLevel(common.TssCfg)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
@@ -50,7 +52,6 @@ func checkBootstrap(cmd *cobra.Command, args []string) {
 		}
 	} else {
 		bootstrap.Run(cmd, args)
-		common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home"))
 	}
 }
 

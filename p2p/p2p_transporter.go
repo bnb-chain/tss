@@ -28,8 +28,8 @@ import (
 	opts "github.com/libp2p/go-libp2p-kad-dht/opts"
 	"github.com/libp2p/go-libp2p-peerstore/pstoremem"
 	swarm "github.com/libp2p/go-libp2p-swarm"
+	"github.com/libp2p/go-yamux"
 	"github.com/multiformats/go-multiaddr"
-	"github.com/whyrusleeping/yamux"
 
 	"github.com/binance-chain/tss/common"
 )
@@ -396,12 +396,23 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 				}
 			}
 		} else {
+			// TODO: figure out why this doesnot work
 			switch err {
 			case yamux.ErrConnectionReset:
 				break // connManager would handle the reconnection
 			default:
 				logger.Error("failed to decode message: ", err)
 			}
+
+			//if yamuxErr, ok := err.(*yamux.YamuxError); ok {
+			//	if yamuxErr.Error() == yamux.ErrConnectionReset.Error() {
+			//		break
+			//	} else {
+			//		logger.Error("failed to decode message: ", err)
+			//	}
+			//} else {
+			//	logger.Error("failed to decode message: ", err)
+			//}
 			time.Sleep(100 * time.Millisecond)
 		}
 	}

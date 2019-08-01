@@ -22,7 +22,9 @@ var regroupCmd = &cobra.Command{
 	Short: "regroup a new set of parties and threshold",
 	Long:  "generate new_n secrete share with new_t threshold. At least old_t + 1 should participant",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home"))
+		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home")); err != nil {
+			panic(err)
+		}
 		initLogLevel(common.TssCfg)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
@@ -48,7 +50,9 @@ var regroupCmd = &cobra.Command{
 		if common.TssCfg.UnknownParties > 0 {
 			common.TssCfg.BMode = common.PreRegroupMode
 			bootstrap.Run(cmd, args)
-			common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home"))
+			if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home")); err != nil {
+				panic(err)
+			}
 			common.TssCfg.BMode = common.RegroupMode
 		} else {
 			setChannelId()

@@ -3,18 +3,35 @@ tss
 
 Cli and transportation wrapper of [tss-lib](https://github.com/binance-chain/tss-lib)
 
-## Setup in real world
+## Play in localhost
 1. init 3 parties
 ```
+go build
 ./tss init --home ~/.test1 --p2p.listen "/ip4/0.0.0.0/tcp/27148" --moniker "test1"
 ./tss init --home ~/.test2 --p2p.listen "/ip4/0.0.0.0/tcp/27149" --moniker "test2"
 ./tss init --home ~/.test3 --p2p.listen "/ip4/0.0.0.0/tcp/27150" --moniker "test3"
 ```
-2. keygen 
+
+2. generate channel id
+replace value of "--channel_id" for following commands with generated one
+```
+./tss channel
 ```
 
+3. keygen 
 ```
-3. sign
+keygen --channel_id "2855D42A535" --channel_password "123456789" --home ~/.test1 --parties 3 --threshold 1 --p2p.peer_addrs "/ip4/127.0.0.1/tcp/27150,/ip4/127.0.0.1/tcp/27149" --password "123456789"
+keygen --channel_id "2855D42A535" --channel_password "123456789" --home ~/.test2 --parties 3 --threshold 1 --p2p.peer_addrs "/ip4/127.0.0.1/tcp/27150,/ip4/127.0.0.1/tcp/27148" --password "123456789"
+keygen --channel_id "2855D42A535" --channel_password "123456789" --home ~/.test3 --parties 3 --threshold 1 --p2p.peer_addrs "/ip4/127.0.0.1/tcp/27148,/ip4/127.0.0.1/tcp/27149" --password "123456789"
+```
+
+4. sign
+```
+sign --home ~/.test1 --password "123456789" --channel_id "2855D42A535" --channel_password "123456789"
+sign --home ~/.test2 --password "123456789" --channel_id "2855D42A535" --channel_password "123456789"
+```
+
+5. regroup
 ```
 
 ```

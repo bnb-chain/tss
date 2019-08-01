@@ -20,7 +20,9 @@ var signCmd = &cobra.Command{
 	Short: "sign a transaction",
 	Long:  "sign a transaction using local share, signers will be prompted to fill in",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home"))
+		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home")); err != nil {
+			panic(err)
+		}
 		initLogLevel(common.TssCfg)
 	},
 	Run: func(cmd *cobra.Command, args []string) {

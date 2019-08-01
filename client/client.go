@@ -425,11 +425,11 @@ func loadSavedKeyForSign(config common.TssConfig, sortedIds tss.SortedPartyIDs, 
 }
 
 func loadSavedKeyForRegroup(config common.TssConfig, sortedIds tss.SortedPartyIDs, signers map[string]int) keygen.LocalPartySaveData {
-	result := loadSavedKeyForSign(config, sortedIds, signers)
+	result := loadSavedKey(config)
 
 	if config.IsNewCommittee {
 		// TODO: negociate with Luke to see how to fill non-loaded keys here
-		for i := len(signers); i < config.NewParties; i++ {
+		for i := config.Parties; i < config.NewParties; i++ {
 			result.BigXj = append(result.BigXj, result.BigXj[len(signers)-1])
 			result.PaillierPks = append(result.PaillierPks, result.PaillierPks[len(signers)-1])
 			result.NTildej = append(result.NTildej, result.NTildej[len(signers)-1])

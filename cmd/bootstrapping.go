@@ -19,10 +19,10 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(bootstrap)
+	rootCmd.AddCommand(bootstrapCmd)
 }
 
-var bootstrap = &cobra.Command{
+var bootstrapCmd = &cobra.Command{
 	Use:    "bootstrap",
 	Short:  "bootstrapping for network configuration",
 	Long:   "bootstrapping for network configuration. Will try connect to configured address and get peer's id and moniker",
@@ -57,8 +57,8 @@ var bootstrap = &cobra.Command{
 			common.TssCfg.Moniker,
 			common.TssCfg.Id,
 			common.TssCfg.ListenAddr,
-			false,
-			false)
+			common.TssCfg.IsOldCommittee,
+			common.TssCfg.IsNewCommittee)
 		if err != nil {
 			panic(err)
 		}
@@ -99,7 +99,10 @@ var bootstrap = &cobra.Command{
 					conn, err := net.Dial("tcp", dest)
 					for conn == nil {
 						if err != nil {
-							fmt.Println(err)
+							if !strings.Contains(err.Error(), "connection refused") {
+								fmt.Println(err) // TODO: change to logger
+								panic(err)
+							}
 						}
 						time.Sleep(time.Second)
 						conn, err = net.Dial("tcp", dest)
@@ -113,11 +116,10 @@ var bootstrap = &cobra.Command{
 		}()
 
 		<-done
-		err = persistPeerInfos(bootstrapper)
+		err = updateConfigWithPeerInfos(bootstrapper)
 		if err != nil {
 			panic(err)
 		}
-		//updateConfig()
 	},
 }
 
@@ -153,7 +155,7 @@ func setN() {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	n, err := GetInt("please set total parties(n): ", reader)
+	n, err := GetInt("please set total parties(n) (default: 3): ", 3, reader)
 	if err != nil {
 		panic(err)
 	}
@@ -164,8 +166,11 @@ func setN() {
 }
 
 func askPeerAddrs(n int) []string {
-	if len(common.TssCfg.PeerAddrs) == n {
+	if common.TssCfg.BMode == common.KeygenMode && len(common.TssCfg.PeerAddrs) == n {
 		return common.TssCfg.PeerAddrs
+	}
+	if common.TssCfg.BMode == common.PreRegroupMode && len(common.TssCfg.NewPeerAddrs) == n {
+		return common.TssCfg.NewPeerAddrs
 	}
 	reader := bufio.NewReader(os.Stdin)
 	peerAddrs := make([]string, 0, n)
@@ -222,14 +227,23 @@ func checkReceivedPeerInfos(bootstrapper *common.Bootstrapper, done chan<- bool)
 	}
 }
 
-func persistPeerInfos(bootstrapper *common.Bootstrapper) error {
+func updateConfigWithPeerInfos(bootstrapper *common.Bootstrapper) error {
 	peerAddrs := make([]string, 0)
 	expectedPeers := make([]string, 0)
+
+	newPeerAddrs := make([]string, 0)
+	expectedNewPeers := make([]string, 0)
+
 	var err error
 	bootstrapper.Peers.Range(func(id, value interface{}) bool {
 		if pi, ok := value.(common.PeerInfo); ok {
-			peerAddrs = append(peerAddrs, pi.RemoteAddr)
-			expectedPeers = append(expectedPeers, fmt.Sprintf("%s@%s", pi.Moniker, pi.Id))
+			if common.TssCfg.BMode != common.PreRegroupMode || (common.TssCfg.BMode == common.PreRegroupMode && pi.IsOld) {
+				peerAddrs = append(peerAddrs, pi.RemoteAddr)
+				expectedPeers = append(expectedPeers, fmt.Sprintf("%s@%s", pi.Moniker, pi.Id))
+			} else {
+				newPeerAddrs = append(newPeerAddrs, pi.RemoteAddr)
+				expectedNewPeers = append(expectedNewPeers, fmt.Sprintf("%s@%s", pi.Moniker, pi.Id))
+			}
 			return true
 		} else {
 			err = fmt.Errorf("failed to parse peerInfo from received messages")
@@ -241,9 +255,38 @@ func persistPeerInfos(bootstrapper *common.Bootstrapper) error {
 		return err
 	}
 
-	common.TssCfg.PeerAddrs = peerAddrs
-	common.TssCfg.ExpectedPeers = expectedPeers
+	common.TssCfg.PeerAddrs, common.TssCfg.ExpectedPeers = mergeAndUpdate(
+		common.TssCfg.PeerAddrs,
+		common.TssCfg.ExpectedPeers,
+		peerAddrs,
+		expectedPeers)
+	common.TssCfg.NewPeerAddrs, common.TssCfg.ExpectedNewPeers = mergeAndUpdate(
+		common.TssCfg.NewPeerAddrs,
+		common.TssCfg.ExpectedNewPeers,
+		newPeerAddrs,
+		expectedNewPeers)
+
 	return nil
+}
+
+func mergeAndUpdate(peerAddrs, expectedPeers, updatedPeerAddrs, updatedPeers []string) ([]string, []string) {
+	mergedPeers := make(map[string]string) // expected peer -> peer addr
+	for i, peer := range expectedPeers {
+		mergedPeers[peer] = peerAddrs[i]
+	}
+	for i, peer := range updatedPeers {
+		// update addr if already exists
+		mergedPeers[peer] = updatedPeerAddrs[i]
+	}
+
+	updatedPeerAddrs = make([]string, 0)
+	updatedPeers = make([]string, 0)
+	for peer, addr := range mergedPeers {
+		updatedPeers = append(updatedPeers, peer)
+		updatedPeerAddrs = append(updatedPeerAddrs, addr)
+	}
+
+	return updatedPeerAddrs, updatedPeers
 }
 
 func convertMultiAddrStrToNormalAddr(listenAddr string) (string, error) {

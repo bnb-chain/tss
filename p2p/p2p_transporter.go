@@ -23,6 +23,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/peerstore"
 	"github.com/libp2p/go-libp2p-core/protocol"
 	libp2pdht "github.com/libp2p/go-libp2p-kad-dht"
 	opts "github.com/libp2p/go-libp2p-kad-dht/opts"
@@ -47,7 +48,6 @@ type p2pTransporter struct {
 
 	nodeKey []byte
 	ctx     context.Context
-	cfg     *common.P2PConfig
 
 	// for bootstrap
 	bootstrapper *common.Bootstrapper
@@ -105,35 +105,22 @@ var _ ifconnmgr.ConnManager = (*p2pTransporter)(nil)
 var _ common.Transporter = (*p2pTransporter)(nil)
 
 // Constructor of p2pTransporter
+// signers indicate which peers within config.ExpectedPeer should be connected (non-empty for regroup and sign, empty for keygen)
 // Once this is done, the transportation is ready to use
-func NewP2PTransporter(home, nodeId string, bootstrapper *common.Bootstrapper, config *common.P2PConfig) common.Transporter {
+func NewP2PTransporter(
+	home, nodeId string,
+	bootstrapper *common.Bootstrapper,
+	signers map[string]int,
+	config *common.P2PConfig) common.Transporter {
 	t := &p2pTransporter{}
 
 	t.ctx = context.Background()
-	t.cfg = config
 	if bootstrapper != nil {
 		t.bootstrapper = bootstrapper
 	}
 	t.pathToRouteTable = path.Join(home, "rt/")
 	ps := pstoremem.NewPeerstore()
-	for idx, expectedPeer := range config.ExpectedPeers {
-		if pid, err := peer.IDB58Decode(string(GetClientIdFromExpecetdPeers(expectedPeer))); err != nil {
-			panic(err)
-		} else {
-			if pid.Pretty() == nodeId {
-				continue
-			}
-			if len(config.PeerAddrs) > idx && config.PeerAddrs[idx] != "" {
-				maddr, err := multiaddr.NewMultiaddr(config.PeerAddrs[idx])
-				if err != nil {
-					logger.Errorf("invalid peeraddr: %s", config.PeerAddrs[idx])
-				} else {
-					ps.AddAddr(pid, maddr, time.Hour)
-				}
-			}
-			t.expectedPeers = append(t.expectedPeers, pid)
-		}
-	}
+	t.setExpectedPeers(nodeId, signers, ps, config) // t.expectedPeers will be updated in this method
 	t.bootstrapPeers = config.BootstrapPeers
 	// TODO: relay addr need further confirm
 	// The correct address should be /p2p-circuit/p2p/<dest ID> rather than /p2p-circuit/p2p/<relay ID>
@@ -625,4 +612,44 @@ func (t *p2pTransporter) setupDHTClient() *libp2pdht.IpfsDHT {
 	}
 
 	return kademliaDHT
+}
+
+func (t *p2pTransporter) setExpectedPeers(nodeId string, signers map[string]int, ps peerstore.Peerstore, config *common.P2PConfig) {
+	mergedExpectedPeers := make(map[string]string) // peer -> addr
+	for idx, expectedPeer := range config.ExpectedPeers {
+		moniker := GetMonikerFromExpectedPeers(expectedPeer)
+		if _, ok := signers[moniker]; ok || len(signers) == 0 {
+			if len(config.PeerAddrs) > idx && config.PeerAddrs[idx] != "" {
+				mergedExpectedPeers[expectedPeer] = config.PeerAddrs[idx]
+			} else {
+				mergedExpectedPeers[expectedPeer] = ""
+			}
+		}
+	}
+	for idx, expectedPeer := range config.ExpectedNewPeers {
+		if len(config.NewPeerAddrs) > idx && config.NewPeerAddrs[idx] != "" {
+			mergedExpectedPeers[expectedPeer] = config.NewPeerAddrs[idx]
+		} else {
+			mergedExpectedPeers[expectedPeer] = ""
+		}
+	}
+
+	for expectedPeer, peerAddr := range mergedExpectedPeers {
+		if pid, err := peer.IDB58Decode(string(GetClientIdFromExpecetdPeers(expectedPeer))); err != nil {
+			panic(err)
+		} else {
+			if pid.Pretty() == nodeId {
+				continue
+			}
+			if peerAddr != "" {
+				maddr, err := multiaddr.NewMultiaddr(peerAddr)
+				if err != nil {
+					logger.Errorf("invalid peeraddr: %s", peerAddr)
+				} else {
+					ps.AddAddr(pid, maddr, time.Hour)
+				}
+			}
+			t.expectedPeers = append(t.expectedPeers, pid)
+		}
+	}
 }

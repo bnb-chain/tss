@@ -12,10 +12,13 @@ import (
 	"github.com/mattn/go-isatty"
 )
 
-func GetInt(prompt string, buf *bufio.Reader) (int, error) {
+func GetInt(prompt string, defaultValue int, buf *bufio.Reader) (int, error) {
 	s, err := GetString(prompt, buf)
 	if err != nil {
 		return 0, err
+	}
+	if s == "" {
+		return defaultValue, nil
 	}
 	return strconv.Atoi(s)
 }

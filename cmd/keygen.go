@@ -34,7 +34,7 @@ var keygenCmd = &cobra.Command{
 		setPassphrase()
 		updateConfig()
 
-		c := client.NewTssClient(common.TssCfg, client.KeygenMode, false)
+		c := client.NewTssClient(&common.TssCfg, client.KeygenMode, false)
 		c.Start()
 	},
 }
@@ -47,11 +47,10 @@ func checkBootstrap(cmd *cobra.Command, args []string) {
 			panic(err)
 		}
 		if answer {
-			bootstrap.Run(cmd, args)
-			common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home"))
+			bootstrapCmd.Run(cmd, args)
 		}
 	} else {
-		bootstrap.Run(cmd, args)
+		bootstrapCmd.Run(cmd, args)
 	}
 }
 
@@ -67,7 +66,7 @@ func setT() {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	t, err := GetInt("please set threshold(t), at least t + 1 parties needs participant signing: ", reader)
+	t, err := GetInt("please set threshold(t), at least t + 1 parties needs participant signing (default: 1): ", 1, reader)
 	if err != nil {
 		panic(err)
 	}

@@ -72,7 +72,15 @@ func (b *Bootstrapper) IsFinished() bool {
 			}
 			return true
 		})
-		return numOfOld >= b.Cfg.Threshold && numOfNew+1 >= b.Cfg.NewParties
+		if TssCfg.IsOldCommittee && TssCfg.IsNewCommittee {
+			return numOfOld >= b.Cfg.Threshold && numOfNew+1 >= b.Cfg.NewParties
+		} else if TssCfg.IsOldCommittee && !TssCfg.IsNewCommittee {
+			return numOfOld >= b.Cfg.Threshold && numOfNew >= b.Cfg.NewParties
+		} else if !TssCfg.IsOldCommittee && TssCfg.IsNewCommittee {
+			return numOfOld >= b.Cfg.Threshold+1 && numOfNew+1 >= b.Cfg.NewParties
+		} else {
+			return numOfOld >= b.Cfg.Threshold+1 && numOfNew >= b.Cfg.NewParties
+		}
 	default:
 		return false
 	}

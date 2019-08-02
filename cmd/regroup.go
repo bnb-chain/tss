@@ -49,19 +49,15 @@ var regroupCmd = &cobra.Command{
 		setUnknownParties()
 		if common.TssCfg.UnknownParties > 0 {
 			common.TssCfg.BMode = common.PreRegroupMode
-			bootstrap.Run(cmd, args)
-			if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home")); err != nil {
-				panic(err)
-			}
+			bootstrapCmd.Run(cmd, args)
+			updateConfig()
 			common.TssCfg.BMode = common.RegroupMode
 		} else {
 			setChannelId()
 			setChannelPasswd()
 		}
 
-		updateConfig()
-
-		c := client.NewTssClient(common.TssCfg, client.RegroupMode, false)
+		c := client.NewTssClient(&common.TssCfg, client.RegroupMode, false)
 		c.Start()
 	},
 }
@@ -94,7 +90,7 @@ func setOldN() {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	n, err := GetInt("please set old total parties(n): ", reader)
+	n, err := GetInt("please set old total parties(n) (default: 3): ", 3, reader)
 	if err != nil {
 		panic(err)
 	}
@@ -110,7 +106,7 @@ func setOldT() {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	t, err := GetInt("please set old threshold(t), at least t + 1 parties needs participant signing: ", reader)
+	t, err := GetInt("please set old threshold(t), at least t + 1 parties needs participant signing (default: 1): ", 1, reader)
 	if err != nil {
 		panic(err)
 	}
@@ -129,7 +125,7 @@ func setNewN() {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	n, err := GetInt("please set new total parties(n): ", reader)
+	n, err := GetInt("please set new total parties(n) (default 3): ", 3, reader)
 	if err != nil {
 		panic(err)
 	}
@@ -145,7 +141,7 @@ func setNewT() {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	t, err := GetInt("please set new threshold(t), at least t + 1 parties needs participant signing: ", reader)
+	t, err := GetInt("please set new threshold(t), at least t + 1 parties needs participant signing (default: 1): ", 1, reader)
 	if err != nil {
 		panic(err)
 	}
@@ -159,8 +155,12 @@ func setNewT() {
 }
 
 func setUnknownParties() {
+	if common.TssCfg.UnknownParties != -1 {
+		return
+	}
+
 	reader := bufio.NewReader(os.Stdin)
-	n, err := GetInt("how many peers are unknown before:", reader)
+	n, err := GetInt("how many peers are unknown before (default 0): ", 0, reader)
 	if err != nil {
 		panic(err)
 	}

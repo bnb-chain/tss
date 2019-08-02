@@ -31,7 +31,7 @@ var signCmd = &cobra.Command{
 		setChannelPasswd()
 		setMessage()
 
-		c := client.NewTssClient(common.TssCfg, client.SignMode, false)
+		c := client.NewTssClient(&common.TssCfg, client.SignMode, false)
 		c.Start()
 	},
 }

@@ -48,7 +48,7 @@ type P2PConfig struct {
 	NewPeerAddrs         []string `mapstructure:"new_peer_addrs" json:"-"`      // same with `PeerAddrs` but for new parties for regroup
 	ExpectedNewPeers     []string `mapstructure:"new_peers" json:"-"`           // expected new peer list used for regroup, <moniker>@<TssClientId>, after regroup success, this field will replace ExpectedPeers
 	DefaultBootstap      bool     `mapstructure:"default_bootstrap", json:"default_bootstrap"`
-	BroadcastSanityCheck bool     `mapstructure:"broadcast_sanity_check" json:"broadcast_sanity_check"`
+	BroadcastSanityCheck bool     `mapstructure:"broadcast_sanity_check" json:"-"`
 }
 
 func DefaultP2PConfig() P2PConfig {
@@ -83,22 +83,23 @@ type TssConfig struct {
 
 	Id      TssClientId
 	Moniker string
+	Wallet  string
 
 	Threshold    int
 	Parties      int
 	NewThreshold int `mapstructure:"new_threshold" json:"new_threshold"`
 	NewParties   int `mapstructure:"new_parties" json:"new_parties"`
 
-	ProfileAddr     string   `mapstructure:"profile_addr" json:"profile_addr"`
-	Password        string   `json:"-"`
-	Message         string   `json:"-"` // string represented big.Int, will refactor later
-	Signers         []string `json:"-"` // monikers of signers for signing transaction or regroup, self moniker should be included
-	ChannelId       string   `mapstructure:"channel_id" json:"-"`
-	ChannelPassword string   `mapstructure:"channel_password" json:"-"`
+	ProfileAddr string `mapstructure:"profile_addr" json:"profile_addr"`
+	Password    string `json:"-"`
+	Message     string `json:"-"` // string represented big.Int, will refactor later
+
+	ChannelId       string `mapstructure:"channel_id" json:"-"`
+	ChannelPassword string `mapstructure:"channel_password" json:"-"`
 
 	IsOldCommittee bool          `mapstructure:"is_old" json:"-"`
 	IsNewCommittee bool          `mapstructure:"is_new" json:"-"`
-	UnknownParties int           `json:"-"`
+	UnknownParties int           `mapstructure:"unknown_parties" json:"-"`
 	BMode          BootstrapMode `json:"-"`
 
 	Silent bool

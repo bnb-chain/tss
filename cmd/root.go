@@ -51,7 +51,7 @@ func bindP2pConfigs() {
 	//rootCmd.PersistentFlags().StringSlice("p2p.bootstraps", []string{}, "bootstrap server list in multiaddr format, i.e. /ip4/127.0.0.1/tcp/27148/p2p/12D3KooWMXTGW6uHbVs7QiHEYtzVa4RunbugxRcJhGU43qAvfAa1")
 	//rootCmd.PersistentFlags().StringSlice("p2p.relays", []string{}, "relay server list")
 	keygenCmd.PersistentFlags().StringSlice("p2p.peer_addrs", []string{}, "peer's multiple addresses")
-	regroupCmd.PersistentFlags().StringSlice("p2p.peer_addrs", []string{}, "peer's multiple addresses")
+	regroupCmd.PersistentFlags().StringSlice("p2p.new_peer_addrs", []string{}, "unknown peer's multiple addresses")
 	//rootCmd.PersistentFlags().StringSlice("p2p.peers", []string{}, "peers in this threshold scheme")
 	//rootCmd.PersistentFlags().Bool("p2p.default_bootstrap", false, "whether to use default bootstrap")
 	//rootCmd.PersistentFlags().Bool("p2p.broadcast_sanity_check", true, "whether verify broadcast message's hash with peers")
@@ -71,6 +71,7 @@ func bindKdfConfigs() {
 func bindClientConfigs() {
 	//rootCmd.PersistentFlags().String("id", "", "id of current node")
 	initCmd.PersistentFlags().String("moniker", "", "moniker of current node")
+	rootCmd.PersistentFlags().String("wallet", "", "name of wallets of this node")
 	keygenCmd.PersistentFlags().Int("threshold", 0, "threshold of this scheme")
 	regroupCmd.PersistentFlags().Int("threshold", 0, "threshold of this scheme")
 	keygenCmd.PersistentFlags().Int("parties", 0, "total parities of this scheme")
@@ -82,8 +83,10 @@ func bindClientConfigs() {
 	signCmd.PersistentFlags().String("message", "", "message(in *big.Int.String() format) to be signed, only used in sign mode")
 	rootCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
 	rootCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
-
+	channelCmd.PersistentFlags().Int("channel_expire", 0, "expire time in minutes of this channel")
 	//rootCmd.PersistentFlags().Bool("silent", false, "whether to make user interactively input properties, used when properties are set in config file")
+
+	regroupCmd.PersistentFlags().Int("unknown_parties", -1, "unknown parties that joined regroup for this party (default: 3): ")
 }
 
 func initLogLevel(cfg common.TssConfig) {

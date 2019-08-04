@@ -14,6 +14,7 @@ require (
 	github.com/ipfs/go-datastore v0.0.5
 	github.com/ipfs/go-ds-leveldb v0.0.2
 	github.com/ipfs/go-log v0.0.1
+	github.com/koron/go-ssdp v0.0.0-20180514024734-4a0ed625a78b
 	github.com/libp2p/go-eventbus v0.0.3 // indirect
 	github.com/libp2p/go-libp2p v0.2.0
 	github.com/libp2p/go-libp2p-circuit v0.1.0

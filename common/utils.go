@@ -122,3 +122,12 @@ func ReplaceIpInAddr(addr, realIp string) string {
 	re := regexp.MustCompile(`((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))`)
 	return re.ReplaceAllString(addr, realIp)
 }
+
+func ConvertMultiAddrStrToNormalAddr(listenAddr string) (string, error) {
+	re := regexp.MustCompile(`((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))\/tcp\/([0-9]+)`)
+	all := re.FindStringSubmatch(listenAddr)
+	if len(all) != 6 {
+		return "", fmt.Errorf("failed to convert multiaddr to listen addr")
+	}
+	return fmt.Sprintf("%s:%s", all[1], all[5]), nil
+}

@@ -6,16 +6,15 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/bgentry/speakeasy"
-	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/binance-chain/tss/common"
+	"github.com/binance-chain/tss/ssdp"
 )
 
 func init() {
@@ -35,6 +34,20 @@ var bootstrapCmd = &cobra.Command{
 		initLogLevel(common.TssCfg)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
+		src, err := common.ConvertMultiAddrStrToNormalAddr(common.TssCfg.ListenAddr)
+		if err != nil {
+			panic(err)
+		}
+		listenAddrs := getListenAddrs()
+		listener, err := net.Listen("tcp", src)
+		if err != nil {
+			panic(err)
+		}
+		defer listener.Close()
+
+		done := make(chan bool)
+		go acceptConnRoutine(listener, done)
+
 		channelId := setChannelId()
 		setChannelPasswd()
 		setN()
@@ -42,8 +55,7 @@ var bootstrapCmd = &cobra.Command{
 		if common.TssCfg.BMode == common.PreRegroupMode {
 			numOfPeers = common.TssCfg.UnknownParties
 		}
-		peerAddrs := askPeerAddrs(numOfPeers)
-
+		peerAddrs := findPeerAddrsViaSsdp(numOfPeers, listenAddrs)
 		bootstrapper := &common.Bootstrapper{
 			ChannelId:       channelId,
 			ChannelPassword: common.TssCfg.ChannelPassword,
@@ -63,36 +75,10 @@ var bootstrapCmd = &cobra.Command{
 			panic(err)
 		}
 
-		src, err := convertMultiAddrStrToNormalAddr(common.TssCfg.ListenAddr)
-		if err != nil {
-			panic(err)
-		}
-		listener, err := net.Listen("tcp", src)
-		if err != nil {
-			panic(err)
-		}
-
-		defer listener.Close()
-
-		done := make(chan bool)
-
-		go func() {
-			for {
-				conn, err := listener.Accept()
-				if err != nil {
-					fmt.Printf("Some connection error: %s\n", err)
-					return
-				} else {
-					fmt.Printf("%s connected to us!\n", conn.RemoteAddr().String())
-					go handleConnection(conn, bootstrapper, bootstrapMsg)
-				}
-			}
-		}()
-
 		go func() {
 			for _, peerAddr := range peerAddrs {
 				go func(peerAddr string) {
-					dest, err := convertMultiAddrStrToNormalAddr(peerAddr)
+					dest, err := common.ConvertMultiAddrStrToNormalAddr(peerAddr)
 					if err != nil {
 						panic(fmt.Errorf("failed to convert peer multiAddr to addr: %v", err))
 					}
@@ -165,25 +151,39 @@ func setN() {
 	common.TssCfg.Parties = n
 }
 
-func askPeerAddrs(n int) []string {
+func findPeerAddrsViaSsdp(n int, listenAddrs string) []string {
 	if common.TssCfg.BMode == common.KeygenMode && len(common.TssCfg.PeerAddrs) == n {
 		return common.TssCfg.PeerAddrs
 	}
 	if common.TssCfg.BMode == common.PreRegroupMode && len(common.TssCfg.NewPeerAddrs) == n {
 		return common.TssCfg.NewPeerAddrs
 	}
-	reader := bufio.NewReader(os.Stdin)
-	peerAddrs := make([]string, 0, n)
 
-	for i := 1; i <= n; i++ {
-		ithParty := humanize.Ordinal(i)
-		addr, err := GetString(fmt.Sprintf("please input peer listen address of the %s (out of %d) party (e.g. /ip4/127.0.0.1/tcp/27148)", ithParty, n), reader)
-		if err != nil {
-			panic(err)
-		}
-		peerAddrs = append(peerAddrs, addr)
+	ssdpSrv := ssdp.NewSsdpService(common.TssCfg.Moniker, listenAddrs, n)
+	ssdpSrv.CollectPeerAddrs()
+	var peerAddrs []string
+	for _, peerAddr := range ssdpSrv.PeerAddrs {
+		peerAddrs = append(peerAddrs, peerAddr)
 	}
 	return peerAddrs
+}
+
+func acceptConnRoutine(listener net.Listener, done <-chan bool) {
+	for {
+		select {
+		case <-done:
+			return
+		default:
+			conn, err := listener.Accept()
+			if err != nil {
+				fmt.Printf("Some connection error: %s\n", err)
+				continue
+			} else {
+				fmt.Printf("%s connected to us!\n", conn.RemoteAddr().String())
+				conn.Close()
+			}
+		}
+	}
 }
 
 func handleConnection(conn net.Conn, b *common.Bootstrapper, msg *common.BootstrapMessage) {
@@ -287,13 +287,4 @@ func mergeAndUpdate(peerAddrs, expectedPeers, updatedPeerAddrs, updatedPeers []s
 	}
 
 	return updatedPeerAddrs, updatedPeers
-}
-
-func convertMultiAddrStrToNormalAddr(listenAddr string) (string, error) {
-	re := regexp.MustCompile(`((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))\/tcp\/([0-9]+)`)
-	all := re.FindStringSubmatch(listenAddr)
-	if len(all) != 6 {
-		return "", fmt.Errorf("failed to convert multiaddr to listen addr")
-	}
-	return fmt.Sprintf("%s:%s", all[1], all[5]), nil
 }

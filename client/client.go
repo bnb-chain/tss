@@ -284,10 +284,10 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 		if client.mode == RegroupMode {
 			if !common.TssCfg.IsNewCommittee {
 				// TODO: elegantly detect peer's close
-				//if done != nil {
-				//	done <- true
-				//	close(done)
-				//}
+				if done != nil {
+					done <- true
+					close(done)
+				}
 				continue
 			}
 		}

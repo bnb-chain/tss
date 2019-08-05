@@ -14,7 +14,7 @@ const (
 	RegroupMode
 )
 
-// Bootstrapper is helper of pre setting of each kind of client commond
+// Bootstrapper is helper of pre setting of each kind of client command
 // Before keygen, it helps setup peers' moniker and libp2p id, in a "raw" tcp communication way
 // For sign, it helps setup signers in libp2p network
 // For preregroup, it helps setup new initialized peers' moniker and libp2p id, in a "raw" tcp communication way
@@ -22,7 +22,7 @@ const (
 type Bootstrapper struct {
 	ChannelId       string
 	ChannelPassword string
-	PeerAddrs       []string
+	ExpectedPeers   int
 	Cfg             *TssConfig
 
 	Peers sync.Map // id -> peerInfo
@@ -53,11 +53,11 @@ func (b *Bootstrapper) HandleBootstrapMsg(peerMsg BootstrapMessage) error {
 func (b *Bootstrapper) IsFinished() bool {
 	switch b.Cfg.BMode {
 	case KeygenMode:
-		return b.LenOfPeers() == len(b.PeerAddrs)
+		return b.LenOfPeers() == b.ExpectedPeers
 	case SignMode:
 		return b.LenOfPeers() == b.Cfg.Threshold
 	case PreRegroupMode:
-		return b.LenOfPeers() == len(b.PeerAddrs)
+		return b.LenOfPeers() == b.ExpectedPeers
 	case RegroupMode:
 		numOfOld := 0
 		numOfNew := 0

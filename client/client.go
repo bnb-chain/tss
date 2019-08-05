@@ -21,7 +21,7 @@ import (
 	"github.com/binance-chain/tss/p2p"
 )
 
-var logger = log.Logger("tss")
+var Logger = log.Logger("tss")
 
 type ClientMode uint8
 
@@ -184,13 +184,13 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 		params := tss.NewParameters(p2pCtx, partyID, config.Parties, config.Threshold)
 		localParty = keygen.NewLocalParty(params, sendCh, saveCh)
 		c.localParty = localParty
-		logger.Infof("[%s] initialized localParty: %s", config.Moniker, localParty)
+		Logger.Infof("[%s] initialized localParty: %s", config.Moniker, localParty)
 	} else if mode == SignMode {
 		key := loadSavedKeyForSign(config, sortedIds, signers)
 		pubKey := btcec.PublicKey(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()})
-		logger.Infof("[%s] public key: %X\n", config.Moniker, pubKey.SerializeCompressed())
+		Logger.Infof("[%s] public key: %X\n", config.Moniker, pubKey.SerializeCompressed())
 		address, _ := getAddress(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()})
-		logger.Infof("[%s] address is: %s\n", config.Moniker, address)
+		Logger.Infof("[%s] address is: %s\n", config.Moniker, address)
 		params := tss.NewParameters(p2pCtx, partyID, config.Parties, config.Threshold)
 		c.key = &key
 		c.params = params
@@ -252,14 +252,14 @@ func (client *TssClient) Start() {
 
 func (client *TssClient) handleMessageRoutine() {
 	for msg := range client.transporter.ReceiveCh() {
-		logger.Infof("[%s] received message: %s", client.config.Moniker, msg)
+		Logger.Infof("[%s] received message: %s", client.config.Moniker, msg)
 		ok, err := client.localParty.Update(msg, client.mode.String())
 		if err != nil {
-			logger.Errorf("[%s] error updating local party state: %v", client.config.Moniker, err)
+			Logger.Errorf("[%s] error updating local party state: %v", client.config.Moniker, err)
 		} else if !ok {
-			logger.Warningf("[%s] Update still waiting for round to finish", client.config.Moniker)
+			Logger.Warningf("[%s] Update still waiting for round to finish", client.config.Moniker)
 		} else {
-			logger.Debugf("[%s] update success", client.config.Moniker)
+			Logger.Debugf("[%s] update success", client.config.Moniker)
 		}
 	}
 }
@@ -292,12 +292,12 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 			}
 		}
 
-		logger.Infof("[%s] received save data", client.config.Moniker)
+		Logger.Infof("[%s] received save data", client.config.Moniker)
 		address, err := getAddress(ecdsa.PublicKey{tss.EC(), msg.ECDSAPub.X(), msg.ECDSAPub.Y()})
 		if err != nil {
-			logger.Errorf("[%s] failed to generate address from public key :%v", client.config.Moniker, err)
+			Logger.Errorf("[%s] failed to generate address from public key :%v", client.config.Moniker, err)
 		} else {
-			logger.Infof("[%s] bech32 address is: %s", client.config.Moniker, address)
+			Logger.Infof("[%s] bech32 address is: %s", client.config.Moniker, address)
 		}
 
 		wPriv, err := os.OpenFile(path.Join(client.config.Home, "sk.json"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)

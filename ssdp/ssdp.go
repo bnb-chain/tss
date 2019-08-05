@@ -6,65 +6,71 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/koron/go-ssdp"
 
+	"github.com/binance-chain/tss/client"
 	"github.com/binance-chain/tss/common"
 )
 
+const serviceType string = "binance:tss"
+
 type SsdpService struct {
 	finished      chan bool
-	moniker       string
 	listenAddr    string
 	expectedPeers int
+	usn           string
 	monitor       *ssdp.Monitor
 
-	PeerAddrs map[string]string // uuid -> connectable address
+	PeerAddrs sync.Map // map[string]string (uuid -> connectable address)
 }
 
 func NewSsdpService(moniker, listenAddr string, expectedPeers int) *SsdpService {
+	ssdp.Logger = log.New(os.Stderr, "[SSDP] ", log.LstdFlags)
+
 	s := &SsdpService{
 		finished:      make(chan bool),
-		moniker:       moniker,
 		listenAddr:    listenAddr,
 		expectedPeers: expectedPeers,
-
-		PeerAddrs: make(map[string]string),
+		usn:           fmt.Sprintf("unique:%s", moniker),
 	}
 	s.monitor = &ssdp.Monitor{
 		Alive:  s.onAlive,
 		Bye:    nil,
 		Search: nil,
 	}
+
+	go s.startAdvertiser()
 	return s
 }
 
 func (s *SsdpService) CollectPeerAddrs() {
-	ssdp.Logger = log.New(os.Stderr, "[SSDP] ", log.LstdFlags)
-
-	ad, err := ssdp.Advertise("my:tss", fmt.Sprintf("unique:%s", s.moniker), s.listenAddr, "", 1800)
-	if err != nil {
-		log.Fatal(err)
-	}
-	aliveTick := time.Tick(time.Duration(10) * time.Second)
-
 	if err := s.monitor.Start(); err != nil {
 		log.Fatal(err)
 	}
 
-	for {
-		select {
-		case <-aliveTick:
-			ad.Alive()
-		case <-s.finished:
-			break
-		}
+	<-s.finished
+	s.monitor.Close()
+}
+
+func (s *SsdpService) startAdvertiser() {
+
+	ad, err := ssdp.Advertise(serviceType, s.usn, s.listenAddr, "", 1800)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// it might be fine we advertise fast,
+	// because the tss process is not a daemon or long-running process
+	aliveTick := time.Tick(500 * time.Millisecond)
+
+	for range aliveTick {
+		ad.Alive()
+		client.Logger.Debugf("ssdp advertised")
 	}
 	ad.Bye()
 	ad.Close()
-	close(s.finished)
-	s.monitor.Close()
 }
 
 func (s *SsdpService) stop() {
@@ -72,13 +78,21 @@ func (s *SsdpService) stop() {
 }
 
 func (s *SsdpService) onAlive(m *ssdp.AliveMessage) {
-	if _, ok := s.PeerAddrs[m.USN]; !ok {
+	client.Logger.Debugf("ssdp onAlive: %v", m)
+	if m.Type != "binance:tss" {
+		return
+	}
+	if m.USN == s.usn {
+		return
+	}
+	if _, ok := s.PeerAddrs.Load(m.USN); !ok {
 		multiAddrs := strings.Split(m.Location, ",")
 		for _, multiAddr := range multiAddrs {
 			addr, err := common.ConvertMultiAddrStrToNormalAddr(multiAddr)
 			if err != nil {
 				continue
 			}
+			// try availability of remote addr
 			conn, err := net.Dial("tcp", addr)
 			if err != nil {
 				continue
@@ -87,12 +101,18 @@ func (s *SsdpService) onAlive(m *ssdp.AliveMessage) {
 			if err != nil {
 				continue
 			}
-			s.PeerAddrs[m.USN] = multiAddr
+			s.PeerAddrs.Store(m.USN, multiAddr)
+			client.Logger.Debugf("stored %s (%s)", m.USN, multiAddr)
 			break
 		}
 	}
 
-	if len(s.PeerAddrs) == s.expectedPeers {
+	receivedAddrs := 0
+	s.PeerAddrs.Range(func(_, _ interface{}) bool {
+		receivedAddrs++
+		return true
+	})
+	if receivedAddrs == s.expectedPeers {
 		s.stop()
 	}
 }

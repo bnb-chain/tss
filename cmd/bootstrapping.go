@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/binance-chain/tss/client"
 	"github.com/binance-chain/tss/common"
 	"github.com/binance-chain/tss/ssdp"
 )
@@ -39,14 +40,7 @@ var bootstrapCmd = &cobra.Command{
 			panic(err)
 		}
 		listenAddrs := getListenAddrs()
-		listener, err := net.Listen("tcp", src)
-		if err != nil {
-			panic(err)
-		}
-		defer listener.Close()
-
-		done := make(chan bool)
-		go acceptConnRoutine(listener, done)
+		client.Logger.Debugf("This node is listening on: %v", listenAddrs)
 
 		channelId := setChannelId()
 		setChannelPasswd()
@@ -55,13 +49,24 @@ var bootstrapCmd = &cobra.Command{
 		if common.TssCfg.BMode == common.PreRegroupMode {
 			numOfPeers = common.TssCfg.UnknownParties
 		}
-		peerAddrs := findPeerAddrsViaSsdp(numOfPeers, listenAddrs)
 		bootstrapper := &common.Bootstrapper{
 			ChannelId:       channelId,
 			ChannelPassword: common.TssCfg.ChannelPassword,
-			PeerAddrs:       peerAddrs,
+			ExpectedPeers:   numOfPeers,
 			Cfg:             &common.TssCfg,
 		}
+
+		listener, err := net.Listen("tcp", src)
+		if err != nil {
+			panic(err)
+		}
+		defer listener.Close()
+
+		done := make(chan bool)
+		go acceptConnRoutine(listener, bootstrapper, done)
+
+		peerAddrs := findPeerAddrsViaSsdp(numOfPeers, listenAddrs)
+		client.Logger.Debugf("Found peers via ssdp: %v", peerAddrs)
 
 		bootstrapMsg, err := common.NewBootstrapMessage(
 			channelId,
@@ -86,7 +91,6 @@ var bootstrapCmd = &cobra.Command{
 					for conn == nil {
 						if err != nil {
 							if !strings.Contains(err.Error(), "connection refused") {
-								fmt.Println(err) // TODO: change to logger
 								panic(err)
 							}
 						}
@@ -94,7 +98,7 @@ var bootstrapCmd = &cobra.Command{
 						conn, err = net.Dial("tcp", dest)
 					}
 
-					go handleConnection(conn, bootstrapper, bootstrapMsg)
+					sendBootstrapMessage(conn, bootstrapMsg)
 				}(peerAddr)
 			}
 
@@ -162,13 +166,16 @@ func findPeerAddrsViaSsdp(n int, listenAddrs string) []string {
 	ssdpSrv := ssdp.NewSsdpService(common.TssCfg.Moniker, listenAddrs, n)
 	ssdpSrv.CollectPeerAddrs()
 	var peerAddrs []string
-	for _, peerAddr := range ssdpSrv.PeerAddrs {
-		peerAddrs = append(peerAddrs, peerAddr)
-	}
+	ssdpSrv.PeerAddrs.Range(func(_, value interface{}) bool {
+		if peerAddr, ok := value.(string); ok {
+			peerAddrs = append(peerAddrs, peerAddr)
+		}
+		return true
+	})
 	return peerAddrs
 }
 
-func acceptConnRoutine(listener net.Listener, done <-chan bool) {
+func acceptConnRoutine(listener net.Listener, bootstrapper *common.Bootstrapper, done <-chan bool) {
 	for {
 		select {
 		case <-done:
@@ -176,17 +183,36 @@ func acceptConnRoutine(listener net.Listener, done <-chan bool) {
 		default:
 			conn, err := listener.Accept()
 			if err != nil {
-				fmt.Printf("Some connection error: %s\n", err)
+				client.Logger.Errorf("Some connection error: %s\n", err)
 				continue
 			} else {
-				fmt.Printf("%s connected to us!\n", conn.RemoteAddr().String())
-				conn.Close()
+				client.Logger.Debugf("%s connected to us!\n", conn.RemoteAddr().String())
 			}
+
+			handleConnection(conn, bootstrapper)
 		}
 	}
 }
 
-func handleConnection(conn net.Conn, b *common.Bootstrapper, msg *common.BootstrapMessage) {
+func handleConnection(conn net.Conn, b *common.Bootstrapper) {
+	client.Logger.Debugf("handling connection of %s", conn.RemoteAddr().String())
+
+	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	decoder := gob.NewDecoder(conn)
+	var peerMsg common.BootstrapMessage
+	if err := decoder.Decode(&peerMsg); err != nil {
+		// deliberately not handle err here
+		// possible err maybe:
+		// EOF - on receiving ssdp live message, peer will close conn directly
+		// Read timeout - same with above. If we reading before peer close conn, we will timeout
+	} else {
+		if err := b.HandleBootstrapMsg(peerMsg); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func sendBootstrapMessage(conn net.Conn, msg *common.BootstrapMessage) {
 	// TODO: support ipv6
 	realIp := strings.SplitN(conn.LocalAddr().String(), ":", 2)
 	msgForConnect := common.BootstrapMessage{
@@ -201,18 +227,7 @@ func handleConnection(conn net.Conn, b *common.Bootstrapper, msg *common.Bootstr
 	if err := encoder.Encode(msgForConnect); err != nil {
 		panic(err)
 	}
-
-	conn.SetReadDeadline(time.Now().Add(time.Second))
-	decoder := gob.NewDecoder(conn)
-	var peerMsg common.BootstrapMessage
-	if err := decoder.Decode(&peerMsg); err != nil {
-		// TODO: handle error
-	} else {
-		if err := b.HandleBootstrapMsg(peerMsg); err != nil {
-			panic(err)
-		}
-	}
-	conn.Close()
+	client.Logger.Debugf("sent bootstrap msg: %v to %s", msgForConnect, conn.RemoteAddr().String())
 }
 
 func checkReceivedPeerInfos(bootstrapper *common.Bootstrapper, done chan<- bool) {

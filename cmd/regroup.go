@@ -22,7 +22,8 @@ var regroupCmd = &cobra.Command{
 	Short: "regroup a new set of parties and threshold",
 	Long:  "generate new_n secrete share with new_t threshold. At least old_t + 1 should participant",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home")); err != nil {
+		passphrase := askPassphrase()
+		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home"), passphrase); err != nil {
 			panic(err)
 		}
 		initLogLevel(common.TssCfg)
@@ -50,7 +51,6 @@ var regroupCmd = &cobra.Command{
 		if common.TssCfg.UnknownParties > 0 {
 			common.TssCfg.BMode = common.PreRegroupMode
 			bootstrapCmd.Run(cmd, args)
-			updateConfig()
 			common.TssCfg.BMode = common.RegroupMode
 		} else {
 			setChannelId()
@@ -59,6 +59,18 @@ var regroupCmd = &cobra.Command{
 
 		c := client.NewTssClient(&common.TssCfg, client.RegroupMode, false)
 		c.Start()
+
+		if common.TssCfg.IsNewCommittee {
+			common.TssCfg.ExpectedPeers = common.TssCfg.ExpectedNewPeers
+			common.TssCfg.PeerAddrs = common.TssCfg.NewPeerAddrs
+			common.TssCfg.ExpectedNewPeers = common.TssCfg.ExpectedNewPeers[:]
+			common.TssCfg.NewPeerAddrs = common.TssCfg.NewPeerAddrs[:]
+			common.TssCfg.Parties = common.TssCfg.NewParties
+			common.TssCfg.Threshold = common.TssCfg.NewThreshold
+			common.TssCfg.NewParties = 0
+			common.TssCfg.NewThreshold = 0
+			updateConfig()
+		}
 	},
 }
 

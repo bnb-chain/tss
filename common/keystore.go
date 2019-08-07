@@ -1,4 +1,4 @@
-package client
+package common
 
 import (
 	"bytes"
@@ -13,6 +13,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math/big"
+	"os"
 	"path"
 
 	"github.com/binance-chain/tss-lib/crypto"
@@ -25,8 +26,6 @@ import (
 	"golang.org/x/crypto/sha3"
 
 	tmCrypto "github.com/tendermint/tendermint/crypto"
-
-	"github.com/binance-chain/tss/common"
 )
 
 const (
@@ -39,12 +38,12 @@ const (
 )
 
 type cryptoJSON struct {
-	Cipher       string                 `json:"cipher"`
-	CipherText   string                 `json:"ciphertext"`
-	CipherParams cipherparamsJSON       `json:"cipherparams"`
-	KDF          string                 `json:"kdf"`
-	KDFParams    map[string]interface{} `json:"kdfparams"`
-	MAC          string                 `json:"mac"`
+	Cipher       string           `json:"cipher"`
+	CipherText   string           `json:"ciphertext"`
+	CipherParams cipherparamsJSON `json:"cipherparams"`
+	KDF          string           `json:"kdf"`
+	KDFParams    KDFConfig        `json:"kdfparams"`
+	MAC          string           `json:"mac"`
 }
 
 type cipherparamsJSON struct {
@@ -117,9 +116,19 @@ func (data *publicFields) UnmarshalJSON(payload []byte) error {
 	return nil
 }
 
+// TssConfig + public fields
+type secretConfig struct {
+	SecretTssConfig *cryptoJSON `json:"config"` // encrypted tss config
+
+	ListenAddr  string `json:"listen"`
+	LogLevel    string `json:"log_level"`
+	ProfileAddr string `json:"profile_addr"`
+	Home        string
+}
+
 // Split LocalPartySaveData into priv.json and pub.json
 // where priv.json is
-func Save(keygenResult *keygen.LocalPartySaveData, nodeKey []byte, config common.KDFConfig, passphrase string, wPriv, wPub io.Writer) {
+func Save(keygenResult *keygen.LocalPartySaveData, nodeKey []byte, config KDFConfig, passphrase string, wPriv, wPub io.Writer) error {
 	sFields := secretFields{
 		keygenResult.Xi,
 		keygenResult.PaillierSk,
@@ -128,17 +137,10 @@ func Save(keygenResult *keygen.LocalPartySaveData, nodeKey []byte, config common
 
 	priv, err := json.Marshal(sFields)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	encrypted, err := encryptSecret(priv, []byte(passphrase), config)
-	if err != nil {
-		panic(err)
-	}
-	_, err = wPriv.Write(encrypted)
-	if err != nil {
-		panic(err)
-	}
+	err = encryptAndWrite(priv, config, passphrase, wPriv)
 
 	pFields := publicFields{
 		keygenResult.ShareID,
@@ -152,71 +154,94 @@ func Save(keygenResult *keygen.LocalPartySaveData, nodeKey []byte, config common
 		keygenResult.Ks,
 	}
 
-	pub, err := json.Marshal(&pFields)
-	if err != nil {
-		panic(err)
-	}
-	_, err = wPub.Write(pub)
-	if err != nil {
-		panic(err)
+	if pub, err := json.Marshal(&pFields); err == nil {
+		return encryptAndWrite(pub, config, passphrase, wPub)
+	} else {
+		return err
 	}
 }
 
-func Load(passphrase string, rPriv, rPub io.Reader) (saveData *keygen.LocalPartySaveData, nodeKey []byte) {
-	var encryptedSecret cryptoJSON
+func SaveConfig(config *TssConfig) error {
+	originalCfg, err := json.Marshal(config)
+	if err != nil {
+		return err
+	}
+	encrypted, err := encryptSecret(originalCfg, []byte(config.Password), config.KDFConfig)
+	if err != nil {
+		return err
+	}
+	sConfig := secretConfig{
+		SecretTssConfig: encrypted,
+		ListenAddr:      config.ListenAddr,
+		LogLevel:        config.LogLevel,
+		ProfileAddr:     config.ProfileAddr,
+		Home:            config.Home,
+	}
+
+	bytes, err := json.MarshalIndent(sConfig, "", "    ")
+	if err != nil {
+		return err
+	}
+
+	if err = ioutil.WriteFile(path.Join(config.Home, "config.json"), bytes, os.FileMode(0600)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func Load(passphrase string, rPriv, rPub io.Reader) (saveData *keygen.LocalPartySaveData, nodeKey []byte, err error) {
+	var sFields secretFields
 	var pFields publicFields
 
-	sBytes, err := ioutil.ReadAll(rPriv)
+	plainText, err := readAndDecrypt(rPriv, passphrase)
 	if err != nil {
-		panic(fmt.Errorf("failed to load private bytes from file: %v", err))
+		return nil, nil, err
+	}
+	if err = json.Unmarshal(plainText, &sFields); err != nil {
+		return nil, nil, err
 	}
 
-	err = json.Unmarshal(sBytes, &encryptedSecret)
+	plainText, err = readAndDecrypt(rPub, passphrase)
 	if err != nil {
-		panic(fmt.Errorf("failed to unmarshal secret bytes: %v", err))
+		return nil, nil, err
 	}
-
-	sFields, err := decryptSecret(encryptedSecret, passphrase)
-	if err != nil {
-		panic(err)
-	}
-
-	pBytes, err := ioutil.ReadAll(rPub)
-	if err != nil {
-		panic(fmt.Errorf("failed to load public bytes from file: %v", err))
-	}
-
-	err = json.Unmarshal(pBytes, &pFields)
-	if err != nil {
-		panic(fmt.Errorf("failed to unmarshal public bytes: %v", err))
+	if err = json.Unmarshal(plainText, &pFields); err != nil {
+		return nil, nil, err
 	}
 
 	return &keygen.LocalPartySaveData{
-		sFields.Xi,
-		pFields.ShareID,
-		sFields.PaillierSk,
+		Xi:         sFields.Xi,
+		ShareID:    pFields.ShareID,
+		PaillierSk: sFields.PaillierSk,
 
-		pFields.BigXj,
-		pFields.PaillierPks,
+		BigXj:       pFields.BigXj,
+		PaillierPks: pFields.PaillierPks,
 
-		pFields.NTildej,
-		pFields.H1j,
-		pFields.H2j,
-		pFields.Index,
-		pFields.Ks,
-		pFields.ECDSAPub,
-	}, sFields.NodeKey
+		NTildej:  pFields.NTildej,
+		H1j:      pFields.H1j,
+		H2j:      pFields.H2j,
+		Index:    pFields.Index,
+		Ks:       pFields.Ks,
+		ECDSAPub: pFields.ECDSAPub,
+	}, sFields.NodeKey, nil
 }
 
-func LoadPubkey(home string) (tmCrypto.PubKey, error) {
-	var pFields publicFields
-	pBytes, err := ioutil.ReadFile(path.Join(home, "pk.json"))
+func LoadPubkey(home, passphrase string) (tmCrypto.PubKey, error) {
+	rPub, err := os.OpenFile(path.Join(home, "pk.json"), os.O_RDONLY, 0400)
 	if err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal(pBytes, &pFields); err != nil {
+	defer rPub.Close()
+	plaintext, err := readAndDecrypt(rPub, passphrase)
+	if err != nil {
 		return nil, err
 	}
+	var pFields publicFields
+	if err := json.Unmarshal(plaintext, &pFields); err != nil {
+		return nil, err
+	}
+
 	ecdsaPubKey := &ecdsa.PublicKey{tss.EC(), pFields.ECDSAPub.X(), pFields.ECDSAPub.Y()}
 	btcecPubKey := (*btcec.PublicKey)(ecdsaPubKey)
 
@@ -225,7 +250,67 @@ func LoadPubkey(home string) (tmCrypto.PubKey, error) {
 	return pubkeyBytes, nil
 }
 
-func encryptSecret(data, auth []byte, config common.KDFConfig) ([]byte, error) {
+func LoadConfig(home, passphrase string) (*TssConfig, error) {
+	sConfigBytes, err := ioutil.ReadFile(path.Join(home, "config.json"))
+	if err != nil {
+		return nil, err
+	}
+	var sConfig secretConfig
+	if err := json.Unmarshal(sConfigBytes, &sConfig); err != nil {
+		return nil, err
+	}
+	plaintext, err := decryptSecret(*sConfig.SecretTssConfig, passphrase)
+	var config TssConfig
+	if err := json.Unmarshal(plaintext, &config); err != nil {
+		return nil, err
+	} else {
+		// let config in file override the encrypted fields, as user may manually change the exposed fields
+		config.ListenAddr = sConfig.ListenAddr
+		config.Home = sConfig.Home
+		config.LogLevel = sConfig.LogLevel
+		config.ProfileAddr = sConfig.ProfileAddr
+
+		// assign kdf configs
+		config.KDFConfig = sConfig.SecretTssConfig.KDFParams
+		return &config, err
+	}
+}
+
+func encryptAndWrite(src []byte, config KDFConfig, passphrase string, dest io.Writer) error {
+	cryptoJson, err := encryptSecret(src, []byte(passphrase), config)
+	if err != nil {
+		return err
+	}
+
+	encrypted, err := json.Marshal(cryptoJson)
+	if err != nil {
+		return err
+	}
+
+	_, err = dest.Write(encrypted)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func readAndDecrypt(src io.Reader, passphrase string) ([]byte, error) {
+	var encryptedSecret cryptoJSON
+	sBytes, err := ioutil.ReadAll(src)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load bytes from file: %v", err)
+	}
+
+	err = json.Unmarshal(sBytes, &encryptedSecret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal bytes: %v", err)
+	}
+
+	return decryptSecret(encryptedSecret, passphrase)
+}
+
+func encryptSecret(data, auth []byte, config KDFConfig) (*cryptoJSON, error) {
 	salt := make([]byte, config.SaltLength)
 	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
 		panic("reading from crypto/rand failed: " + err.Error())
@@ -247,29 +332,23 @@ func encryptSecret(data, auth []byte, config common.KDFConfig) ([]byte, error) {
 	d.Write(cipherText)
 	mac := d.Sum(nil)
 
-	argon2ParamsJSON := make(map[string]interface{}, 5)
-	argon2ParamsJSON["i"] = config.Iterations
-	argon2ParamsJSON["m"] = config.Memory
-	argon2ParamsJSON["p"] = config.Parallelism
-	argon2ParamsJSON["dklen"] = config.KeyLength
-	argon2ParamsJSON["salt"] = hex.EncodeToString(salt)
+	config.Salt = hex.EncodeToString(salt)
 
 	cipherParamsJSON := cipherparamsJSON{
 		IV: hex.EncodeToString(iv),
 	}
 
-	cryptoStruct := cryptoJSON{
+	return &cryptoJSON{
 		Cipher:       cipherAlg,
 		CipherText:   hex.EncodeToString(cipherText),
 		CipherParams: cipherParamsJSON,
 		KDF:          keyHeaderKDF,
-		KDFParams:    argon2ParamsJSON,
+		KDFParams:    config,
 		MAC:          hex.EncodeToString(mac),
-	}
-	return json.Marshal(cryptoStruct)
+	}, nil
 }
 
-func decryptSecret(encryptedSecret cryptoJSON, passphrase string) (*secretFields, error) {
+func decryptSecret(encryptedSecret cryptoJSON, passphrase string) ([]byte, error) {
 	if encryptedSecret.Cipher != cipherAlg {
 		return nil, fmt.Errorf("Cipher not supported: %s", encryptedSecret.Cipher)
 	}
@@ -306,13 +385,7 @@ func decryptSecret(encryptedSecret cryptoJSON, passphrase string) (*secretFields
 	if err != nil {
 		return nil, err
 	}
-	var sFields secretFields
-	err = json.Unmarshal(plainText, &sFields)
-	if err != nil {
-		return nil, err
-	}
-
-	return &sFields, nil
+	return plainText, err
 }
 
 func aesCTRXOR(key, inText, iv []byte) ([]byte, error) {
@@ -329,29 +402,13 @@ func aesCTRXOR(key, inText, iv []byte) ([]byte, error) {
 
 func getKDFKey(encryptedSecret cryptoJSON, auth string) ([]byte, error) {
 	authArray := []byte(auth)
-	salt, err := hex.DecodeString(encryptedSecret.KDFParams["salt"].(string))
+	salt, err := hex.DecodeString(encryptedSecret.KDFParams.Salt)
 	if err != nil {
 		return nil, err
 	}
-	dkLen := ensureUInt32(encryptedSecret.KDFParams["dklen"])
-	i := ensureUInt32(encryptedSecret.KDFParams["i"])
-	m := ensureUInt32(encryptedSecret.KDFParams["m"])
-	p := ensureUInt8(encryptedSecret.KDFParams["p"])
+	dkLen := encryptedSecret.KDFParams.KeyLength
+	i := encryptedSecret.KDFParams.Iterations
+	m := encryptedSecret.KDFParams.Memory
+	p := encryptedSecret.KDFParams.Parallelism
 	return argon2.IDKey(authArray, salt, i, m, p, dkLen), nil
-}
-
-func ensureUInt32(x interface{}) uint32 {
-	res, ok := x.(uint32)
-	if !ok {
-		res = uint32(x.(float64))
-	}
-	return res
-}
-
-func ensureUInt8(x interface{}) uint8 {
-	res, ok := x.(uint8)
-	if !ok {
-		res = uint8(x.(float64))
-	}
-	return res
 }

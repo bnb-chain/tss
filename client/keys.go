@@ -7,6 +7,8 @@ import (
 	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/binance-chain/tss-lib/tss"
 	"github.com/tendermint/tendermint/crypto"
+
+	"github.com/binance-chain/tss/common"
 )
 
 // This file is bridging TssClient with tendermint PrivKey interface
@@ -23,7 +25,7 @@ func (client *TssClient) Sign(msg []byte) ([]byte, error) {
 }
 
 func (client *TssClient) PubKey() crypto.PubKey {
-	if pubKey, err := LoadPubkey(client.config.Home); err == nil {
+	if pubKey, err := common.LoadPubkey(client.config.Home, client.config.Password); err == nil {
 		return pubKey
 	} else {
 		return nil

@@ -42,12 +42,11 @@ func initConfigAndLogLevel() {
 	if err != nil {
 		panic(err)
 	}
-	rootCmd.PersistentFlags().String("home", path.Join(home, ".tss"), "Path to config/route_table/node_key/tss_key files, configs in config file can be overriden by command line arguments")
+	rootCmd.PersistentFlags().String("home", path.Join(home, ".tss"), "Path to config/route_table/node_key/tss_key files, configs in config file can be overriden by command line arg quments")
 }
 
 func bindP2pConfigs() {
 	initCmd.PersistentFlags().String("p2p.listen", "", "Adds a multiaddress to the listen list")
-	rootCmd.PersistentFlags().String("p2p.log_level", "info", "log level")
 	//rootCmd.PersistentFlags().StringSlice("p2p.bootstraps", []string{}, "bootstrap server list in multiaddr format, i.e. /ip4/127.0.0.1/tcp/27148/p2p/12D3KooWMXTGW6uHbVs7QiHEYtzVa4RunbugxRcJhGU43qAvfAa1")
 	//rootCmd.PersistentFlags().StringSlice("p2p.relays", []string{}, "relay server list")
 	keygenCmd.PersistentFlags().StringSlice("p2p.peer_addrs", []string{}, "peer's multiple addresses")
@@ -57,7 +56,7 @@ func bindP2pConfigs() {
 	//rootCmd.PersistentFlags().Bool("p2p.broadcast_sanity_check", true, "whether verify broadcast message's hash with peers")
 }
 
-// more detail explaination of these parameters can be found:
+// more detail explanation of these parameters can be found:
 // https://github.com/P-H-C/phc-winner-argon2/blob/master/argon2-specs.pdf
 // https://www.alexedwards.net/blog/how-to-hash-and-verify-passwords-with-argon2-in-go
 func bindKdfConfigs() {
@@ -79,22 +78,22 @@ func bindClientConfigs() {
 	regroupCmd.PersistentFlags().Int("new_threshold", 0, "new threshold of regrouped scheme")
 	regroupCmd.PersistentFlags().Int("new_parties", 0, "new total parties of regrouped scheme")
 	//rootCmd.PersistentFlags().String("profile_addr", "", "host:port of go pprof")
-	rootCmd.PersistentFlags().String("password", "", "password, should only be used for testing. If empty, you will be prompted for password to save/load the secret share")
+	rootCmd.PersistentFlags().String("password", "", "password, should only be used for testing. If empty, you will be prompted for password to save/load the secret/public share and config")
 	signCmd.PersistentFlags().String("message", "", "message(in *big.Int.String() format) to be signed, only used in sign mode")
+	rootCmd.PersistentFlags().String("log_level", "info", "log level")
 	rootCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
 	rootCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
 	channelCmd.PersistentFlags().Int("channel_expire", 0, "expire time in minutes of this channel")
-	//rootCmd.PersistentFlags().Bool("silent", false, "whether to make user interactively input properties, used when properties are set in config file")
 
 	regroupCmd.PersistentFlags().Int("unknown_parties", -1, "unknown parties that joined regroup for this party (default: 3): ")
 }
 
 func initLogLevel(cfg common.TssConfig) {
-	log.SetLogLevel("tss", cfg.P2PConfig.LogLevel)
-	log.SetLogLevel("tss-lib", cfg.P2PConfig.LogLevel)
-	log.SetLogLevel("srv", cfg.P2PConfig.LogLevel)
-	log.SetLogLevel("trans", cfg.P2PConfig.LogLevel)
-	log.SetLogLevel("p2p_utils", cfg.P2PConfig.LogLevel)
+	log.SetLogLevel("tss", cfg.LogLevel)
+	log.SetLogLevel("tss-lib", cfg.LogLevel)
+	log.SetLogLevel("srv", cfg.LogLevel)
+	log.SetLogLevel("trans", cfg.LogLevel)
+	log.SetLogLevel("p2p_utils", cfg.LogLevel)
 
 	// libp2p loggers
 	log.SetLogLevel("dht", "error")

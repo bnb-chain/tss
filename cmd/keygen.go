@@ -22,7 +22,8 @@ var keygenCmd = &cobra.Command{
 	Short: "key generation",
 	Long:  "generate secret share of t of n scheme",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home")); err != nil {
+		passphrase := askPassphrase()
+		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home"), passphrase); err != nil {
 			panic(err)
 		}
 		initLogLevel(common.TssCfg)
@@ -79,22 +80,14 @@ func setT() {
 	common.TssCfg.Threshold = t
 }
 
-func setPassphrase() {
-	if common.TssCfg.Password != "" {
-		return
+func askPassphrase() string {
+	if viper.GetString("password") != "" {
+		return viper.GetString("password")
 	}
 
-	if p, err := speakeasy.Ask("please set password to secure secret key:"); err == nil {
-		if p2, err := speakeasy.Ask("please input again:"); err == nil {
-			if p2 != p {
-				panic(fmt.Errorf("two inputs does not match, please start again"))
-			} else {
-				checkComplexityOfPassword(p)
-				common.TssCfg.Password = p
-			}
-		} else {
-			panic(err)
-		}
+	if p, err := speakeasy.Ask(fmt.Sprintf("Password to sign with '%s':", common.TssCfg.Moniker)); err == nil {
+		viper.Set("password", p)
+		return p
 	} else {
 		panic(err)
 	}

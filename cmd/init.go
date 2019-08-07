@@ -3,13 +3,13 @@ package cmd
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
 	"strings"
 
+	"github.com/bgentry/speakeasy"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/multiformats/go-multiaddr"
@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/binance-chain/tss/client"
 	"github.com/binance-chain/tss/common"
 	"github.com/binance-chain/tss/p2p"
 )
@@ -32,7 +33,8 @@ var initCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		home := viper.GetString("home")
 		makeHomeDir(home)
-		if err := common.ReadConfigFromHome(viper.GetViper(), home); err != nil {
+		passphrase := setPassphrase()
+		if err := common.ReadConfigFromHome(viper.GetViper(), home, passphrase); err != nil {
 			panic(err)
 		}
 		initLogLevel(common.TssCfg)
@@ -51,12 +53,12 @@ var initCmd = &cobra.Command{
 		if err != nil {
 			panic(err)
 		}
-
-		fmt.Printf("Local party has been initialized under: %s\n", common.TssCfg.Home)
-		fmt.Printf("Please share one of following addresses to your peers:\n")
-		fmt.Printf("************************************************************\n")
-		fmt.Printf("listen: %v\n", host.Addrs())
-		fmt.Printf("************************************************************\n")
+		client.Logger.Debugf("this node will be listen on %s", host.Addrs())
+		err = host.Close()
+		if err != nil {
+			panic(err)
+		}
+		client.Logger.Infof("Local party has been initialized under: %s\n", common.TssCfg.Home)
 	},
 }
 
@@ -69,19 +71,56 @@ func makeHomeDir(home string) {
 			panic(err)
 		}
 		if answer {
-			if err := os.Remove(path.Join(home, "config.json")); err != nil {
-				panic(err)
+			if _, err := os.Stat(path.Join(home, "config.json")); err == nil {
+				if err := os.Remove(path.Join(home, "config.json")); err != nil {
+					panic(err)
+				}
 			}
-			if err := os.Remove(path.Join(home, "node_key")); err != nil {
-				panic(err)
+			if _, err := os.Stat(path.Join(home, "node_key")); err == nil {
+				if err := os.Remove(path.Join(home, "node_key")); err != nil {
+					panic(err)
+				}
+			}
+			if _, err := os.Stat(path.Join(home, "pk.json")); err == nil {
+				if err := os.Remove(path.Join(home, "pk.json")); err != nil {
+					panic(err)
+				}
+			}
+			if _, err := os.Stat(path.Join(home, "sk.json")); err == nil {
+				if err := os.Remove(path.Join(home, "sk.json")); err != nil {
+					panic(err)
+				}
 			}
 		} else {
-			return
+			fmt.Println("nothing happened")
+			os.Exit(0)
 		}
 	} else {
 		if err := os.Mkdir(home, 0700); err != nil {
 			panic(err)
 		}
+	}
+}
+
+func setPassphrase() string {
+	if pw := viper.GetString("password"); pw != "" {
+		return pw
+	}
+
+	if p, err := speakeasy.Ask("please set password to secure secret key:"); err == nil {
+		if p2, err := speakeasy.Ask("please input again:"); err == nil {
+			if p2 != p {
+				panic(fmt.Errorf("two inputs does not match, please start again"))
+			} else {
+				checkComplexityOfPassword(p)
+				viper.Set("password", p)
+				return p
+			}
+		} else {
+			panic(err)
+		}
+	} else {
+		panic(err)
 	}
 }
 
@@ -131,11 +170,8 @@ func setListenAddr() {
 }
 
 func updateConfig() {
-	bytes, err := json.MarshalIndent(&common.TssCfg, "", "    ")
+	err := common.SaveConfig(&common.TssCfg)
 	if err != nil {
-		panic(err)
-	}
-	if err = ioutil.WriteFile(path.Join(common.TssCfg.Home, "config.json"), bytes, os.FileMode(0600)); err != nil {
 		panic(err)
 	}
 }

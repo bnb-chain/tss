@@ -1,17 +1,20 @@
 package common
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
+	"os"
 	"reflect"
 	"strings"
+	"syscall"
 
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/mitchellh/mapstructure"
-	"github.com/spf13/viper"
-
 	"github.com/multiformats/go-multiaddr"
+	"github.com/spf13/viper"
 )
 
 var TssCfg TssConfig
@@ -38,7 +41,6 @@ func (al *addrList) Set(value string) error {
 
 type P2PConfig struct {
 	ListenAddr string `mapstructure:"listen" json:"listen"`
-	LogLevel   string `mapstructure:"log_level" json:"log_level"`
 
 	// client only config
 	BootstrapPeers       addrList `mapstructure:"bootstraps" json:"bootstraps"`
@@ -51,13 +53,6 @@ type P2PConfig struct {
 	BroadcastSanityCheck bool     `mapstructure:"broadcast_sanity_check" json:"-"`
 }
 
-func DefaultP2PConfig() P2PConfig {
-	return P2PConfig{
-		LogLevel:             "INFO",
-		BroadcastSanityCheck: true,
-	}
-}
-
 // Argon2 parameters, setting should refer 9th section of https://github.com/P-H-C/phc-winner-argon2/blob/master/argon2-specs.pdf
 type KDFConfig struct {
 	Memory      uint32
@@ -65,6 +60,7 @@ type KDFConfig struct {
 	Parallelism uint8
 	SaltLength  uint32 `mapstructure:"salt_length" json:"salt_length"`
 	KeyLength   uint32 `mapstructure:"key_length" json:"key_length"`
+	Salt        string // hex encoded salt
 }
 
 func DefaultKDFConfig() KDFConfig {
@@ -74,12 +70,14 @@ func DefaultKDFConfig() KDFConfig {
 		4,
 		16,
 		48,
+		"",
 	}
 }
 
 type TssConfig struct {
 	P2PConfig `mapstructure:"p2p" json:"p2p"`
-	KDFConfig `mapstructure:"kdf" json:"kdf"`
+	KDFConfig `mapstructure:"kdf" json:"-"` // kdf config will be persistent together with cryptoJSON,
+	// no need to keep it in config file
 
 	Id      TssClientId
 	Moniker string
@@ -87,9 +85,10 @@ type TssConfig struct {
 
 	Threshold    int
 	Parties      int
-	NewThreshold int `mapstructure:"new_threshold" json:"new_threshold"`
-	NewParties   int `mapstructure:"new_parties" json:"new_parties"`
+	NewThreshold int `mapstructure:"new_threshold" json:"-"`
+	NewParties   int `mapstructure:"new_parties" json:"-"`
 
+	LogLevel    string `mapstructure:"log_level" json:"log_level"`
 	ProfileAddr string `mapstructure:"profile_addr" json:"profile_addr"`
 	Password    string `json:"-"`
 	Message     string `json:"-"` // string represented big.Int, will refactor later
@@ -102,27 +101,24 @@ type TssConfig struct {
 	UnknownParties int           `mapstructure:"unknown_parties" json:"-"`
 	BMode          BootstrapMode `json:"-"`
 
-	Silent bool
-	Home   string
+	Home string
 }
 
-func DefaultTssConfig() TssConfig {
-	return TssConfig{
-		P2PConfig: DefaultP2PConfig(),
-		KDFConfig: DefaultKDFConfig(),
+func ReadConfigFromHome(v *viper.Viper, home, passphrase string) error {
+	cfg, err := LoadConfig(home, passphrase)
+	if e, ok := err.(*os.PathError); ok && e.Err == syscall.ENOENT {
+		fmt.Println("Cannot find config.json, would use config in command line parameter. This is not an error if you run init")
+	} else if err != nil {
+		return err
 	}
-}
-
-func ReadConfigFromHome(v *viper.Viper, home string) error {
-	v.SetConfigName("config")
-	v.AddConfigPath(home)
-	err := v.ReadInConfig()
+	marshaled, err := json.Marshal(cfg)
 	if err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return err
-		} else {
-			fmt.Println("!!!NOTICE!!! cannot find config.json, would use config in command line parameter")
-		}
+		return err
+	}
+	v.SetConfigType("json")
+	err = v.MergeConfig(bytes.NewReader(marshaled))
+	if err != nil {
+		return err
 	}
 
 	var config TssConfig
@@ -155,6 +151,11 @@ func ReadConfigFromHome(v *viper.Viper, home string) error {
 	})
 	if err != nil {
 		return err
+	}
+	// override kdfconfig with loaded kdf config rather than command line ones (because after init, kdf configs are not bound)
+	// TODO: exclude KDFConfig from TssConfig
+	if cfg != nil {
+		config.KDFConfig = cfg.KDFConfig
 	}
 
 	// validate configs

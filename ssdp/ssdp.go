@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -17,24 +16,25 @@ import (
 
 const serviceType string = "binance:tss"
 
+// ssdp service helps parties found others' listen address(host:port)
 type SsdpService struct {
-	finished      chan bool
-	listenAddr    string
-	expectedPeers int
-	usn           string
-	monitor       *ssdp.Monitor
+	finished         chan bool
+	listenAddr       string
+	expectedPeers    int                 // how many listen addresses should be collected before exist
+	existingMonikers map[string]struct{} // existing monikers used to filter out already known listen_addr, this used to exclude already known address during regroup
+	usn              string
+	monitor          *ssdp.Monitor
 
 	PeerAddrs sync.Map // map[string]string (uuid -> connectable address)
 }
 
-func NewSsdpService(moniker, listenAddr string, expectedPeers int) *SsdpService {
-	ssdp.Logger = log.New(os.Stderr, "[SSDP] ", log.LstdFlags)
-
+func NewSsdpService(moniker, listenAddr string, expectedPeers int, existingMonikers map[string]struct{}) *SsdpService {
 	s := &SsdpService{
-		finished:      make(chan bool),
-		listenAddr:    listenAddr,
-		expectedPeers: expectedPeers,
-		usn:           fmt.Sprintf("unique:%s", moniker),
+		finished:         make(chan bool),
+		listenAddr:       listenAddr,
+		expectedPeers:    expectedPeers,
+		existingMonikers: existingMonikers,
+		usn:              fmt.Sprintf("unique:%s", moniker),
 	}
 	s.monitor = &ssdp.Monitor{
 		Alive:  s.onAlive,
@@ -67,7 +67,6 @@ func (s *SsdpService) startAdvertiser() {
 
 	for range aliveTick {
 		ad.Alive()
-		client.Logger.Debugf("ssdp advertised")
 	}
 	ad.Bye()
 	ad.Close()
@@ -82,7 +81,9 @@ func (s *SsdpService) onAlive(m *ssdp.AliveMessage) {
 	if m.Type != "binance:tss" {
 		return
 	}
-	if m.USN == s.usn {
+	if m.USN == s.usn ||
+		!strings.HasPrefix(m.USN, "unique:") ||
+		len(m.USN) == len("unique:") {
 		return
 	}
 	if _, ok := s.PeerAddrs.Load(m.USN); !ok {
@@ -101,8 +102,12 @@ func (s *SsdpService) onAlive(m *ssdp.AliveMessage) {
 			if err != nil {
 				continue
 			}
-			s.PeerAddrs.Store(m.USN, multiAddr)
-			client.Logger.Debugf("stored %s (%s)", m.USN, multiAddr)
+			// only newly found moniker is considered as new peer
+			// TODO: update old peer's listen addr
+			if _, ok := s.existingMonikers[strings.Trim(m.USN, "unique:")]; !ok {
+				s.PeerAddrs.Store(m.USN, multiAddr)
+				client.Logger.Debugf("stored %s (%s)", m.USN, multiAddr)
+			}
 			break
 		}
 	}

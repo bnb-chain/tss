@@ -93,7 +93,10 @@ func loadSavedKey(config *common.TssConfig) keygen.LocalPartySaveData {
 		}
 	}
 
-	result, _ := Load(passphrase, wPriv, wPub) // TODO: validate nodeKey
+	result, _, err := common.Load(passphrase, wPriv, wPub) // TODO: validate nodeKey
+	if err != nil {
+		panic(err)
+	}
 	return *result
 }
 

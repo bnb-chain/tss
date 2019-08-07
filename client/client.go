@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"time"
 
 	lib "github.com/binance-chain/tss-lib/common"
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
@@ -283,12 +284,14 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 
 		if client.mode == RegroupMode {
 			if !common.TssCfg.IsNewCommittee {
-				// TODO: elegantly detect peer's close
+				// wait for round_3 messages sent success before close old
+				// TODO: introduce a send callback to waiting here
+				time.Sleep(5 * time.Second)
 				if done != nil {
 					done <- true
 					close(done)
 				}
-				continue
+				break
 			}
 		}
 
@@ -310,7 +313,10 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 			panic(err)
 		}
 		defer wPub.Close() // defer within loop is fine here as for one party there would be only one element from saveCh
-		Save(&msg, client.transporter.NodeKey(), client.config.KDFConfig, client.config.Password, wPriv, wPub)
+		err = common.Save(&msg, client.transporter.NodeKey(), client.config.KDFConfig, client.config.Password, wPriv, wPub)
+		if err != nil {
+			panic(err)
+		}
 
 		if done != nil {
 			done <- true

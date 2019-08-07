@@ -11,10 +11,10 @@ import (
 
 	"github.com/bgentry/speakeasy"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
 	"github.com/binance-chain/tss/client"
 	"github.com/binance-chain/tss/common"
+	"github.com/binance-chain/tss/p2p"
 	"github.com/binance-chain/tss/ssdp"
 )
 
@@ -27,13 +27,6 @@ var bootstrapCmd = &cobra.Command{
 	Short:  "bootstrapping for network configuration",
 	Long:   "bootstrapping for network configuration. Will try connect to configured address and get peer's id and moniker",
 	Hidden: true, // This command would be used as a step of other commands rather than a standalone one
-	PreRun: func(cmd *cobra.Command, args []string) {
-		home := viper.GetString("home")
-		if err := common.ReadConfigFromHome(viper.GetViper(), home); err != nil {
-			panic(err)
-		}
-		initLogLevel(common.TssCfg)
-	},
 	Run: func(cmd *cobra.Command, args []string) {
 		src, err := common.ConvertMultiAddrStrToNormalAddr(common.TssCfg.ListenAddr)
 		if err != nil {
@@ -163,7 +156,12 @@ func findPeerAddrsViaSsdp(n int, listenAddrs string) []string {
 		return common.TssCfg.NewPeerAddrs
 	}
 
-	ssdpSrv := ssdp.NewSsdpService(common.TssCfg.Moniker, listenAddrs, n)
+	existingMonikers := make(map[string]struct{})
+	for _, peer := range common.TssCfg.ExpectedPeers {
+		moniker := p2p.GetMonikerFromExpectedPeers(peer)
+		existingMonikers[moniker] = struct{}{}
+	}
+	ssdpSrv := ssdp.NewSsdpService(common.TssCfg.Moniker, listenAddrs, n, existingMonikers)
 	ssdpSrv.CollectPeerAddrs()
 	var peerAddrs []string
 	ssdpSrv.PeerAddrs.Range(func(_, value interface{}) bool {

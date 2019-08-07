@@ -1,9 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
-	"github.com/bgentry/speakeasy"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -20,13 +17,13 @@ var signCmd = &cobra.Command{
 	Short: "sign a transaction",
 	Long:  "sign a transaction using local share, signers will be prompted to fill in",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home")); err != nil {
+		passphrase := askPassphrase()
+		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home"), passphrase); err != nil {
 			panic(err)
 		}
 		initLogLevel(common.TssCfg)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		askPassphrase()
 		setChannelId()
 		setChannelPasswd()
 		setMessage()
@@ -34,18 +31,6 @@ var signCmd = &cobra.Command{
 		c := client.NewTssClient(&common.TssCfg, client.SignMode, false)
 		c.Start()
 	},
-}
-
-func askPassphrase() {
-	if common.TssCfg.Password != "" {
-		return
-	}
-
-	if p, err := speakeasy.Ask(fmt.Sprintf("Password to sign with '%s':", common.TssCfg.Moniker)); err == nil {
-		common.TssCfg.Password = p
-	} else {
-		panic(err)
-	}
 }
 
 // TODO: use MessageBridge

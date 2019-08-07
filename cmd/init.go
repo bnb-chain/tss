@@ -31,10 +31,11 @@ var initCmd = &cobra.Command{
 	Short: "create home directory of a new tss setup, generate p2p key pair",
 	Long:  "",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		home := viper.GetString("home")
-		makeHomeDir(home)
+		home := viper.GetString(flagHome)
+		vault := viper.GetString(flagVault)
+		makeHomeDir(home, vault)
 		passphrase := setPassphrase()
-		if err := common.ReadConfigFromHome(viper.GetViper(), home, passphrase); err != nil {
+		if err := common.ReadConfigFromHome(viper.GetViper(), home, vault, passphrase); err != nil {
 			panic(err)
 		}
 		initLogLevel(common.TssCfg)
@@ -58,12 +59,13 @@ var initCmd = &cobra.Command{
 		if err != nil {
 			panic(err)
 		}
-		client.Logger.Infof("Local party has been initialized under: %s\n", common.TssCfg.Home)
+		client.Logger.Infof("Local party has been initialized under: %s\n", path.Join(common.TssCfg.Home, common.TssCfg.Vault))
 	},
 }
 
-func makeHomeDir(home string) {
-	if _, err := os.Stat(home); err == nil {
+func makeHomeDir(home, vault string) {
+	h := path.Join(home, vault)
+	if _, err := os.Stat(h); err == nil {
 		// home already exists
 		reader := bufio.NewReader(os.Stdin)
 		answer, err := GetBool("Home already exist, do you like override it[y/N]: ", false, reader)
@@ -71,23 +73,23 @@ func makeHomeDir(home string) {
 			panic(err)
 		}
 		if answer {
-			if _, err := os.Stat(path.Join(home, "config.json")); err == nil {
-				if err := os.Remove(path.Join(home, "config.json")); err != nil {
+			if _, err := os.Stat(path.Join(h, "config.json")); err == nil {
+				if err := os.Remove(path.Join(h, "config.json")); err != nil {
 					panic(err)
 				}
 			}
-			if _, err := os.Stat(path.Join(home, "node_key")); err == nil {
-				if err := os.Remove(path.Join(home, "node_key")); err != nil {
+			if _, err := os.Stat(path.Join(h, "node_key")); err == nil {
+				if err := os.Remove(path.Join(h, "node_key")); err != nil {
 					panic(err)
 				}
 			}
-			if _, err := os.Stat(path.Join(home, "pk.json")); err == nil {
-				if err := os.Remove(path.Join(home, "pk.json")); err != nil {
+			if _, err := os.Stat(path.Join(h, "pk.json")); err == nil {
+				if err := os.Remove(path.Join(h, "pk.json")); err != nil {
 					panic(err)
 				}
 			}
-			if _, err := os.Stat(path.Join(home, "sk.json")); err == nil {
-				if err := os.Remove(path.Join(home, "sk.json")); err != nil {
+			if _, err := os.Stat(path.Join(h, "sk.json")); err == nil {
+				if err := os.Remove(path.Join(h, "sk.json")); err != nil {
 					panic(err)
 				}
 			}
@@ -96,7 +98,7 @@ func makeHomeDir(home string) {
 			os.Exit(0)
 		}
 	} else {
-		if err := os.Mkdir(home, 0700); err != nil {
+		if err := os.MkdirAll(h, 0700); err != nil {
 			panic(err)
 		}
 	}
@@ -150,7 +152,7 @@ func setP2pKey() {
 	if err != nil {
 		panic(err)
 	}
-	if err := ioutil.WriteFile(path.Join(common.TssCfg.Home, "node_key"), bytes, os.FileMode(0600)); err != nil {
+	if err := ioutil.WriteFile(path.Join(common.TssCfg.Home, common.TssCfg.Vault, "node_key"), bytes, os.FileMode(0600)); err != nil {
 		panic(err)
 	}
 

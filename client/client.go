@@ -94,7 +94,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 			ChannelPassword: config.ChannelPassword,
 			Cfg:             &common.TssCfg,
 		}
-		t := p2p.NewP2PTransporter(config.Home, config.Id.String(), bootstrapper, signers, &config.P2PConfig)
+		t := p2p.NewP2PTransporter(config.Home, config.Vault, config.Id.String(), bootstrapper, signers, &config.P2PConfig)
 		t.Shutdown()
 		bootstrapper.Peers.Range(func(_, value interface{}) bool {
 			if pi, ok := value.(common.PeerInfo); ok {
@@ -224,7 +224,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 		c.transporter = p2p.GetMemTransporter(config.Id)
 	} else {
 		// will block until peers are connected
-		c.transporter = p2p.NewP2PTransporter(config.Home, config.Id.String(), nil, signers, &config.P2PConfig)
+		c.transporter = p2p.NewP2PTransporter(config.Home, config.Vault, config.Id.String(), nil, signers, &config.P2PConfig)
 	}
 
 	return &c
@@ -303,12 +303,12 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 			Logger.Infof("[%s] bech32 address is: %s", client.config.Moniker, address)
 		}
 
-		wPriv, err := os.OpenFile(path.Join(client.config.Home, "sk.json"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+		wPriv, err := os.OpenFile(path.Join(client.config.Home, client.config.Vault, "sk.json"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 		if err != nil {
 			panic(err)
 		}
 		defer wPriv.Close() // defer within loop is fine here as for one party there would be only one element from saveCh
-		wPub, err := os.OpenFile(path.Join(client.config.Home, "pk.json"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+		wPub, err := os.OpenFile(path.Join(client.config.Home, client.config.Vault, "pk.json"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 		if err != nil {
 			panic(err)
 		}

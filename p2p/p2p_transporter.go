@@ -108,7 +108,7 @@ var _ common.Transporter = (*p2pTransporter)(nil)
 // signers indicate which peers within config.ExpectedPeer should be connected (non-empty for regroup and sign, empty for keygen)
 // Once this is done, the transportation is ready to use
 func NewP2PTransporter(
-	home, nodeId string,
+	home, vault, nodeId string,
 	bootstrapper *common.Bootstrapper,
 	signers map[string]int,
 	config *common.P2PConfig) common.Transporter {
@@ -118,7 +118,7 @@ func NewP2PTransporter(
 	if bootstrapper != nil {
 		t.bootstrapper = bootstrapper
 	}
-	t.pathToRouteTable = path.Join(home, "rt/")
+	t.pathToRouteTable = path.Join(home, vault, "rt/")
 	ps := pstoremem.NewPeerstore()
 	t.setExpectedPeers(nodeId, signers, ps, config) // t.expectedPeers will be updated in this method
 	t.bootstrapPeers = config.BootstrapPeers
@@ -148,7 +148,7 @@ func NewP2PTransporter(
 	t.receiveCh = make(chan tss.Message, receiveChBufSize)
 	// load private key of node id
 	var privKey crypto.PrivKey
-	pathToNodeKey := path.Join(home, "node_key")
+	pathToNodeKey := path.Join(home, vault, "node_key")
 	if _, err := os.Stat(pathToNodeKey); err == nil {
 		bytes, err := ioutil.ReadFile(pathToNodeKey)
 		if err != nil {
@@ -514,7 +514,7 @@ func (t *p2pTransporter) connectRoutine(dht *libp2pdht.IpfsDHT, pid peer.ID, pro
 			} else {
 				err := t.host.Connect(t.ctx, peer.AddrInfo{pid, t.host.Peerstore().Addrs(pid)})
 				if err != nil {
-					logger.Info("Direct Connection failed, will retry, err:", err)
+					logger.Debug("Direct Connection failed, will retry, err:", err)
 					continue
 				} else {
 					if atomic.LoadInt32(&t.numOfStreams) == int32(len(t.expectedPeers)) {

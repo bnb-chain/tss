@@ -72,12 +72,12 @@ func loadSavedKeyForRegroup(config *common.TssConfig, sortedIds tss.SortedPartyI
 }
 
 func loadSavedKey(config *common.TssConfig) keygen.LocalPartySaveData {
-	wPriv, err := os.OpenFile(path.Join(config.Home, "sk.json"), os.O_RDONLY, 0400)
+	wPriv, err := os.OpenFile(path.Join(config.Home, config.Vault, "sk.json"), os.O_RDONLY, 0400)
 	if err != nil {
 		panic(err)
 	}
 	defer wPriv.Close()
-	wPub, err := os.OpenFile(path.Join(config.Home, "pk.json"), os.O_RDONLY, 0400)
+	wPub, err := os.OpenFile(path.Join(config.Home, config.Vault, "pk.json"), os.O_RDONLY, 0400)
 	if err != nil {
 		panic(err)
 	}

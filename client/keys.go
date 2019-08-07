@@ -25,7 +25,7 @@ func (client *TssClient) Sign(msg []byte) ([]byte, error) {
 }
 
 func (client *TssClient) PubKey() crypto.PubKey {
-	if pubKey, err := common.LoadPubkey(client.config.Home, client.config.Password); err == nil {
+	if pubKey, err := common.LoadPubkey(client.config.Home, client.config.Vault, client.config.Password); err == nil {
 		return pubKey
 	} else {
 		return nil

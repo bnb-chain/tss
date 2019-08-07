@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"path"
 
@@ -9,7 +8,13 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/binance-chain/tss/client"
 	"github.com/binance-chain/tss/common"
+)
+
+const (
+	flagHome  = "home"
+	flagVault = "vault_name"
 )
 
 var rootCmd = &cobra.Command{
@@ -28,7 +33,7 @@ func Execute() {
 	initConfigAndLogLevel()
 
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		client.Logger.Error(err)
 		os.Exit(1)
 	}
 }
@@ -42,7 +47,7 @@ func initConfigAndLogLevel() {
 	if err != nil {
 		panic(err)
 	}
-	rootCmd.PersistentFlags().String("home", path.Join(home, ".tss"), "Path to config/route_table/node_key/tss_key files, configs in config file can be overriden by command line arg quments")
+	rootCmd.PersistentFlags().String(flagHome, path.Join(home, ".tss"), "Path to config/route_table/node_key/tss_key files, configs in config file can be overriden by command line arg quments")
 }
 
 func bindP2pConfigs() {
@@ -68,9 +73,8 @@ func bindKdfConfigs() {
 }
 
 func bindClientConfigs() {
-	//rootCmd.PersistentFlags().String("id", "", "id of current node")
-	initCmd.PersistentFlags().String("moniker", "", "moniker of current node")
-	rootCmd.PersistentFlags().String("wallet", "", "name of wallets of this node")
+	initCmd.PersistentFlags().String("moniker", "", "moniker of current party")
+	rootCmd.PersistentFlags().String(flagVault, "", "name of vault of this party")
 	keygenCmd.PersistentFlags().Int("threshold", 0, "threshold of this scheme")
 	regroupCmd.PersistentFlags().Int("threshold", 0, "threshold of this scheme")
 	keygenCmd.PersistentFlags().Int("parties", 0, "total parities of this scheme")

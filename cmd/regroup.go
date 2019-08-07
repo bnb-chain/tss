@@ -23,14 +23,14 @@ var regroupCmd = &cobra.Command{
 	Long:  "generate new_n secrete share with new_t threshold. At least old_t + 1 should participant",
 	PreRun: func(cmd *cobra.Command, args []string) {
 		passphrase := askPassphrase()
-		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString("home"), passphrase); err != nil {
+		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString(flagHome), viper.GetString(flagVault), passphrase); err != nil {
 			panic(err)
 		}
 		initLogLevel(common.TssCfg)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		var mustBeNewParty bool
-		if _, err := os.Stat(path.Join(common.TssCfg.Home, "sk.json")); os.IsNotExist(err) {
+		if _, err := os.Stat(path.Join(common.TssCfg.Home, common.TssCfg.Vault, "sk.json")); os.IsNotExist(err) {
 			mustBeNewParty = true
 		}
 

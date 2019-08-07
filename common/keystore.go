@@ -183,7 +183,7 @@ func SaveConfig(config *TssConfig) error {
 		return err
 	}
 
-	if err = ioutil.WriteFile(path.Join(config.Home, "config.json"), bytes, os.FileMode(0600)); err != nil {
+	if err = ioutil.WriteFile(path.Join(config.Home, config.Vault, "config.json"), bytes, os.FileMode(0600)); err != nil {
 		return err
 	}
 
@@ -227,8 +227,8 @@ func Load(passphrase string, rPriv, rPub io.Reader) (saveData *keygen.LocalParty
 	}, sFields.NodeKey, nil
 }
 
-func LoadPubkey(home, passphrase string) (tmCrypto.PubKey, error) {
-	rPub, err := os.OpenFile(path.Join(home, "pk.json"), os.O_RDONLY, 0400)
+func LoadPubkey(home, vault, passphrase string) (tmCrypto.PubKey, error) {
+	rPub, err := os.OpenFile(path.Join(home, vault, "pk.json"), os.O_RDONLY, 0400)
 	if err != nil {
 		return nil, err
 	}
@@ -250,8 +250,8 @@ func LoadPubkey(home, passphrase string) (tmCrypto.PubKey, error) {
 	return pubkeyBytes, nil
 }
 
-func LoadConfig(home, passphrase string) (*TssConfig, error) {
-	sConfigBytes, err := ioutil.ReadFile(path.Join(home, "config.json"))
+func LoadConfig(home, vault, passphrase string) (*TssConfig, error) {
+	sConfigBytes, err := ioutil.ReadFile(path.Join(home, vault, "config.json"))
 	if err != nil {
 		return nil, err
 	}

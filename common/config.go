@@ -81,7 +81,7 @@ type TssConfig struct {
 
 	Id      TssClientId
 	Moniker string
-	Wallet  string
+	Vault   string `mapstructure:"vault_name" json:"vault_name"` // subdir within home to indicate alias of different vaults (addresses)
 
 	Threshold    int
 	Parties      int
@@ -104,8 +104,8 @@ type TssConfig struct {
 	Home string
 }
 
-func ReadConfigFromHome(v *viper.Viper, home, passphrase string) error {
-	cfg, err := LoadConfig(home, passphrase)
+func ReadConfigFromHome(v *viper.Viper, home, vault, passphrase string) error {
+	cfg, err := LoadConfig(home, vault, passphrase)
 	if e, ok := err.(*os.PathError); ok && e.Err == syscall.ENOENT {
 		fmt.Println("Cannot find config.json, would use config in command line parameter. This is not an error if you run init")
 	} else if err != nil {

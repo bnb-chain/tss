@@ -16,6 +16,7 @@ import (
 	"os"
 	"path"
 
+	"github.com/bgentry/speakeasy"
 	"github.com/binance-chain/tss-lib/crypto"
 	"github.com/binance-chain/tss-lib/crypto/paillier"
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
@@ -227,7 +228,15 @@ func Load(passphrase string, rPriv, rPub io.Reader) (saveData *keygen.LocalParty
 	}, sFields.NodeKey, nil
 }
 
-func LoadPubkey(home, vault, passphrase string) (tmCrypto.PubKey, error) {
+// This helper method is used by PubKey interface in keys.go
+func LoadPubkey(home, vault string) (tmCrypto.PubKey, error) {
+	passphrase := ""
+	if p, err := speakeasy.Ask("Password of this tss vault:"); err == nil {
+		passphrase = p
+	} else {
+		return nil, err
+	}
+
 	rPub, err := os.OpenFile(path.Join(home, vault, "pk.json"), os.O_RDONLY, 0400)
 	if err != nil {
 		return nil, err

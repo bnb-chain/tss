@@ -16,17 +16,12 @@ import (
 	"os"
 	"path"
 
-	"github.com/bgentry/speakeasy"
 	"github.com/binance-chain/tss-lib/crypto"
 	"github.com/binance-chain/tss-lib/crypto/paillier"
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
 	"github.com/binance-chain/tss-lib/tss"
-	"github.com/btcsuite/btcd/btcec"
-	"github.com/tendermint/tendermint/crypto/secp256k1"
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/sha3"
-
-	tmCrypto "github.com/tendermint/tendermint/crypto"
 )
 
 const (
@@ -228,15 +223,7 @@ func Load(passphrase string, rPriv, rPub io.Reader) (saveData *keygen.LocalParty
 	}, sFields.NodeKey, nil
 }
 
-// This helper method is used by PubKey interface in keys.go
-func LoadPubkey(home, vault string) (tmCrypto.PubKey, error) {
-	passphrase := ""
-	if p, err := speakeasy.Ask("Password of this tss vault:"); err == nil {
-		passphrase = p
-	} else {
-		return nil, err
-	}
-
+func LoadEcdsaPubkey(home, vault, passphrase string) (*ecdsa.PublicKey, error) {
 	rPub, err := os.OpenFile(path.Join(home, vault, "pk.json"), os.O_RDONLY, 0400)
 	if err != nil {
 		return nil, err
@@ -251,12 +238,7 @@ func LoadPubkey(home, vault string) (tmCrypto.PubKey, error) {
 		return nil, err
 	}
 
-	ecdsaPubKey := &ecdsa.PublicKey{tss.EC(), pFields.ECDSAPub.X(), pFields.ECDSAPub.Y()}
-	btcecPubKey := (*btcec.PublicKey)(ecdsaPubKey)
-
-	var pubkeyBytes secp256k1.PubKeySecp256k1
-	copy(pubkeyBytes[:], btcecPubKey.SerializeCompressed())
-	return pubkeyBytes, nil
+	return &ecdsa.PublicKey{tss.EC(), pFields.ECDSAPub.X(), pFields.ECDSAPub.Y()}, nil
 }
 
 func LoadConfig(home, vault, passphrase string) (*TssConfig, error) {

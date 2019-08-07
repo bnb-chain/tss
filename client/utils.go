@@ -100,25 +100,6 @@ func loadSavedKey(config *common.TssConfig) keygen.LocalPartySaveData {
 	return *result
 }
 
-func getAddress(key ecdsa.PublicKey) (string, error) {
-	btcecPubKey := btcec.PublicKey(key)
-	// be consistent with tendermint/crypto
-	compressed := btcecPubKey.SerializeCompressed()
-	hasherSHA256 := sha256.New()
-	hasherSHA256.Write(compressed[:]) // does not error
-	sha := hasherSHA256.Sum(nil)
-
-	hasherRIPEMD160 := ripemd160.New()
-	hasherRIPEMD160.Write(sha) // does not error
-
-	address := []byte(hasherRIPEMD160.Sum(nil))
-	converted, err := bech32.ConvertBits(address, 8, 5, true) // TODO: error check
-	if err != nil {
-		return "", errors.Wrap(err, "encoding bech32 failed")
-	}
-	return bech32.Encode("tbnb", converted)
-}
-
 func newEmptySaveData() keygen.LocalPartySaveData {
 	return keygen.LocalPartySaveData{
 		BigXj:       make([]*crypto.ECPoint, common.TssCfg.NewParties),
@@ -141,4 +122,23 @@ func appendIfNotExist(target []string, new string) []string {
 		target = append(target, new)
 	}
 	return target
+}
+
+func GetAddress(key ecdsa.PublicKey, prefix string) (string, error) {
+	btcecPubKey := btcec.PublicKey(key)
+	// be consistent with tendermint/crypto
+	compressed := btcecPubKey.SerializeCompressed()
+	hasherSHA256 := sha256.New()
+	hasherSHA256.Write(compressed[:]) // does not error
+	sha := hasherSHA256.Sum(nil)
+
+	hasherRIPEMD160 := ripemd160.New()
+	hasherRIPEMD160.Write(sha) // does not error
+
+	address := []byte(hasherRIPEMD160.Sum(nil))
+	converted, err := bech32.ConvertBits(address, 8, 5, true) // TODO: error check
+	if err != nil {
+		return "", errors.Wrap(err, "encoding bech32 failed")
+	}
+	return bech32.Encode(prefix, converted)
 }

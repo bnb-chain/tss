@@ -85,7 +85,7 @@ func askPassphrase() string {
 		return viper.GetString("password")
 	}
 
-	if p, err := speakeasy.Ask(fmt.Sprintf("Password to sign with '%s':", common.TssCfg.Moniker)); err == nil {
+	if p, err := speakeasy.Ask("Password to sign with this party:"); err == nil {
 		viper.Set("password", p)
 		return p
 	} else {

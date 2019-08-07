@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	flagHome  = "home"
-	flagVault = "vault_name"
+	flagHome   = "home"
+	flagVault  = "vault_name"
+	flagPrefix = "address_prefix"
 )
 
 var rootCmd = &cobra.Command{
@@ -75,18 +76,26 @@ func bindKdfConfigs() {
 func bindClientConfigs() {
 	initCmd.PersistentFlags().String("moniker", "", "moniker of current party")
 	rootCmd.PersistentFlags().String(flagVault, "", "name of vault of this party")
+	keygenCmd.PersistentFlags().String(flagPrefix, "bnb", "prefix of bech32 address")
+	describeCmd.PersistentFlags().String(flagPrefix, "bnb", "prefix of bech32 address")
 	keygenCmd.PersistentFlags().Int("threshold", 0, "threshold of this scheme")
 	regroupCmd.PersistentFlags().Int("threshold", 0, "threshold of this scheme")
 	keygenCmd.PersistentFlags().Int("parties", 0, "total parities of this scheme")
 	regroupCmd.PersistentFlags().Int("parties", 0, "total parities of this scheme")
 	regroupCmd.PersistentFlags().Int("new_threshold", 0, "new threshold of regrouped scheme")
 	regroupCmd.PersistentFlags().Int("new_parties", 0, "new total parties of regrouped scheme")
-	//rootCmd.PersistentFlags().String("profile_addr", "", "host:port of go pprof")
 	rootCmd.PersistentFlags().String("password", "", "password, should only be used for testing. If empty, you will be prompted for password to save/load the secret/public share and config")
 	signCmd.PersistentFlags().String("message", "", "message(in *big.Int.String() format) to be signed, only used in sign mode")
 	rootCmd.PersistentFlags().String("log_level", "info", "log level")
-	rootCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
-	rootCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
+
+	keygenCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
+	signCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
+	regroupCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
+
+	keygenCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
+	signCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
+	regroupCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
+
 	channelCmd.PersistentFlags().Int("channel_expire", 0, "expire time in minutes of this channel")
 
 	regroupCmd.PersistentFlags().Int("unknown_parties", -1, "unknown parties that joined regroup for this party (default: 3): ")

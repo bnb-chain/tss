@@ -4,9 +4,12 @@ import (
 	"crypto/elliptic"
 	"math/big"
 
+	"github.com/bgentry/speakeasy"
 	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/binance-chain/tss-lib/tss"
+	"github.com/btcsuite/btcd/btcec"
 	"github.com/tendermint/tendermint/crypto"
+	"github.com/tendermint/tendermint/crypto/secp256k1"
 
 	"github.com/binance-chain/tss/common"
 )
@@ -25,7 +28,7 @@ func (client *TssClient) Sign(msg []byte) ([]byte, error) {
 }
 
 func (client *TssClient) PubKey() crypto.PubKey {
-	if pubKey, err := common.LoadPubkey(client.config.Home, client.config.Vault); err == nil {
+	if pubKey, err := LoadPubkey(client.config.Home, client.config.Vault); err == nil {
 		return pubKey
 	} else {
 		return nil
@@ -54,6 +57,26 @@ func (client *TssClient) signImpl(m *big.Int) ([]byte, error) {
 	<-done
 	Logger.Debugf("[%s] received signature: %X", client.config.Moniker, client.signature)
 	return client.signature, nil
+}
+
+// This helper method is used by PubKey interface in keys.go
+func LoadPubkey(home, vault string) (crypto.PubKey, error) {
+	passphrase := ""
+	if p, err := speakeasy.Ask("Password of this tss vault:"); err == nil {
+		passphrase = p
+	} else {
+		return nil, err
+	}
+
+	ecdsaPubKey, err := common.LoadEcdsaPubkey(home, vault, passphrase)
+	if err != nil {
+		return nil, err
+	}
+	btcecPubKey := (*btcec.PublicKey)(ecdsaPubKey)
+
+	var pubkeyBytes secp256k1.PubKeySecp256k1
+	copy(pubkeyBytes[:], btcecPubKey.SerializeCompressed())
+	return pubkeyBytes, nil
 }
 
 // copied from https://github.com/btcsuite/btcd/blob/c26ffa870fd817666a857af1bf6498fabba1ffe3/btcec/signature.go#L263

@@ -79,9 +79,10 @@ type TssConfig struct {
 	KDFConfig `mapstructure:"kdf" json:"-"` // kdf config will be persistent together with cryptoJSON,
 	// no need to keep it in config file
 
-	Id      TssClientId
-	Moniker string
-	Vault   string `mapstructure:"vault_name" json:"vault_name"` // subdir within home to indicate alias of different vaults (addresses)
+	Id            TssClientId
+	Moniker       string
+	Vault         string `mapstructure:"vault_name" json:"vault_name"` // subdir within home to indicate alias of different vaults (addresses)
+	AddressPrefix string `mapstructure:"address_prefix" json:"-"`      //
 
 	Threshold    int
 	Parties      int

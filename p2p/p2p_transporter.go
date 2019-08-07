@@ -182,8 +182,8 @@ func NewP2PTransporter(
 	host.SetStreamHandler(bootstrapProtocolId, t.handleSigner)
 	t.host = host
 	t.closed = make(chan bool)
-	logger.Info("Host created. We are:", host.ID())
-	logger.Info(host.Addrs())
+	logger.Debug("Host created. We are:", host.ID())
+	logger.Debug("listening on:", host.Addrs())
 
 	dht := t.setupDHTClient()
 	if bootstrapper != nil {

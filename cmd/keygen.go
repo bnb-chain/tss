@@ -43,7 +43,7 @@ var keygenCmd = &cobra.Command{
 func checkBootstrap(cmd *cobra.Command, args []string) {
 	reader := bufio.NewReader(os.Stdin)
 	if len(common.TssCfg.ExpectedPeers) > 0 {
-		answer, err := GetBool("Do you like re-bootstrap again?[y/N]: ", false, reader)
+		answer, err := common.GetBool("Do you like re-bootstrap again?[y/N]: ", false, reader)
 		if err != nil {
 			panic(err)
 		}
@@ -67,7 +67,7 @@ func setT() {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	t, err := GetInt("please set threshold(t), at least t + 1 parties needs participant signing (default: 1): ", 1, reader)
+	t, err := common.GetInt("please set threshold(t), at least t + 1 parties needs participant signing (default: 1): ", 1, reader)
 	if err != nil {
 		panic(err)
 	}

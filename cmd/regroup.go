@@ -76,7 +76,7 @@ var regroupCmd = &cobra.Command{
 
 func setIsOld() {
 	reader := bufio.NewReader(os.Stdin)
-	answer, err := GetBool("Participant as an old committee?[Y/n]:", true, reader)
+	answer, err := common.GetBool("Participant as an old committee?[Y/n]:", true, reader)
 	if err != nil {
 		panic(err)
 	}
@@ -87,7 +87,7 @@ func setIsOld() {
 
 func setIsNew() {
 	reader := bufio.NewReader(os.Stdin)
-	answer, err := GetBool("Participant as a new committee?[Y/n]:", true, reader)
+	answer, err := common.GetBool("Participant as a new committee?[Y/n]:", true, reader)
 	if err != nil {
 		panic(err)
 	}
@@ -102,7 +102,7 @@ func setOldN() {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	n, err := GetInt("please set old total parties(n) (default: 3): ", 3, reader)
+	n, err := common.GetInt("please set old total parties(n) (default: 3): ", 3, reader)
 	if err != nil {
 		panic(err)
 	}
@@ -118,7 +118,7 @@ func setOldT() {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	t, err := GetInt("please set old threshold(t), at least t + 1 parties needs participant signing (default: 1): ", 1, reader)
+	t, err := common.GetInt("please set old threshold(t), at least t + 1 parties needs participant signing (default: 1): ", 1, reader)
 	if err != nil {
 		panic(err)
 	}
@@ -137,7 +137,7 @@ func setNewN() {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	n, err := GetInt("please set new total parties(n) (default 3): ", 3, reader)
+	n, err := common.GetInt("please set new total parties(n) (default 3): ", 3, reader)
 	if err != nil {
 		panic(err)
 	}
@@ -153,7 +153,7 @@ func setNewT() {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	t, err := GetInt("please set new threshold(t), at least t + 1 parties needs participant signing (default: 1): ", 1, reader)
+	t, err := common.GetInt("please set new threshold(t), at least t + 1 parties needs participant signing (default: 1): ", 1, reader)
 	if err != nil {
 		panic(err)
 	}
@@ -172,7 +172,7 @@ func setUnknownParties() {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	n, err := GetInt("how many peers are unknown before (default 0): ", 0, reader)
+	n, err := common.GetInt("how many peers are unknown before (default 0): ", 0, reader)
 	if err != nil {
 		panic(err)
 	}

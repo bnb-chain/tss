@@ -39,7 +39,7 @@ func askChannelExpire() int {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	expire, err := GetInt("please set expire time in minutes, (default: 30): ", 30, reader)
+	expire, err := common.GetInt("please set expire time in minutes, (default: 30): ", 30, reader)
 	if err != nil {
 		panic(err)
 	}

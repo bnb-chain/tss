@@ -35,19 +35,14 @@ var bootstrapCmd = &cobra.Command{
 		listenAddrs := getListenAddrs()
 		client.Logger.Debugf("This node is listening on: %v", listenAddrs)
 
-		channelId := setChannelId()
+		setChannelId()
 		setChannelPasswd()
 		setN()
 		numOfPeers := common.TssCfg.Parties - 1
 		if common.TssCfg.BMode == common.PreRegroupMode {
 			numOfPeers = common.TssCfg.UnknownParties
 		}
-		bootstrapper := &common.Bootstrapper{
-			ChannelId:       channelId,
-			ChannelPassword: common.TssCfg.ChannelPassword,
-			ExpectedPeers:   numOfPeers,
-			Cfg:             &common.TssCfg,
-		}
+		bootstrapper := common.NewBootstrapper(numOfPeers, &common.TssCfg)
 
 		listener, err := net.Listen("tcp", src)
 		if err != nil {
@@ -62,7 +57,7 @@ var bootstrapCmd = &cobra.Command{
 		client.Logger.Debugf("Found peers via ssdp: %v", peerAddrs)
 
 		bootstrapMsg, err := common.NewBootstrapMessage(
-			channelId,
+			common.TssCfg.ChannelId,
 			common.TssCfg.ChannelPassword,
 			common.TssCfg.Moniker,
 			common.TssCfg.Id,
@@ -106,18 +101,17 @@ var bootstrapCmd = &cobra.Command{
 	},
 }
 
-func setChannelId() string {
+func setChannelId() {
 	if common.TssCfg.ChannelId != "" {
-		return common.TssCfg.ChannelId
+		return
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	channelId, err := GetString("please set channel id of this session", reader)
+	channelId, err := common.GetString("please set channel id of this session", reader)
 	if err != nil {
 		panic(err)
 	}
 	common.TssCfg.ChannelId = channelId
-	return channelId
 }
 
 func setChannelPasswd() {
@@ -138,7 +132,7 @@ func setN() {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	n, err := GetInt("please set total parties(n) (default: 3): ", 3, reader)
+	n, err := common.GetInt("please set total parties(n) (default: 3): ", 3, reader)
 	if err != nil {
 		panic(err)
 	}

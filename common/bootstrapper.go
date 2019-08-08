@@ -1,8 +1,12 @@
 package common
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"sync"
+
+	"github.com/bgentry/speakeasy"
 )
 
 type BootstrapMode uint8
@@ -26,6 +30,31 @@ type Bootstrapper struct {
 	Cfg             *TssConfig
 
 	Peers sync.Map // id -> peerInfo
+}
+
+func NewBootstrapper(expectedPeers int, config *TssConfig) *Bootstrapper {
+	// when invoke from anther process (bnbcli), we need set channel id and password here
+	if config.ChannelId == "" {
+		reader := bufio.NewReader(os.Stdin)
+		channelId, err := GetString("please set channel id of this session", reader)
+		if err != nil {
+			panic(err)
+		}
+		config.ChannelId = channelId
+	}
+	if config.ChannelPassword == "" {
+		if p, err := speakeasy.Ask("please input password to secure secret bootstrap session:"); err == nil {
+			config.ChannelPassword = p
+		} else {
+			panic(err)
+		}
+	}
+	return &Bootstrapper{
+		ChannelId:       config.ChannelId,
+		ChannelPassword: config.ChannelPassword,
+		ExpectedPeers:   expectedPeers,
+		Cfg:             config,
+	}
 }
 
 func (b *Bootstrapper) HandleBootstrapMsg(peerMsg BootstrapMessage) error {

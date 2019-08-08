@@ -61,11 +61,13 @@ func (client *TssClient) signImpl(m *big.Int) ([]byte, error) {
 
 // This helper method is used by PubKey interface in keys.go
 func LoadPubkey(home, vault string) (crypto.PubKey, error) {
-	passphrase := ""
-	if p, err := speakeasy.Ask("Password of this tss vault:"); err == nil {
-		passphrase = p
-	} else {
-		return nil, err
+	passphrase := common.TssCfg.Password
+	if passphrase == "" {
+		if p, err := speakeasy.Ask("Password of this tss vault:"); err == nil {
+			passphrase = p
+		} else {
+			return nil, err
+		}
 	}
 
 	ecdsaPubKey, err := common.LoadEcdsaPubkey(home, vault, passphrase)

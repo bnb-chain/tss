@@ -68,7 +68,7 @@ func makeHomeDir(home, vault string) {
 	if _, err := os.Stat(h); err == nil {
 		// home already exists
 		reader := bufio.NewReader(os.Stdin)
-		answer, err := GetBool("Home already exist, do you like override it[y/N]: ", false, reader)
+		answer, err := common.GetBool("Home already exist, do you like override it[y/N]: ", false, reader)
 		if err != nil {
 			panic(err)
 		}
@@ -132,7 +132,7 @@ func setMoniker() {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	moniker, err := GetString("please set moniker of this party: ", reader)
+	moniker, err := common.GetString("please set moniker of this party: ", reader)
 	if err != nil {
 		panic(err)
 	}

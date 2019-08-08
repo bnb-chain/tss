@@ -89,11 +89,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 		if mode == RegroupMode {
 			common.TssCfg.BMode = common.RegroupMode
 		}
-		bootstrapper := &common.Bootstrapper{
-			ChannelId:       config.ChannelId,
-			ChannelPassword: config.ChannelPassword,
-			Cfg:             &common.TssCfg,
-		}
+		bootstrapper := common.NewBootstrapper(0, &common.TssCfg)
 		t := p2p.NewP2PTransporter(config.Home, config.Vault, config.Id.String(), bootstrapper, signers, &config.P2PConfig)
 		t.Shutdown()
 		bootstrapper.Peers.Range(func(_, value interface{}) bool {

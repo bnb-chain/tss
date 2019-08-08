@@ -32,7 +32,8 @@ var initCmd = &cobra.Command{
 	Long:  "",
 	PreRun: func(cmd *cobra.Command, args []string) {
 		home := viper.GetString(flagHome)
-		vault := viper.GetString(flagVault)
+		askMoniker()
+		vault := askVault()
 		makeHomeDir(home, vault)
 		passphrase := setPassphrase()
 		if err := common.ReadConfigFromHome(viper.GetViper(), home, vault, passphrase); err != nil {
@@ -43,7 +44,6 @@ var initCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		setP2pKey()
 		setListenAddr()
-		setMoniker()
 		updateConfig()
 
 		addr, err := multiaddr.NewMultiaddr(common.TssCfg.ListenAddr)
@@ -126,8 +126,8 @@ func setPassphrase() string {
 	}
 }
 
-func setMoniker() {
-	if common.TssCfg.Moniker != "" {
+func askMoniker() {
+	if moniker := viper.GetString("moniker"); moniker != "" {
 		return
 	}
 
@@ -139,7 +139,21 @@ func setMoniker() {
 	if strings.Contains(moniker, "@") {
 		panic(fmt.Errorf("moniker should not contains @ sign"))
 	}
-	common.TssCfg.Moniker = moniker
+	viper.Set("moniker", moniker)
+}
+
+func askVault() string {
+	if vault := viper.GetString(flagVault); vault != "" {
+		return vault
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+	vault, err := common.GetString("please set vault of this party: ", reader)
+	if err != nil {
+		panic(err)
+	}
+	viper.Set(flagVault, vault)
+	return vault
 }
 
 func setP2pKey() {

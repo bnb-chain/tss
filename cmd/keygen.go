@@ -2,8 +2,14 @@ package cmd
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
+	"path"
+	"strings"
+	"time"
 
 	"github.com/bgentry/speakeasy"
 	"github.com/spf13/cobra"
@@ -23,20 +29,24 @@ var keygenCmd = &cobra.Command{
 	Long:  "generate secret share of t of n scheme",
 	PreRun: func(cmd *cobra.Command, args []string) {
 		passphrase := askPassphrase()
-		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString(flagHome), viper.GetString(flagVault), passphrase); err != nil {
+		vault := askVault()
+		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString(flagHome), vault, passphrase); err != nil {
 			panic(err)
 		}
 		initLogLevel(common.TssCfg)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
+		setN()
+		setT()
 		checkBootstrap(cmd, args)
 		checkN()
-		setT()
 		setPassphrase()
 		updateConfig()
 
 		c := client.NewTssClient(&common.TssCfg, client.KeygenMode, false)
 		c.Start()
+
+		addToBnbcli()
 	},
 }
 
@@ -61,6 +71,22 @@ func checkN() {
 	}
 }
 
+func setN() {
+	if common.TssCfg.Parties > 0 {
+		return
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+	n, err := common.GetInt("please set total parties(n) (default: 3): ", 3, reader)
+	if err != nil {
+		panic(err)
+	}
+	if n <= 1 {
+		panic(fmt.Errorf("n should greater than 1"))
+	}
+	common.TssCfg.Parties = n
+}
+
 func setT() {
 	if common.TssCfg.Threshold > 0 {
 		return
@@ -74,8 +100,9 @@ func setT() {
 	if t <= 0 {
 		panic(fmt.Errorf("t should greater than 0"))
 	}
-	if t+1 >= common.TssCfg.Parties {
-		panic(fmt.Errorf("t + 1 should less than parties"))
+	// we allowed t+1 == n, for most common use case 2-2 scheme
+	if t+1 > common.TssCfg.Parties {
+		panic(fmt.Errorf("t + 1 should less than or equals to parties"))
 	}
 	common.TssCfg.Threshold = t
 }
@@ -90,6 +117,88 @@ func askPassphrase() string {
 		return p
 	} else {
 		panic(err)
+	}
+}
+
+// CapturingPassThroughWriter is a writer that remembers
+// data written to it and passes it to w
+type CapturingPassThroughWriter struct {
+	buf bytes.Buffer
+	w   io.Writer
+}
+
+// NewCapturingPassThroughWriter creates new CapturingPassThroughWriter
+func NewCapturingPassThroughWriter(w io.Writer) *CapturingPassThroughWriter {
+	return &CapturingPassThroughWriter{
+		w: w,
+	}
+}
+func (w *CapturingPassThroughWriter) Write(d []byte) (int, error) {
+	w.buf.Write(d)
+	return w.w.Write(d)
+}
+
+// Bytes returns bytes written to the writer
+func (w *CapturingPassThroughWriter) Bytes() []byte {
+	return w.buf.Bytes()
+}
+
+func addToBnbcli() {
+	// invoke bnbcli add the generated key into bnbcli's keystore
+	bnbcliName := fmt.Sprintf("tss_%s", common.TssCfg.Moniker)
+	if common.TssCfg.Vault != "" {
+		bnbcliName += "_" + common.TssCfg.Vault
+	}
+	pwd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	execuable := "tbnbcli"
+	if common.TssCfg.AddressPrefix == "bnb" {
+		if _, err := os.Stat(path.Join(pwd, "bnbcli")); err == nil {
+			execuable = "bnbcli"
+		}
+	}
+
+	retry := 3
+	for tried := 0; tried < retry; tried++ {
+		bnbcli := exec.Command(path.Join(pwd, execuable), "keys", "add", "--tss", "-t", "tss", "--tss-home", common.TssCfg.Home, "--tss-vault", common.TssCfg.Vault, bnbcliName)
+		stdoutIn, _ := bnbcli.StdoutPipe()
+		stderrIn, _ := bnbcli.StderrPipe()
+		bnbcli.Stdin = os.Stdin
+		stdout := NewCapturingPassThroughWriter(os.Stdout)
+		stderr := NewCapturingPassThroughWriter(os.Stderr)
+
+		var errStdout, errStderr error
+		go func() {
+			_, errStdout = io.Copy(stdout, stdoutIn)
+		}()
+		go func() {
+			_, errStderr = io.Copy(stderr, stderrIn)
+		}()
+
+		err = bnbcli.Start()
+		if err != nil {
+			panic(err)
+		}
+
+		err = bnbcli.Wait()
+
+		if strings.Contains(string(stderr.Bytes()), "ERROR: resource temporarily unavailable") {
+			time.Sleep(5 * time.Second)
+			tried-- // contention doesn't count real failure
+		} else {
+			if err != nil {
+				client.Logger.Errorf("%s failed with %v\n", execuable, err)
+				if tried == retry-1 {
+					cmd := fmt.Sprintf("%s keys add --tss -t tss --tss-home %s --tss-vault %s %s", execuable, common.TssCfg.Home, common.TssCfg.Vault, bnbcliName)
+					client.Logger.Infof("Cannot add tss key to %s's default keystore, please try this command manually: %s", execuable, cmd)
+				}
+			} else {
+				client.Logger.Infof("added %s to bnbcli's default keystore", bnbcliName)
+				break
+			}
+		}
 	}
 }
 

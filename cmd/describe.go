@@ -15,13 +15,15 @@ func init() {
 	rootCmd.AddCommand(describeCmd)
 }
 
+// fmt.Printf is deliberately used in this command
 var describeCmd = &cobra.Command{
 	Use:   "describe",
 	Short: "show config and address of a tss vault",
 	Long:  "",
 	PreRun: func(cmd *cobra.Command, args []string) {
 		passphrase := askPassphrase()
-		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString(flagHome), viper.GetString(flagVault), passphrase); err != nil {
+		vault := askVault()
+		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString(flagHome), vault, passphrase); err != nil {
 			panic(err)
 		}
 		initLogLevel(common.TssCfg)
@@ -29,13 +31,15 @@ var describeCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		pubKey, err := common.LoadEcdsaPubkey(viper.GetString(flagHome), viper.GetString(flagVault), common.TssCfg.Password)
 		if err != nil {
-			panic(err)
+			fmt.Printf("cannot load public key, maybe not keygen yet: %v", err)
 		}
-		addr, err := client.GetAddress(*pubKey, viper.GetString(flagPrefix))
-		if err != nil {
-			panic(err)
+		if pubKey != nil {
+			addr, err := client.GetAddress(*pubKey, viper.GetString(flagPrefix))
+			if err != nil {
+				panic(err)
+			}
+			fmt.Printf("address of this vault: %s\n", addr)
 		}
-		fmt.Printf("address of this vault: %s\n", addr)
 		cfg, err := json.MarshalIndent(common.TssCfg, "", "\t")
 		if err != nil {
 			panic(err)

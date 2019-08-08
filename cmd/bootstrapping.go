@@ -37,7 +37,7 @@ var bootstrapCmd = &cobra.Command{
 
 		setChannelId()
 		setChannelPasswd()
-		setN()
+		client.Logger.Info("waiting peers startup...")
 		numOfPeers := common.TssCfg.Parties - 1
 		if common.TssCfg.BMode == common.PreRegroupMode {
 			numOfPeers = common.TssCfg.UnknownParties
@@ -119,27 +119,11 @@ func setChannelPasswd() {
 		return
 	}
 
-	if p, err := speakeasy.Ask("please input password to secure secret bootstrap session:"); err == nil {
+	if p, err := speakeasy.Ask("please input password (AGREED offline with peers) of this session:"); err == nil {
 		common.TssCfg.ChannelPassword = p
 	} else {
 		panic(err)
 	}
-}
-
-func setN() {
-	if common.TssCfg.Parties > 0 {
-		return
-	}
-
-	reader := bufio.NewReader(os.Stdin)
-	n, err := common.GetInt("please set total parties(n) (default: 3): ", 3, reader)
-	if err != nil {
-		panic(err)
-	}
-	if n <= 1 {
-		panic(fmt.Errorf("n should greater than 1"))
-	}
-	common.TssCfg.Parties = n
 }
 
 func findPeerAddrsViaSsdp(n int, listenAddrs string) []string {

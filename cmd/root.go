@@ -48,7 +48,7 @@ func initConfigAndLogLevel() {
 	if err != nil {
 		panic(err)
 	}
-	rootCmd.PersistentFlags().String(flagHome, path.Join(home, ".tss"), "Path to config/route_table/node_key/tss_key files, configs in config file can be overriden by command line arg quments")
+	rootCmd.PersistentFlags().String(flagHome, path.Join(home, ".tss"), "Path to config/route_table/node_key/tss_key files, configs in config file can be overridden by command line arg quments")
 }
 
 func bindP2pConfigs() {

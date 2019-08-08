@@ -17,9 +17,9 @@ go build
 
 1. init 3 parties
 ```
-./tss init --home ~/.test1 --moniker "test1" --password "123456789"
-./tss init --home ~/.test2 --moniker "test2" --password "123456789"
-./tss init --home ~/.test3 --moniker "test3" --password "123456789"
+./tss init --home ~/.test1 --vault_name "default" --moniker "test1" --password "123456789"
+./tss init --home ~/.test2 --vault_name "default" --moniker "test2" --password "123456789"
+./tss init --home ~/.test3 --vault_name "default" --moniker "test3" --password "123456789"
 ```
 
 2. generate channel id
@@ -30,33 +30,33 @@ replace value of "--channel_id" for following commands with generated one
 
 3. keygen 
 ```
-./tss keygen --home ~/.test1 --parties 3 --threshold 1 --password "123456789" --channel_password "123456789" --channel_id "2855D42A535"   
-./tss keygen --home ~/.test2 --parties 3 --threshold 1 --password "123456789" --channel_password "123456789" --channel_id "2855D42A535"            
-./tss keygen --home ~/.test3 --parties 3 --threshold 1 --password "123456789" --channel_password "123456789" --channel_id "2855D42A535" 
+./tss keygen --home ~/.test1 --vault_name "default" --parties 3 --threshold 1 --password "123456789" --channel_password "123456789" --channel_id "2855D42A535"   
+./tss keygen --home ~/.test2 --vault_name "default" --parties 3 --threshold 1 --password "123456789" --channel_password "123456789" --channel_id "2855D42A535"            
+./tss keygen --home ~/.test3 --vault_name "default" --parties 3 --threshold 1 --password "123456789" --channel_password "123456789" --channel_id "2855D42A535" 
 
 ```
 
 4. sign
 ```
-./tss sign --home ~/.test1 --password "123456789" --channel_password "123456789" --channel_id "2855D42A535" 
-./tss sign --home ~/.test2 --password "123456789" --channel_password "123456789" --channel_id "2855D42A535" 
+./tss sign --home ~/.test1 --vault_name "default" --password "123456789" --channel_password "123456789" --channel_id "2855D42A535" 
+./tss sign --home ~/.test2 --vault_name "default" --password "123456789" --channel_password "123456789" --channel_id "2855D42A535" 
 ```
 
 5. regroup - replace existing 3 parties with 3 brand new parties
 ```
 # init 3 brand new parties
-./tss init --home ~/.new1 --moniker "new1" --password "123456789"
-./tss init --home ~/.new2 --moniker "new2" --password "123456789"
-./tss init --home ~/.new3 --moniker "new3" --password "123456789"
+./tss init --home ~/.new1 --vault_name "default" --moniker "new1" --password "123456789"
+./tss init --home ~/.new2 --vault_name "default" --moniker "new2" --password "123456789"
+./tss init --home ~/.new3 --vault_name "default" --moniker "new3" --password "123456789"
 
 # start 2 old parties (answer Y and n for isOld and IsNew interactive)
-./tss regroup --home ~/.test1 --password "123456789" --new_parties 3 --new_threshold 1 --unknown_parties 3 --channel_password "123456789" --channel_id "1565D44EBE1"
-./tss regroup --home ~/.test2 --password "123456789" --new_parties 3 --new_threshold 1 --unknown_parties 3 --channel_password "123456789" --channel_id "1565D44EBE1"
+./tss regroup --home ~/.test1 --vault_name "default" --password "123456789" --new_parties 3 --new_threshold 1 --unknown_parties 3 --channel_password "123456789" --channel_id "1565D44EBE1"
+./tss regroup --home ~/.test2 --vault_name "default" --password "123456789" --new_parties 3 --new_threshold 1 --unknown_parties 3 --channel_password "123456789" --channel_id "1565D44EBE1"
 
 # start 3 new parties
-./tss regroup --home ~/.new1 --password "123456789" --parties 3 --threshold 1 --new_parties 3 --new_threshold 1 --unknown_parties 4 --channel_password "123456789" --channel_id "1565D44EBE1"
-./tss regroup --home ~/.new2 --password "123456789" --parties 3 --threshold 1 --new_parties 3 --new_threshold 1 --unknown_parties 4 --channel_password "123456789" --channel_id "1565D44EBE1"
-./tss regroup --home ~/.new3 --password "123456789" --parties 3 --threshold 1 --new_parties 3 --new_threshold 1 --unknown_parties 4 --channel_password "123456789" --channel_id "1565D44EBE1"
+./tss regroup --home ~/.new1 --vault_name "default" --password "123456789" --parties 3 --threshold 1 --new_parties 3 --new_threshold 1 --unknown_parties 4 --channel_password "123456789" --channel_id "1565D44EBE1"
+./tss regroup --home ~/.new2 --vault_name "default" --password "123456789" --parties 3 --threshold 1 --new_parties 3 --new_threshold 1 --unknown_parties 4 --channel_password "123456789" --channel_id "1565D44EBE1"
+./tss regroup --home ~/.new3 --vault_name "default" --password "123456789" --parties 3 --threshold 1 --new_parties 3 --new_threshold 1 --unknown_parties 4 --channel_password "123456789" --channel_id "1565D44EBE1"
 ```
 
 ## Network roles and connection topological
@@ -87,6 +87,9 @@ Referred to https://github.com/libp2p/go-libp2p/issues/375#issuecomment-40712241
 
 ### In LAN setting
 
-Nodes can connected to each other directly without setting bootstrap and relay server. But host(ip)&port of expectedPeers should be configured.
-
-Refer to `setup_without_bootstrap.sh` to see how LAN direct connection can be used.
+Nodes can connected to each other directly without setting bootstrap and relay server.
+We have 3 layers of bootstrapping session to help nodes connect with each other within a LAN
+1. ssdp - started before 2 (raw tcp bootstrapping), node advertise their listen addr and moniker and record others. This is not encrypted.
+2. raw tcp bootstrapping - node connect with each other via raw tcp to communicate their libp2pid, moniker, listen address. This is encrypted with channel id and channel password.
+3. libp2p - node share signers/whether it is new party in regroup via formal libp2p
+Note: keygen and regroup would relies on 1,2,3. But sign only relies on 3, which means the sign can achieved in WAN (with bootstrap server's help)

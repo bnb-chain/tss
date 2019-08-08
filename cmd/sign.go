@@ -18,7 +18,8 @@ var signCmd = &cobra.Command{
 	Long:  "sign a transaction using local share, signers will be prompted to fill in",
 	PreRun: func(cmd *cobra.Command, args []string) {
 		passphrase := askPassphrase()
-		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString(flagHome), viper.GetString(flagVault), passphrase); err != nil {
+		vault := askVault()
+		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString(flagHome), vault, passphrase); err != nil {
 			panic(err)
 		}
 		initLogLevel(common.TssCfg)

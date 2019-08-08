@@ -184,6 +184,7 @@ func NewP2PTransporter(
 	t.closed = make(chan bool)
 	logger.Debug("Host created. We are:", host.ID())
 	logger.Debug("listening on:", host.Addrs())
+	logger.Info("waiting peers connection...")
 
 	dht := t.setupDHTClient()
 	if bootstrapper != nil {

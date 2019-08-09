@@ -4,9 +4,14 @@ import (
 	"crypto/elliptic"
 	"math/big"
 
+	"github.com/bgentry/speakeasy"
 	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/binance-chain/tss-lib/tss"
+	"github.com/btcsuite/btcd/btcec"
 	"github.com/tendermint/tendermint/crypto"
+	"github.com/tendermint/tendermint/crypto/secp256k1"
+
+	"github.com/binance-chain/tss/common"
 )
 
 // This file is bridging TssClient with tendermint PrivKey interface
@@ -23,7 +28,7 @@ func (client *TssClient) Sign(msg []byte) ([]byte, error) {
 }
 
 func (client *TssClient) PubKey() crypto.PubKey {
-	if pubKey, err := LoadPubkey(client.config.Home); err == nil {
+	if pubKey, err := LoadPubkey(client.config.Home, client.config.Vault); err == nil {
 		return pubKey
 	} else {
 		return nil
@@ -35,9 +40,9 @@ func (*TssClient) Equals(key crypto.PrivKey) bool {
 }
 
 func (client *TssClient) signImpl(m *big.Int) ([]byte, error) {
-	logger.Infof("[%s] message to be signed: %s\n", client.config.Moniker, m.String())
+	Logger.Infof("[%s] message to be signed: %s\n", client.config.Moniker, m.String())
 	client.localParty = signing.NewLocalParty(m, client.params, *client.key, client.sendCh, client.signCh)
-	logger.Infof("[%s] initialized localParty: %s", client.config.Moniker, client.localParty)
+	Logger.Infof("[%s] initialized localParty: %s", client.config.Moniker, client.localParty)
 
 	// has to start local party before network routines in case 2 other peers' msg comes before self fully initialized
 	if err := client.localParty.Start(); err != nil {
@@ -50,8 +55,30 @@ func (client *TssClient) signImpl(m *big.Int) ([]byte, error) {
 	go client.saveSignatureRoutine(client.signCh, done)
 
 	<-done
-	logger.Debugf("[%s] received signature: %X", client.config.Moniker, client.signature)
+	Logger.Debugf("[%s] received signature: %X", client.config.Moniker, client.signature)
 	return client.signature, nil
+}
+
+// This helper method is used by PubKey interface in keys.go
+func LoadPubkey(home, vault string) (crypto.PubKey, error) {
+	passphrase := common.TssCfg.Password
+	if passphrase == "" {
+		if p, err := speakeasy.Ask("Password of this tss vault:"); err == nil {
+			passphrase = p
+		} else {
+			return nil, err
+		}
+	}
+
+	ecdsaPubKey, err := common.LoadEcdsaPubkey(home, vault, passphrase)
+	if err != nil {
+		return nil, err
+	}
+	btcecPubKey := (*btcec.PublicKey)(ecdsaPubKey)
+
+	var pubkeyBytes secp256k1.PubKeySecp256k1
+	copy(pubkeyBytes[:], btcecPubKey.SerializeCompressed())
+	return pubkeyBytes, nil
 }
 
 // copied from https://github.com/btcsuite/btcd/blob/c26ffa870fd817666a857af1bf6498fabba1ffe3/btcec/signature.go#L263

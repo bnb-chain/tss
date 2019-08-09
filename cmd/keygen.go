@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -14,6 +15,8 @@ import (
 	"github.com/bgentry/speakeasy"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/tendermint/tendermint/crypto"
+	"github.com/tendermint/tendermint/crypto/secp256k1"
 
 	"github.com/binance-chain/tss/client"
 	"github.com/binance-chain/tss/common"
@@ -36,32 +39,42 @@ var keygenCmd = &cobra.Command{
 		initLogLevel(common.TssCfg)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
+		checkOverride()
 		setN()
 		setT()
-		checkBootstrap(cmd, args)
+		bootstrapCmd.Run(cmd, args)
 		checkN()
 		setPassphrase()
-		updateConfig()
 
 		c := client.NewTssClient(&common.TssCfg, client.KeygenMode, false)
 		c.Start()
 
-		addToBnbcli()
+		updateConfig()
+		addToBnbcli(c.PubKey())
 	},
 }
 
-func checkBootstrap(cmd *cobra.Command, args []string) {
-	reader := bufio.NewReader(os.Stdin)
-	if len(common.TssCfg.ExpectedPeers) > 0 {
-		answer, err := common.GetBool("Do you like re-bootstrap again?[y/N]: ", false, reader)
+func checkOverride() {
+	if _, err := os.Stat(path.Join(common.TssCfg.Home, common.TssCfg.Vault, "sk.json")); err == nil {
+		// we have already done keygen before
+		reader := bufio.NewReader(os.Stdin)
+		answer, err := common.GetBool("Vault already generated, do you like override it[y/N]: ", false, reader)
 		if err != nil {
 			panic(err)
 		}
-		if answer {
-			bootstrapCmd.Run(cmd, args)
+		if !answer {
+			client.Logger.Info("nothing happened")
+			os.Exit(0)
+		} else {
+			passphrase := viper.GetString("password")
+			vault := viper.GetString(flagVault)
+			common.TssCfg.Parties = 0
+			common.TssCfg.Threshold = 0
+			updateConfig()
+			if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString(flagHome), vault, passphrase); err != nil {
+				panic(err)
+			}
 		}
-	} else {
-		bootstrapCmd.Run(cmd, args)
 	}
 }
 
@@ -112,7 +125,7 @@ func askPassphrase() string {
 		return viper.GetString("password")
 	}
 
-	if p, err := speakeasy.Ask("Password to sign with this party:"); err == nil {
+	if p, err := speakeasy.Ask("Password to sign with this vault:"); err == nil {
 		viper.Set("password", p)
 		return p
 	} else {
@@ -135,6 +148,9 @@ func NewCapturingPassThroughWriter(w io.Writer) *CapturingPassThroughWriter {
 }
 func (w *CapturingPassThroughWriter) Write(d []byte) (int, error) {
 	w.buf.Write(d)
+	if strings.Contains(string(w.Bytes()), "ERROR: resource temporarily unavailable") {
+		return len(d), nil
+	}
 	return w.w.Write(d)
 }
 
@@ -143,7 +159,9 @@ func (w *CapturingPassThroughWriter) Bytes() []byte {
 	return w.buf.Bytes()
 }
 
-func addToBnbcli() {
+// TODO: bad smell of this method!!! it means tss relies on cosmos (cyclic dependency)
+func addToBnbcli(pubKey crypto.PubKey) {
+	client.Logger.Infof("trying to add the key to bnbcli's default keystore...")
 	// invoke bnbcli add the generated key into bnbcli's keystore
 	bnbcliName := fmt.Sprintf("tss_%s", common.TssCfg.Moniker)
 	if common.TssCfg.Vault != "" {
@@ -160,12 +178,24 @@ func addToBnbcli() {
 		}
 	}
 
+	// TODO: support other types key
+	pubKeyBytes := pubKey.(secp256k1.PubKeySecp256k1)
+	pubKeyHex := hex.EncodeToString(pubKeyBytes[:])
+
+	interactive := bytes.NewBuffer(make([]byte, 0))
+	go func() {
+		for {
+			interactive.WriteString("y\n")
+			time.Sleep(1 * time.Second)
+		}
+	}()
+
 	retry := 3
 	for tried := 0; tried < retry; tried++ {
-		bnbcli := exec.Command(path.Join(pwd, execuable), "keys", "add", "--tss", "-t", "tss", "--tss-home", common.TssCfg.Home, "--tss-vault", common.TssCfg.Vault, bnbcliName)
+		bnbcli := exec.Command(path.Join(pwd, execuable), "keys", "add", "--tss", "-t", "tss", "--tss-home", common.TssCfg.Home, "--tss-vault", common.TssCfg.Vault, "--tss-pubkey", pubKeyHex, bnbcliName)
 		stdoutIn, _ := bnbcli.StdoutPipe()
 		stderrIn, _ := bnbcli.StderrPipe()
-		bnbcli.Stdin = os.Stdin
+		bnbcli.Stdin = interactive
 		stdout := NewCapturingPassThroughWriter(os.Stdout)
 		stderr := NewCapturingPassThroughWriter(os.Stderr)
 
@@ -181,11 +211,10 @@ func addToBnbcli() {
 		if err != nil {
 			panic(err)
 		}
-
 		err = bnbcli.Wait()
 
 		if strings.Contains(string(stderr.Bytes()), "ERROR: resource temporarily unavailable") {
-			time.Sleep(5 * time.Second)
+			time.Sleep(time.Second)
 			tried-- // contention doesn't count real failure
 		} else {
 			if err != nil {

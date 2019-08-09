@@ -94,6 +94,7 @@ func makeHomeDir(home, vault string) {
 				}
 			}
 		} else {
+			// cannot use client.Logger now as logger is not initialized in PreRun
 			fmt.Println("nothing happened")
 			os.Exit(0)
 		}
@@ -109,7 +110,7 @@ func setPassphrase() string {
 		return pw
 	}
 
-	if p, err := speakeasy.Ask("please set password to secure secret key:"); err == nil {
+	if p, err := speakeasy.Ask("please set password of this vault:"); err == nil {
 		if p2, err := speakeasy.Ask("please input again:"); err == nil {
 			if p2 != p {
 				panic(fmt.Errorf("two inputs does not match, please start again"))

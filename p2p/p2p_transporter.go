@@ -297,7 +297,7 @@ func (t *p2pTransporter) handleSigner(stream network.Stream) {
 	localAddr := stream.Conn().LocalMultiaddr().String()
 	logger.Infof("local addr in message: %s", localAddr)
 	localAddr = strings.Replace(localAddr, "0.0.0.0", "127.0.0.1", 1)
-	if msg, err := common.NewBootstrapMessage(t.bootstrapper.ChannelId, t.bootstrapper.ChannelPassword, common.TssCfg.Moniker, common.TssCfg.Id, localAddr, common.TssCfg.IsOldCommittee, common.TssCfg.IsNewCommittee); err == nil {
+	if msg, err := common.NewBootstrapMessage(t.bootstrapper.ChannelId, t.bootstrapper.ChannelPassword, common.TssCfg.Moniker, common.TssCfg.Id, localAddr, common.TssCfg.IsOldCommittee, !common.TssCfg.IsOldCommittee); err == nil {
 		encoder.Encode(msg)
 	} else {
 		logger.Errorf("failed to encrypt bootstrap message: %v", err)

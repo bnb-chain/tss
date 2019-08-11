@@ -40,7 +40,7 @@ var bootstrapCmd = &cobra.Command{
 		client.Logger.Info("waiting peers startup...")
 		numOfPeers := common.TssCfg.Parties - 1
 		if common.TssCfg.BMode == common.PreRegroupMode {
-			numOfPeers = common.TssCfg.UnknownParties
+			numOfPeers = common.TssCfg.Threshold + common.TssCfg.NewParties
 		}
 		bootstrapper := common.NewBootstrapper(numOfPeers, &common.TssCfg)
 
@@ -63,7 +63,7 @@ var bootstrapCmd = &cobra.Command{
 			common.TssCfg.Id,
 			common.TssCfg.ListenAddr,
 			common.TssCfg.IsOldCommittee,
-			common.TssCfg.IsNewCommittee)
+			!common.TssCfg.IsOldCommittee)
 		if err != nil {
 			panic(err)
 		}
@@ -139,7 +139,7 @@ func findPeerAddrsViaSsdp(n int, listenAddrs string) []string {
 		moniker := p2p.GetMonikerFromExpectedPeers(peer)
 		existingMonikers[moniker] = struct{}{}
 	}
-	ssdpSrv := ssdp.NewSsdpService(common.TssCfg.Moniker, listenAddrs, n, existingMonikers)
+	ssdpSrv := ssdp.NewSsdpService(common.TssCfg.Moniker, common.TssCfg.Vault, listenAddrs, n, existingMonikers)
 	ssdpSrv.CollectPeerAddrs()
 	var peerAddrs []string
 	ssdpSrv.PeerAddrs.Range(func(_, value interface{}) bool {

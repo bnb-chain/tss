@@ -147,7 +147,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 							new(big.Int).SetBytes(key)))
 				}
 			}
-			if config.IsNewCommittee {
+			if !config.IsOldCommittee {
 				unsortedNewPartyIds = append(unsortedNewPartyIds, partyID)
 			}
 		}

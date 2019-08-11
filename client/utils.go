@@ -57,7 +57,7 @@ func loadSavedKeyForSign(config *common.TssConfig, sortedIds tss.SortedPartyIDs,
 func loadSavedKeyForRegroup(config *common.TssConfig, sortedIds tss.SortedPartyIDs, signers map[string]int) keygen.LocalPartySaveData {
 	result := loadSavedKeyForSign(config, sortedIds, signers)
 
-	if config.IsNewCommittee {
+	if !config.IsOldCommittee {
 		// TODO: negotiate with Luke to see how to fill non-loaded keys here
 		for i := config.Parties; i < config.NewParties; i++ {
 			result.BigXj = append(result.BigXj, result.BigXj[len(signers)-1])

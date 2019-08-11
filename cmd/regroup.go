@@ -3,8 +3,12 @@ package cmd
 import (
 	"bufio"
 	"fmt"
+	"math/rand"
 	"os"
+	"os/exec"
 	"path"
+	"strconv"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -22,21 +26,20 @@ var regroupCmd = &cobra.Command{
 	Short: "regroup a new set of parties and threshold",
 	Long:  "generate new_n secrete share with new_t threshold. At least old_t + 1 should participant",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		passphrase := askPassphrase()
 		vault := askVault()
+		passphrase := askPassphrase()
 		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString(flagHome), vault, passphrase); err != nil {
 			panic(err)
 		}
 		initLogLevel(common.TssCfg)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		var mustBeNewParty bool
+		var mustNew bool
 		if _, err := os.Stat(path.Join(common.TssCfg.Home, common.TssCfg.Vault, "sk.json")); os.IsNotExist(err) {
-			mustBeNewParty = true
+			mustNew = true
 		}
 
-		if !mustBeNewParty {
-			askPassphrase()
+		if !mustNew {
 			setIsOld()
 			setIsNew()
 		} else {
@@ -48,15 +51,50 @@ var regroupCmd = &cobra.Command{
 		}
 		setNewN()
 		setNewT()
-		setUnknownParties()
-		if common.TssCfg.UnknownParties > 0 {
-			common.TssCfg.BMode = common.PreRegroupMode
-			bootstrapCmd.Run(cmd, args)
-			common.TssCfg.BMode = common.RegroupMode
-		} else {
-			setChannelId()
-			setChannelPasswd()
+
+		var tssRegroup *exec.Cmd
+		var tmpVault string
+		if !mustNew && common.TssCfg.IsNewCommittee {
+			pwd, err := os.Getwd()
+			if err != nil {
+				panic(err)
+			}
+
+			rand.Seed(time.Now().UnixNano())
+			suffix := rand.Intn(9999-1000) + 1000
+			tmpVault = fmt.Sprintf("%s_%d", common.TssCfg.Vault, suffix)
+			tmpMoniker := fmt.Sprintf("%s_%d", common.TssCfg.Moniker, suffix)
+			devnull, err := os.Open(os.DevNull)
+			if err != nil {
+				panic(err)
+			}
+
+			// TODO: this relies on user doesn't rename the binary we released
+			tssInit := exec.Command(path.Join(pwd, "tss"), "init", "--home", common.TssCfg.Home, "--vault_name", tmpVault, "--moniker", tmpMoniker, "--password", common.TssCfg.Password)
+			tssInit.Stdin = devnull
+			tssInit.Stdout = devnull
+
+			if err := tssInit.Run(); err != nil {
+				panic(fmt.Errorf("failed to fork tss init command: %v", err))
+			}
+
+			tssRegroup = exec.Command(path.Join(pwd, "tss"), "regroup", "--home", common.TssCfg.Home, "--vault_name", tmpVault, "--password", common.TssCfg.Password, "--parties", strconv.Itoa(common.TssCfg.Parties), "--threshold", strconv.Itoa(common.TssCfg.Threshold), "--new_parties", strconv.Itoa(common.TssCfg.NewParties), "--new_threshold", strconv.Itoa(common.TssCfg.NewThreshold), "--channel_password", common.TssCfg.Password, "--channel_id", common.TssCfg.ChannelId, "--log_level", common.TssCfg.LogLevel)
+			stdOut, err := os.Create(path.Join(common.TssCfg.Home, tmpVault, "tss.log"))
+			if err != nil {
+				panic(err)
+			}
+			tssRegroup.Stdin = devnull
+			tssRegroup.Stdout = stdOut
+			tssRegroup.Stderr = stdOut
+
+			if err := tssRegroup.Start(); err != nil {
+				panic(fmt.Errorf("failed to fork tss regroup command: %v", err))
+			}
 		}
+
+		common.TssCfg.BMode = common.PreRegroupMode
+		bootstrapCmd.Run(cmd, args)
+		common.TssCfg.BMode = common.RegroupMode
 
 		c := client.NewTssClient(&common.TssCfg, client.RegroupMode, false)
 		c.Start()
@@ -72,12 +110,24 @@ var regroupCmd = &cobra.Command{
 			common.TssCfg.NewThreshold = 0
 			updateConfig()
 		}
+
+		if !mustNew && common.TssCfg.IsNewCommittee && tssRegroup != nil {
+			err := tssRegroup.Wait()
+			if err != nil {
+				fmt.Errorf("failed to wait child tss process finished: %v", err)
+			}
+
+			// TODO: Make sure this works under different os (linux and windows)
+			os.Rename(
+				path.Join(common.TssCfg.Home, tmpVault),
+				path.Join(common.TssCfg.Home, common.TssCfg.Vault))
+		}
 	},
 }
 
 func setIsOld() {
 	reader := bufio.NewReader(os.Stdin)
-	answer, err := common.GetBool("Participant as an old committee?[Y/n]:", true, reader)
+	answer, err := common.GetBool("Participant as an old (signing) committee?[Y/n]:", true, reader)
 	if err != nil {
 		panic(err)
 	}
@@ -165,17 +215,4 @@ func setNewT() {
 		panic(fmt.Errorf("t + 1 should less than parties"))
 	}
 	common.TssCfg.NewThreshold = t
-}
-
-func setUnknownParties() {
-	if common.TssCfg.UnknownParties != -1 {
-		return
-	}
-
-	reader := bufio.NewReader(os.Stdin)
-	n, err := common.GetInt("how many peers are unknown before (default 0): ", 0, reader)
-	if err != nil {
-		panic(err)
-	}
-	common.TssCfg.UnknownParties = n
 }

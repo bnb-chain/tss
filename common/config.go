@@ -98,8 +98,7 @@ type TssConfig struct {
 	ChannelPassword string `mapstructure:"channel_password" json:"-"`
 
 	IsOldCommittee bool          `mapstructure:"is_old" json:"-"`
-	IsNewCommittee bool          `mapstructure:"is_new" json:"-"`
-	UnknownParties int           `mapstructure:"unknown_parties" json:"-"`
+	IsNewCommittee bool          `mapstructure:"is_new_member" json:"-"`
 	BMode          BootstrapMode `json:"-"`
 
 	Home string

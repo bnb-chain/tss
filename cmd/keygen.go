@@ -31,8 +31,8 @@ var keygenCmd = &cobra.Command{
 	Short: "key generation",
 	Long:  "generate secret share of t of n scheme",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		passphrase := askPassphrase()
 		vault := askVault()
+		passphrase := askPassphrase()
 		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString(flagHome), vault, passphrase); err != nil {
 			panic(err)
 		}

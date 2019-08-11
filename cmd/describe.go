@@ -21,8 +21,8 @@ var describeCmd = &cobra.Command{
 	Short: "show config and address of a tss vault",
 	Long:  "",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		passphrase := askPassphrase()
 		vault := askVault()
+		passphrase := askPassphrase()
 		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString(flagHome), vault, passphrase); err != nil {
 			panic(err)
 		}

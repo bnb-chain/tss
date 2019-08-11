@@ -28,13 +28,13 @@ type SsdpService struct {
 	PeerAddrs sync.Map // map[string]string (uuid -> connectable address)
 }
 
-func NewSsdpService(moniker, listenAddr string, expectedPeers int, existingMonikers map[string]struct{}) *SsdpService {
+func NewSsdpService(moniker, vault, listenAddr string, expectedPeers int, existingMonikers map[string]struct{}) *SsdpService {
 	s := &SsdpService{
 		finished:         make(chan bool),
 		listenAddr:       listenAddr,
 		expectedPeers:    expectedPeers,
 		existingMonikers: existingMonikers,
-		usn:              fmt.Sprintf("unique:%s", moniker),
+		usn:              fmt.Sprintf("unique:%s_%s", moniker, vault), // TODO: hash this combination to protect privacy
 	}
 	s.monitor = &ssdp.Monitor{
 		Alive:  s.onAlive,

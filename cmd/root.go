@@ -98,7 +98,7 @@ func bindClientConfigs() {
 
 	channelCmd.PersistentFlags().Int("channel_expire", 0, "expire time in minutes of this channel")
 
-	regroupCmd.PersistentFlags().Int("unknown_parties", -1, "unknown parties that joined regroup for this party (default: 3): ")
+	regroupCmd.PersistentFlags().Bool("is_new_member", false, "whether this party is new committee, for new party it will changed to true automatically. if an old party set this to true, its share will be replaced by one generated one")
 }
 
 func initLogLevel(cfg common.TssConfig) {

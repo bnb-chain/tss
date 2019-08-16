@@ -48,7 +48,13 @@ var bootstrapCmd = &cobra.Command{
 		if err != nil {
 			panic(err)
 		}
-		defer listener.Close()
+		defer func() {
+			err = listener.Close()
+			if err != nil {
+				client.Logger.Error(err)
+			}
+			client.Logger.Info("closed ssdp listener")
+		}()
 
 		done := make(chan bool)
 		go acceptConnRoutine(listener, bootstrapper, done)
@@ -119,7 +125,7 @@ func setChannelPasswd() {
 		return
 	}
 
-	if p, err := speakeasy.Ask("please input password (AGREED offline with peers) of this session:"); err == nil {
+	if p, err := speakeasy.Ask("> please input password (AGREED offline with peers) of this session:"); err == nil {
 		common.TssCfg.ChannelPassword = p
 	} else {
 		panic(err)

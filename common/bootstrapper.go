@@ -43,7 +43,7 @@ func NewBootstrapper(expectedPeers int, config *TssConfig) *Bootstrapper {
 		config.ChannelId = channelId
 	}
 	if config.ChannelPassword == "" {
-		if p, err := speakeasy.Ask("please input password to secure secret bootstrap session:"); err == nil {
+		if p, err := speakeasy.Ask("> please input password (AGREED offline with peers) of this session:"); err == nil {
 			config.ChannelPassword = p
 		} else {
 			panic(err)

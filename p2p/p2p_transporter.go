@@ -467,6 +467,7 @@ func (t *p2pTransporter) initConnection(dht *libp2pdht.IpfsDHT) {
 }
 
 func (t *p2pTransporter) connectRoutine(dht *libp2pdht.IpfsDHT, pid peer.ID, protocolId string) {
+	logger.Debugf("trying to connect with %s", pid.Pretty())
 	timeout := time.NewTimer(15 * time.Minute)
 	defer func() {
 		timeout.Stop()
@@ -642,11 +643,13 @@ func (t *p2pTransporter) setExpectedPeers(nodeId string, signers map[string]int,
 			if pid.Pretty() == nodeId {
 				continue
 			}
+			logger.Debugf("expect peer: %s", pid.Pretty())
 			if peerAddr != "" {
 				maddr, err := multiaddr.NewMultiaddr(peerAddr)
 				if err != nil {
 					logger.Errorf("invalid peeraddr: %s", peerAddr)
 				} else {
+					logger.Debugf("expect peer addr: %s", peerAddr)
 					ps.AddAddr(pid, maddr, time.Hour)
 				}
 			}

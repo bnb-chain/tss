@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 
-	"github.com/bgentry/speakeasy"
 	"github.com/binance-chain/tss-lib/crypto"
 	"github.com/binance-chain/tss-lib/crypto/paillier"
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
@@ -82,18 +81,8 @@ func loadSavedKey(config *common.TssConfig) keygen.LocalPartySaveData {
 		panic(err)
 	}
 	defer wPub.Close()
-	var passphrase string
-	if config.Password != "" {
-		passphrase = config.Password
-	} else {
-		if p, err := speakeasy.Ask("please input password to secure secret key:"); err == nil {
-			passphrase = p
-		} else {
-			panic(err)
-		}
-	}
 
-	result, _, err := common.Load(passphrase, wPriv, wPub) // TODO: validate nodeKey
+	result, _, err := common.Load(config.Password, wPriv, wPub) // TODO: validate nodeKey
 	if err != nil {
 		panic(err)
 	}

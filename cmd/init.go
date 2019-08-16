@@ -110,8 +110,8 @@ func setPassphrase() string {
 		return pw
 	}
 
-	if p, err := speakeasy.Ask("please set password of this vault:"); err == nil {
-		if p2, err := speakeasy.Ask("please input again:"); err == nil {
+	if p, err := speakeasy.Ask("> please set password of this vault:"); err == nil {
+		if p2, err := speakeasy.Ask("> please input again:"); err == nil {
 			if p2 != p {
 				panic(fmt.Errorf("two inputs does not match, please start again"))
 			} else {
@@ -139,6 +139,9 @@ func askMoniker() {
 	}
 	if strings.Contains(moniker, "@") {
 		panic(fmt.Errorf("moniker should not contains @ sign"))
+	}
+	if strings.HasSuffix(moniker, common.RegroupSuffix) {
+		panic(fmt.Errorf("moniker should not end with %s", common.RegroupSuffix))
 	}
 	viper.Set("moniker", moniker)
 }
@@ -187,7 +190,14 @@ func setListenAddr() {
 }
 
 func updateConfig() {
-	err := common.SaveConfig(&common.TssCfg)
+	err := common.SaveConfig(&common.TssCfg, path.Join(common.TssCfg.Home, common.TssCfg.Vault))
+	if err != nil {
+		panic(err)
+	}
+}
+
+func updateConfigForRegroup(vault string) {
+	err := common.SaveConfig(&common.TssCfg, path.Join(common.TssCfg.Home, vault))
 	if err != nil {
 		panic(err)
 	}

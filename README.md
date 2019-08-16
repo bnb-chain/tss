@@ -33,7 +33,6 @@ replace value of "--channel_id" for following commands with generated one
 ./tss keygen --home ~/.test1 --vault_name "default" --parties 3 --threshold 1 --password "123456789" --channel_password "123456789" --channel_id "2855D42A535"   
 ./tss keygen --home ~/.test2 --vault_name "default" --parties 3 --threshold 1 --password "123456789" --channel_password "123456789" --channel_id "2855D42A535"            
 ./tss keygen --home ~/.test3 --vault_name "default" --parties 3 --threshold 1 --password "123456789" --channel_password "123456789" --channel_id "2855D42A535" 
-
 ```
 
 4. sign
@@ -48,8 +47,8 @@ replace value of "--channel_id" for following commands with generated one
 ./tss init --home ~/.new3 --vault_name "default" --moniker "new3" --password "123456789"
 
 # start 2 old parties (answer Y for isOld and IsNew interactive questions)
-./tss regroup --home ~/.test1 --vault_name "default" --password "123456789" --new_parties 3 --new_threshold 1 --channel_password "123456789" --channel_id "1565D44EBE1"
-./tss regroup --home ~/.test2 --vault_name "default" --password "123456789" --new_parties 3 --new_threshold 1 --channel_password "123456789" --channel_id "1565D44EBE1"
+./tss regroup --home ~/.test1 --vault_name "default" --password "123456789" --new_parties 3 --new_threshold 1 --is_new_member --channel_password "123456789" --channel_id "1565D44EBE1"
+./tss regroup --home ~/.test2 --vault_name "default" --password "123456789" --new_parties 3 --new_threshold 1 --is_new_member --channel_password "123456789" --channel_id "1565D44EBE1"
 
 # start the new parties
 ./tss regroup --home ~/.new3 --vault_name "default" --password "123456789" --parties 3 --threshold 1 --new_parties 3 --new_threshold 1 --channel_password "123456789" --channel_id "1565D44EBE1"
@@ -87,7 +86,7 @@ Referred to https://github.com/libp2p/go-libp2p/issues/375#issuecomment-40712241
 
 ### In LAN setting
 
-Nodes can connected to each other directly without setting bootstrap and relay server.
+Nodes can connected to each other directly without setting bootstrap and relay server.  
 We have 3 layers of bootstrapping session to help nodes connect with each other within a LAN
 1. ssdp - started before 2 (raw tcp bootstrapping), node advertise their listen addr and moniker and record others. This is not encrypted.
 2. raw tcp bootstrapping - node connect with each other via raw tcp to communicate their libp2pid, moniker, listen address. This is encrypted with channel id and channel password.

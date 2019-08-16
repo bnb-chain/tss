@@ -157,7 +157,7 @@ func Save(keygenResult *keygen.LocalPartySaveData, nodeKey []byte, config KDFCon
 	}
 }
 
-func SaveConfig(config *TssConfig) error {
+func SaveConfig(config *TssConfig, saveTo string) error {
 	originalCfg, err := json.Marshal(config)
 	if err != nil {
 		return err
@@ -179,7 +179,7 @@ func SaveConfig(config *TssConfig) error {
 		return err
 	}
 
-	if err = ioutil.WriteFile(path.Join(config.Home, config.Vault, "config.json"), bytes, os.FileMode(0600)); err != nil {
+	if err = ioutil.WriteFile(path.Join(saveTo, "config.json"), bytes, os.FileMode(0600)); err != nil {
 		return err
 	}
 

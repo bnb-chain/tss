@@ -21,6 +21,10 @@ import (
 	"github.com/mattn/go-isatty"
 )
 
+const (
+	RegroupSuffix = "_rgtmp"
+)
+
 func Encrypt(passphrase, channelId, moniker, id string) ([]byte, error) {
 	text := []byte(fmt.Sprintf("%s@%s@%s", channelId, moniker, id))
 	key := sha256.Sum256([]byte(passphrase))

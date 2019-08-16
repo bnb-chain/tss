@@ -43,9 +43,9 @@ var keygenCmd = &cobra.Command{
 		setN()
 		setT()
 		bootstrapCmd.Run(cmd, args)
+		time.Sleep(10 * time.Second)
 		checkN()
 		setPassphrase()
-
 		c := client.NewTssClient(&common.TssCfg, client.KeygenMode, false)
 		c.Start()
 
@@ -125,7 +125,7 @@ func askPassphrase() string {
 		return viper.GetString("password")
 	}
 
-	if p, err := speakeasy.Ask("Password to sign with this vault:"); err == nil {
+	if p, err := speakeasy.Ask("> Password to sign with this vault:"); err == nil {
 		viper.Set("password", p)
 		return p
 	} else {

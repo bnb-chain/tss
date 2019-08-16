@@ -11,7 +11,6 @@ import (
 	"strings"
 	"syscall"
 
-	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/mitchellh/mapstructure"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/spf13/viper"
@@ -159,13 +158,14 @@ func ReadConfigFromHome(v *viper.Viper, home, vault, passphrase string) error {
 	}
 
 	// validate configs
-	if len(config.P2PConfig.BootstrapPeers) == 0 {
-		fmt.Println("!!!NOTICE!!! cannot find bootstraps servers in config")
-		if config.P2PConfig.DefaultBootstap {
-			fmt.Println("!!!NOTICE!!! Would use libp2p's default bootstraps")
-			config.P2PConfig.BootstrapPeers = dht.DefaultBootstrapPeers
-		}
-	}
+	// TODO: reenable this when we want release bootstrap server supported version
+	//if len(config.P2PConfig.BootstrapPeers) == 0 {
+	//fmt.Println("!!!NOTICE!!! cannot find bootstraps servers in config")
+	//if config.P2PConfig.DefaultBootstap {
+	//	fmt.Println("!!!NOTICE!!! Would use libp2p's default bootstraps")
+	//	config.P2PConfig.BootstrapPeers = dht.DefaultBootstrapPeers
+	//}
+	//}
 	if config.KDFConfig.KeyLength < 32 {
 		return fmt.Errorf("Length of the generated key (or password hash). must be 32 bytes or more")
 	}

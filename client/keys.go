@@ -63,7 +63,7 @@ func (client *TssClient) signImpl(m *big.Int) ([]byte, error) {
 func LoadPubkey(home, vault string) (crypto.PubKey, error) {
 	passphrase := common.TssCfg.Password
 	if passphrase == "" {
-		if p, err := speakeasy.Ask("Password of this tss vault:"); err == nil {
+		if p, err := speakeasy.Ask("> Password to sign with this vault:"); err == nil {
 			passphrase = p
 		} else {
 			return nil, err

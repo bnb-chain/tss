@@ -3,18 +3,18 @@ package cmd
 import (
 	"bufio"
 	"fmt"
-	"math/rand"
 	"os"
 	"os/exec"
 	"path"
 	"strconv"
-	"time"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/binance-chain/tss/client"
 	"github.com/binance-chain/tss/common"
+	"github.com/binance-chain/tss/p2p"
 )
 
 func init() {
@@ -40,7 +40,7 @@ var regroupCmd = &cobra.Command{
 		}
 
 		if !mustNew {
-			setIsOld()
+			common.TssCfg.IsOldCommittee = true
 			setIsNew()
 		} else {
 			common.TssCfg.IsOldCommittee = false
@@ -54,16 +54,14 @@ var regroupCmd = &cobra.Command{
 
 		var tssRegroup *exec.Cmd
 		var tmpVault string
-		if !mustNew && common.TssCfg.IsNewCommittee {
+		if common.TssCfg.IsOldCommittee && common.TssCfg.IsNewCommittee {
 			pwd, err := os.Getwd()
 			if err != nil {
 				panic(err)
 			}
 
-			rand.Seed(time.Now().UnixNano())
-			suffix := rand.Intn(9999-1000) + 1000
-			tmpVault = fmt.Sprintf("%s_%d", common.TssCfg.Vault, suffix)
-			tmpMoniker := fmt.Sprintf("%s_%d", common.TssCfg.Moniker, suffix)
+			tmpVault = fmt.Sprintf("%s%s", common.TssCfg.Vault, common.RegroupSuffix)
+			tmpMoniker := fmt.Sprintf("%s%s", common.TssCfg.Moniker, common.RegroupSuffix)
 			devnull, err := os.Open(os.DevNull)
 			if err != nil {
 				panic(err)
@@ -78,6 +76,8 @@ var regroupCmd = &cobra.Command{
 				panic(fmt.Errorf("failed to fork tss init command: %v", err))
 			}
 
+			setChannelId()
+			setChannelPasswd()
 			tssRegroup = exec.Command(path.Join(pwd, "tss"), "regroup", "--home", common.TssCfg.Home, "--vault_name", tmpVault, "--password", common.TssCfg.Password, "--parties", strconv.Itoa(common.TssCfg.Parties), "--threshold", strconv.Itoa(common.TssCfg.Threshold), "--new_parties", strconv.Itoa(common.TssCfg.NewParties), "--new_threshold", strconv.Itoa(common.TssCfg.NewThreshold), "--channel_password", common.TssCfg.Password, "--channel_id", common.TssCfg.ChannelId, "--log_level", common.TssCfg.LogLevel)
 			stdOut, err := os.Create(path.Join(common.TssCfg.Home, tmpVault, "tss.log"))
 			if err != nil {
@@ -99,44 +99,65 @@ var regroupCmd = &cobra.Command{
 		c := client.NewTssClient(&common.TssCfg, client.RegroupMode, false)
 		c.Start()
 
-		if common.TssCfg.IsNewCommittee {
-			common.TssCfg.ExpectedPeers = common.TssCfg.ExpectedNewPeers
+		if !common.TssCfg.IsOldCommittee {
+			// delete tmp regroup suffix
+			originExpectedNewPeers := make([]string, 0)
+			for _, peer := range common.TssCfg.ExpectedNewPeers {
+				moniker := p2p.GetMonikerFromExpectedPeers(peer)
+				id := p2p.GetClientIdFromExpecetdPeers(peer)
+				moniker = strings.TrimSuffix(moniker, common.RegroupSuffix)
+				originExpectedNewPeers = append(originExpectedNewPeers, fmt.Sprintf("%s@%s", moniker, id))
+			}
+			common.TssCfg.ExpectedPeers = originExpectedNewPeers
 			common.TssCfg.PeerAddrs = common.TssCfg.NewPeerAddrs
-			common.TssCfg.ExpectedNewPeers = common.TssCfg.ExpectedNewPeers[:]
-			common.TssCfg.NewPeerAddrs = common.TssCfg.NewPeerAddrs[:]
 			common.TssCfg.Parties = common.TssCfg.NewParties
 			common.TssCfg.Threshold = common.TssCfg.NewThreshold
 			common.TssCfg.NewParties = 0
 			common.TssCfg.NewThreshold = 0
-			updateConfig()
+			common.TssCfg.Moniker = strings.TrimSuffix(common.TssCfg.Moniker, common.RegroupSuffix)
+			originVault := common.TssCfg.Vault
+			common.TssCfg.Vault = strings.TrimSuffix(common.TssCfg.Vault, common.RegroupSuffix)
+			updateConfigForRegroup(originVault)
 		}
 
 		if !mustNew && common.TssCfg.IsNewCommittee && tssRegroup != nil {
 			err := tssRegroup.Wait()
 			if err != nil {
-				fmt.Errorf("failed to wait child tss process finished: %v", err)
+				client.Logger.Error(fmt.Errorf("failed to wait child tss process finished: %v", err))
 			}
 
 			// TODO: Make sure this works under different os (linux and windows)
-			os.Rename(
+			backupPath := path.Join(common.TssCfg.Home, common.TssCfg.Vault+"_tgbak")
+
+			err = os.Rename(
+				path.Join(common.TssCfg.Home, common.TssCfg.Vault),
+				backupPath,
+			)
+			if err != nil {
+				client.Logger.Error(err)
+			}
+
+			err = os.Rename(
 				path.Join(common.TssCfg.Home, tmpVault),
 				path.Join(common.TssCfg.Home, common.TssCfg.Vault))
+			if err != nil {
+				client.Logger.Error(err)
+			}
+
+			err = os.RemoveAll(backupPath)
+			if err != nil {
+				client.Logger.Error(err)
+			}
+			client.Logger.Info("secret share and configuration has been updated")
 		}
 	},
 }
 
-func setIsOld() {
-	reader := bufio.NewReader(os.Stdin)
-	answer, err := common.GetBool("Participant as an old (signing) committee?[Y/n]:", true, reader)
-	if err != nil {
-		panic(err)
-	}
-	if answer {
-		common.TssCfg.IsOldCommittee = true
-	}
-}
-
 func setIsNew() {
+	if common.TssCfg.IsNewCommittee {
+		return
+	}
+
 	reader := bufio.NewReader(os.Stdin)
 	answer, err := common.GetBool("Participant as a new committee?[Y/n]:", true, reader)
 	if err != nil {

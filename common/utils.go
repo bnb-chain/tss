@@ -18,8 +18,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ipfs/go-log"
 	"github.com/mattn/go-isatty"
 )
+
+var logger = log.Logger("common")
 
 const (
 	RegroupSuffix = "_rgtmp"
@@ -128,8 +131,8 @@ func ConvertHexToTimestamp(hexTimestamp string) int {
 }
 
 func ReplaceIpInAddr(addr, realIp string) string {
-	re := regexp.MustCompile(`((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))`)
-	return re.ReplaceAllString(addr, realIp)
+	re := regexp.MustCompile(`((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))\/tcp`)
+	return re.ReplaceAllString(addr, realIp+"/tcp")
 }
 
 func ConvertMultiAddrStrToNormalAddr(listenAddr string) (string, error) {

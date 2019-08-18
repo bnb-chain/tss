@@ -80,13 +80,17 @@ func (b *Bootstrapper) HandleBootstrapMsg(peerMsg BootstrapMessage) error {
 }
 
 func (b *Bootstrapper) IsFinished() bool {
+	received := b.LenOfPeers()
 	switch b.Cfg.BMode {
 	case KeygenMode:
-		return b.LenOfPeers() == b.ExpectedPeers
+		logger.Debugf("received peers: %d, expect peers: %d", received, b.ExpectedPeers)
+		return received == b.ExpectedPeers
 	case SignMode:
-		return b.LenOfPeers() == b.Cfg.Threshold
+		logger.Debugf("received peers: %d, expect peers: %d", received, b.Cfg.Threshold)
+		return received == b.Cfg.Threshold
 	case PreRegroupMode:
-		return b.LenOfPeers() == b.ExpectedPeers
+		logger.Debugf("received peers: %d, expect peers: %d", received, b.Cfg.ExpectedPeers)
+		return received == b.ExpectedPeers
 	case RegroupMode:
 		numOfOld := 0
 		numOfNew := 0

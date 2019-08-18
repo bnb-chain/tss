@@ -112,4 +112,5 @@ func initLogLevel(cfg common.TssConfig) {
 	log.SetLogLevel("dht", "error")
 	log.SetLogLevel("discovery", "error")
 	log.SetLogLevel("swarm2", "error")
+	log.SetLogLevel("stream-upgrader", "error")
 }

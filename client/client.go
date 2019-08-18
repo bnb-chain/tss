@@ -234,6 +234,7 @@ func (client *TssClient) Start() {
 			panic(fmt.Errorf("message to be sign: %s is not a valid big.Int", client.config.Message))
 		}
 		client.signImpl(message)
+		time.Sleep(5 * time.Second)
 	default:
 		if err := client.localParty.Start(); err != nil {
 			panic(err)

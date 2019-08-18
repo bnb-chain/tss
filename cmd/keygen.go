@@ -43,7 +43,6 @@ var keygenCmd = &cobra.Command{
 		setN()
 		setT()
 		bootstrapCmd.Run(cmd, args)
-		time.Sleep(10 * time.Second)
 		checkN()
 		setPassphrase()
 		c := client.NewTssClient(&common.TssCfg, client.KeygenMode, false)

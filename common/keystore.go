@@ -60,7 +60,6 @@ type publicFields struct {
 	ECDSAPub          *crypto.ECPoint       // y
 	PaillierPks       []*paillier.PublicKey // pkj
 	NTildej, H1j, H2j []*big.Int
-	Index             int
 	Ks                []*big.Int
 }
 
@@ -146,7 +145,6 @@ func Save(keygenResult *keygen.LocalPartySaveData, nodeKey []byte, config KDFCon
 		keygenResult.NTildej,
 		keygenResult.H1j,
 		keygenResult.H2j,
-		keygenResult.Index,
 		keygenResult.Ks,
 	}
 
@@ -217,7 +215,6 @@ func Load(passphrase string, rPriv, rPub io.Reader) (saveData *keygen.LocalParty
 		NTildej:  pFields.NTildej,
 		H1j:      pFields.H1j,
 		H2j:      pFields.H2j,
-		Index:    pFields.Index,
 		Ks:       pFields.Ks,
 		ECDSAPub: pFields.ECDSAPub,
 	}, sFields.NodeKey, nil

@@ -45,7 +45,6 @@ func loadSavedKeyForSign(config *common.TssConfig, sortedIds tss.SortedPartyIDs,
 		filteredNTildej,
 		filteredH1j,
 		filteredH2j,
-		result.Index,
 		filteredKs,
 		result.ECDSAPub,
 	}

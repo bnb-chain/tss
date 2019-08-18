@@ -62,18 +62,6 @@ var bootstrapCmd = &cobra.Command{
 		peerAddrs := findPeerAddrsViaSsdp(numOfPeers, listenAddrs)
 		client.Logger.Debugf("Found peers via ssdp: %v", peerAddrs)
 
-		bootstrapMsg, err := common.NewBootstrapMessage(
-			common.TssCfg.ChannelId,
-			common.TssCfg.ChannelPassword,
-			common.TssCfg.Moniker,
-			common.TssCfg.Id,
-			common.TssCfg.ListenAddr,
-			common.TssCfg.IsOldCommittee,
-			!common.TssCfg.IsOldCommittee)
-		if err != nil {
-			panic(err)
-		}
-
 		go func() {
 			for _, peerAddr := range peerAddrs {
 				go func(peerAddr string) {
@@ -90,6 +78,18 @@ var bootstrapCmd = &cobra.Command{
 						}
 						time.Sleep(time.Second)
 						conn, err = net.Dial("tcp", dest)
+					}
+
+					bootstrapMsg, err := common.NewBootstrapMessage(
+						common.TssCfg.ChannelId,
+						common.TssCfg.ChannelPassword,
+						common.TssCfg.Moniker,
+						common.TssCfg.Id,
+						common.TssCfg.ListenAddr,
+						common.TssCfg.IsOldCommittee,
+						!common.TssCfg.IsOldCommittee)
+					if err != nil {
+						panic(err)
 					}
 
 					sendBootstrapMessage(conn, bootstrapMsg)

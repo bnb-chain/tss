@@ -427,6 +427,7 @@ func (t *p2pTransporter) verifiedPeersBroadcastMsgGuarded(key p2pMessageKey, num
 }
 
 func (t *p2pTransporter) initBootstrapConnection(dht *libp2pdht.IpfsDHT) {
+	logger.Debugf("initialize bootstrap connection")
 	for _, pid := range t.expectedPeers {
 		// we only connect parties whose id greater than us
 		if strings.Compare(t.host.ID().String(), pid.String()) >= 0 {
@@ -516,7 +517,9 @@ func (t *p2pTransporter) connectRoutine(dht *libp2pdht.IpfsDHT, pid peer.ID, pro
 			} else {
 				err := t.host.Connect(t.ctx, peer.AddrInfo{pid, t.host.Peerstore().Addrs(pid)})
 				if err != nil {
-					logger.Debug("Direct Connection failed, will retry, err:", err)
+					if err != swarm.ErrDialBackoff {
+						logger.Debugf("Direct Connection to %s failed, will retry, err: %v", pid.Pretty(), err)
+					}
 					continue
 				} else {
 					if atomic.LoadInt32(&t.numOfStreams) == int32(len(t.expectedPeers)) {

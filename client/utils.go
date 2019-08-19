@@ -72,18 +72,18 @@ func loadSavedKeyForRegroup(config *common.TssConfig, sortedIds tss.SortedPartyI
 func loadSavedKey(config *common.TssConfig) keygen.LocalPartySaveData {
 	wPriv, err := os.OpenFile(path.Join(config.Home, config.Vault, "sk.json"), os.O_RDONLY, 0400)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	defer wPriv.Close()
 	wPub, err := os.OpenFile(path.Join(config.Home, config.Vault, "pk.json"), os.O_RDONLY, 0400)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	defer wPub.Close()
 
 	result, _, err := common.Load(config.Password, wPriv, wPub) // TODO: validate nodeKey
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	return *result
 }

@@ -127,11 +127,11 @@ func NewP2PTransporter(
 	for _, relayPeerAddr := range config.RelayPeers {
 		relayPeerInfo, err := peer.AddrInfoFromP2pAddr(relayPeerAddr)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		relayAddr, err := multiaddr.NewMultiaddr("/p2p-circuit/p2p/" + relayPeerInfo.ID.Pretty())
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		t.relayPeers = append(t.relayPeers, relayAddr)
 	}
@@ -152,18 +152,18 @@ func NewP2PTransporter(
 	if _, err := os.Stat(pathToNodeKey); err == nil {
 		bytes, err := ioutil.ReadFile(pathToNodeKey)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		privKey, err = crypto.UnmarshalPrivateKey(bytes)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		t.nodeKey = bytes
 	}
 
 	addr, err := multiaddr.NewMultiaddr(config.ListenAddr)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 
 	host, err := libp2p.New(
@@ -176,7 +176,7 @@ func NewP2PTransporter(
 		libp2p.NATPortMap(), // actually I cannot find a case that NATPortMap can help, but in case some edge case, created it to save relay server performance
 	)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	host.SetStreamHandler(partyProtocolId, t.handleStream)
 	host.SetStreamHandler(bootstrapProtocolId, t.handleSigner)
@@ -297,7 +297,22 @@ func (t *p2pTransporter) handleSigner(stream network.Stream) {
 	localAddr := stream.Conn().LocalMultiaddr().String()
 	logger.Infof("local addr in message: %s", localAddr)
 	localAddr = strings.Replace(localAddr, "0.0.0.0", "127.0.0.1", 1)
-	if msg, err := common.NewBootstrapMessage(t.bootstrapper.ChannelId, t.bootstrapper.ChannelPassword, common.TssCfg.Moniker, common.TssCfg.Id, localAddr, common.TssCfg.IsOldCommittee, !common.TssCfg.IsOldCommittee); err == nil {
+	if msg, err := common.NewBootstrapMessage(
+		t.bootstrapper.ChannelId,
+		t.bootstrapper.ChannelPassword,
+		localAddr,
+		common.PeerParam{
+			ChannelId: common.TssCfg.ChannelId,
+			Moniker:   common.TssCfg.Moniker,
+			Msg:       common.TssCfg.Message,
+			Id:        string(common.TssCfg.Id),
+			N:         common.TssCfg.Parties,
+			T:         common.TssCfg.Threshold,
+			NewN:      common.TssCfg.NewParties,
+			NewT:      common.TssCfg.NewThreshold,
+			IsOld:     common.TssCfg.IsOldCommittee,
+			IsNew:     !common.TssCfg.IsOldCommittee,
+		}); err == nil {
 		encoder.Encode(msg)
 	} else {
 		logger.Errorf("failed to encrypt bootstrap message: %v", err)
@@ -307,7 +322,7 @@ func (t *p2pTransporter) handleSigner(stream network.Stream) {
 	var peerMsg common.BootstrapMessage
 	decoder.Decode(&peerMsg)
 	if err := t.bootstrapper.HandleBootstrapMsg(peerMsg); err != nil {
-		logger.Errorf("%v", err)
+		common.Panic(err)
 	}
 }
 
@@ -377,7 +392,7 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 						}
 						t.sanityCheckMtx.Unlock()
 					} else {
-						panic(fmt.Errorf("failed to marshal message: %s to json: %v", msg, err))
+						common.Panic(fmt.Errorf("failed to marshal message: %s to json: %v", msg, err))
 					}
 				} else {
 					t.receiveCh <- msg
@@ -417,7 +432,7 @@ func (t *p2pTransporter) verifiedPeersBroadcastMsgGuarded(key p2pMessageKey, num
 	} else {
 		for _, hashMsg := range t.receivedPeersHashMsg[key] {
 			if hashMsg.Hash != t.pendingCheckHashMsg[key].Hash {
-				panic("someone in network is malicious") // TODO: better logging, i.e. log which one is malicious in what way
+				common.Panic(fmt.Errorf("someone in network is malicious")) // TODO: better logging, i.e. log which one is malicious in what way
 			}
 		}
 
@@ -530,7 +545,7 @@ func (t *p2pTransporter) connectRoutine(dht *libp2pdht.IpfsDHT, pid peer.ID, pro
 					stream, err := t.host.NewStream(t.ctx, pid, protocol.ID(protocolId))
 					if err != nil {
 						logger.Info("Direct Connection failed, Will give up")
-						panic(err)
+						common.Panic(err)
 					} else {
 						switch protocolId {
 						case partyProtocolId:
@@ -575,7 +590,7 @@ func (t *p2pTransporter) tryRelaying(pid peer.ID, protocolId string) error {
 func (t *p2pTransporter) setupDHTClient() *libp2pdht.IpfsDHT {
 	//ds, err := leveldb.NewDatastore(t.pathToRouteTable, nil)
 	//if err != nil {
-	//	panic(err)
+	//	common.Panic(err)
 	//}
 	ds := datastore.NewMapDatastore()
 
@@ -586,14 +601,14 @@ func (t *p2pTransporter) setupDHTClient() *libp2pdht.IpfsDHT {
 		opts.Client(true),
 	)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 
 	// Connect to bootstrap peers
 	for _, bootstrapAddr := range t.bootstrapPeers {
 		bootstrapPeerInfo, err := peer.AddrInfoFromP2pAddr(bootstrapAddr)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		if err := t.host.Connect(t.ctx, *bootstrapPeerInfo); err != nil {
 			logger.Warning(err)
@@ -607,7 +622,7 @@ func (t *p2pTransporter) setupDHTClient() *libp2pdht.IpfsDHT {
 	for _, relayAddr := range t.relayPeers {
 		relayPeerInfo, err := peer.AddrInfoFromP2pAddr(relayAddr)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		if err := t.host.Connect(t.ctx, *relayPeerInfo); err != nil {
 			logger.Warning(err)
@@ -641,7 +656,7 @@ func (t *p2pTransporter) setExpectedPeers(nodeId string, signers map[string]int,
 
 	for expectedPeer, peerAddr := range mergedExpectedPeers {
 		if pid, err := peer.IDB58Decode(string(GetClientIdFromExpecetdPeers(expectedPeer))); err != nil {
-			panic(err)
+			common.Panic(err)
 		} else {
 			if pid.Pretty() == nodeId {
 				continue

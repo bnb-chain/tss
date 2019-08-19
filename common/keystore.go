@@ -248,6 +248,9 @@ func LoadConfig(home, vault, passphrase string) (*TssConfig, error) {
 		return nil, err
 	}
 	plaintext, err := decryptSecret(*sConfig.SecretTssConfig, passphrase)
+	if err != nil {
+		return nil, err
+	}
 	var config TssConfig
 	if err := json.Unmarshal(plaintext, &config); err != nil {
 		return nil, err
@@ -301,14 +304,14 @@ func readAndDecrypt(src io.Reader, passphrase string) ([]byte, error) {
 func encryptSecret(data, auth []byte, config KDFConfig) (*cryptoJSON, error) {
 	salt := make([]byte, config.SaltLength)
 	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
-		panic("reading from crypto/rand failed: " + err.Error())
+		Panic(fmt.Errorf("reading from crypto/rand failed: %v", err))
 	}
 	derivedKey := argon2.IDKey(auth, salt, config.Iterations, config.Memory, config.Parallelism, config.KeyLength)
 	encryptKey := derivedKey[:len(derivedKey)-16]
 
 	iv := make([]byte, aes.BlockSize)
 	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-		panic("reading from crypto/rand failed: " + err.Error())
+		Panic(fmt.Errorf("reading from crypto/rand failed: %v", err))
 	}
 	cipherText, err := aesCTRXOR(encryptKey, data, iv)
 	if err != nil {
@@ -366,7 +369,7 @@ func decryptSecret(encryptedSecret cryptoJSON, passphrase string) ([]byte, error
 	calculatedMAC := d.Sum(nil)
 
 	if !bytes.Equal(calculatedMAC, mac) {
-		return nil, errors.New("could not decrypt key with given passphrase")
+		return nil, errors.New("wrong vault passphrase")
 	}
 
 	plainText, err := aesCTRXOR(derivedKey[:len(derivedKey)-16], cipherText, iv)

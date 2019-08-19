@@ -37,14 +37,18 @@ func (m DummyMsg) ValidateBasic() bool {
 
 type BootstrapMessage struct {
 	ChannelId string // channel id + epoch timestamp in dex
-	PeerInfo  []byte // encrypted channelId+moniker+libp2pid
+	PeerInfo  []byte // encrypted PeerParam
 	Addr      string
-	IsOld     bool
-	IsNew     bool
 }
 
-func NewBootstrapMessage(channelId, passphrase, moniker string, id TssClientId, addr string, isOld, isNew bool) (*BootstrapMessage, error) {
-	pi, err := Encrypt(passphrase, channelId, moniker, string(id))
+type PeerParam struct {
+	ChannelId, Moniker, Msg, Id string
+	N, T, NewN, NewT            int
+	IsOld, IsNew                bool
+}
+
+func NewBootstrapMessage(channelId, channelPassword, addr string, param PeerParam) (*BootstrapMessage, error) {
+	pi, err := Encrypt(channelPassword, param)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +56,5 @@ func NewBootstrapMessage(channelId, passphrase, moniker string, id TssClientId, 
 		ChannelId: channelId,
 		PeerInfo:  pi,
 		Addr:      addr,
-		IsOld:     isOld,
-		IsNew:     isNew,
 	}, nil
 }

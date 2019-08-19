@@ -30,9 +30,9 @@ var bootstrapCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		src, err := common.ConvertMultiAddrStrToNormalAddr(common.TssCfg.ListenAddr)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
-		listenAddrs := getListenAddrs()
+		listenAddrs := getListenAddrs(common.TssCfg.ListenAddr)
 		client.Logger.Debugf("This node is listening on: %v", listenAddrs)
 
 		setChannelId()
@@ -46,7 +46,7 @@ var bootstrapCmd = &cobra.Command{
 
 		listener, err := net.Listen("tcp", src)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		defer func() {
 			err = listener.Close()
@@ -67,13 +67,13 @@ var bootstrapCmd = &cobra.Command{
 				go func(peerAddr string) {
 					dest, err := common.ConvertMultiAddrStrToNormalAddr(peerAddr)
 					if err != nil {
-						panic(fmt.Errorf("failed to convert peer multiAddr to addr: %v", err))
+						common.Panic(fmt.Errorf("failed to convert peer multiAddr to addr: %v", err))
 					}
 					conn, err := net.Dial("tcp", dest)
 					for conn == nil {
 						if err != nil {
 							if !strings.Contains(err.Error(), "connection refused") {
-								panic(err)
+								common.Panic(err)
 							}
 						}
 						time.Sleep(time.Second)
@@ -83,13 +83,22 @@ var bootstrapCmd = &cobra.Command{
 					bootstrapMsg, err := common.NewBootstrapMessage(
 						common.TssCfg.ChannelId,
 						common.TssCfg.ChannelPassword,
-						common.TssCfg.Moniker,
-						common.TssCfg.Id,
 						common.TssCfg.ListenAddr,
-						common.TssCfg.IsOldCommittee,
-						!common.TssCfg.IsOldCommittee)
+						common.PeerParam{
+							ChannelId: common.TssCfg.ChannelId,
+							Moniker:   common.TssCfg.Moniker,
+							Msg:       common.TssCfg.Message,
+							Id:        string(common.TssCfg.Id),
+							N:         common.TssCfg.Parties,
+							T:         common.TssCfg.Threshold,
+							NewN:      common.TssCfg.NewParties,
+							NewT:      common.TssCfg.NewThreshold,
+							IsOld:     common.TssCfg.IsOldCommittee,
+							IsNew:     !common.TssCfg.IsOldCommittee,
+						},
+					)
 					if err != nil {
-						panic(err)
+						common.Panic(err)
 					}
 
 					sendBootstrapMessage(conn, bootstrapMsg)
@@ -102,7 +111,7 @@ var bootstrapCmd = &cobra.Command{
 		<-done
 		err = updateConfigWithPeerInfos(bootstrapper)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 	},
 }
@@ -115,7 +124,10 @@ func setChannelId() {
 	reader := bufio.NewReader(os.Stdin)
 	channelId, err := common.GetString("please set channel id of this session", reader)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
+	}
+	if len(channelId) != 11 {
+		common.Panic(fmt.Errorf("channelId format is invalid"))
 	}
 	common.TssCfg.ChannelId = channelId
 }
@@ -128,7 +140,7 @@ func setChannelPasswd() {
 	if p, err := speakeasy.Ask("> please input password (AGREED offline with peers) of this session:"); err == nil {
 		common.TssCfg.ChannelPassword = p
 	} else {
-		panic(err)
+		common.Panic(err)
 	}
 }
 
@@ -189,7 +201,7 @@ func handleConnection(conn net.Conn, b *common.Bootstrapper) {
 		// Read timeout - same with above. If we reading before peer close conn, we will timeout
 	} else {
 		if err := b.HandleBootstrapMsg(peerMsg); err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 	}
 }
@@ -201,13 +213,11 @@ func sendBootstrapMessage(conn net.Conn, msg *common.BootstrapMessage) {
 		ChannelId: msg.ChannelId,
 		PeerInfo:  msg.PeerInfo,
 		Addr:      common.ReplaceIpInAddr(msg.Addr, realIp[0]),
-		IsOld:     msg.IsOld,
-		IsNew:     msg.IsNew,
 	}
 	conn.SetWriteDeadline(time.Now().Add(time.Second))
 	encoder := gob.NewEncoder(conn)
 	if err := encoder.Encode(msgForConnect); err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	client.Logger.Debugf("sent bootstrap msg: %v to %s", msgForConnect, conn.RemoteAddr().String())
 }

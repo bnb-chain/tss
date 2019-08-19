@@ -77,6 +77,6 @@ func TestSaveAndLoadNeg(t *testing.T) {
 	Save(&expectedMsg, bytes, DefaultKDFConfig(), passphrase, &wPriv, &wPub)
 	_, _, err = Load("12345678", &wPriv, &wPub) // load saved data with a wrong passphrase would not success
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 }

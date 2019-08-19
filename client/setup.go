@@ -17,30 +17,30 @@ import (
 func Setup(cfg common.TssConfig) {
 	err := os.Mkdir("./configs", 0700)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	allPeerIds := make([]string, 0, cfg.Parties)
 	for i := 0; i < cfg.Parties; i++ {
 		configPath := fmt.Sprintf("./configs/%d", i)
 		err := os.Mkdir(configPath, 0700)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		// generate node identifier key
 		privKey, _, err := crypto.GenerateEd25519Key(rand.Reader)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 
 		pid, err := peer.IDFromPublicKey(privKey.GetPublic())
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		allPeerIds = append(allPeerIds, fmt.Sprintf("%s@%s", fmt.Sprintf("party%d", i), pid.Pretty()))
 
 		bytes, err := crypto.MarshalPrivateKey(privKey)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		ioutil.WriteFile(configPath+"/node_key", bytes, os.FileMode(0600))
 	}
@@ -63,7 +63,7 @@ func Setup(cfg common.TssConfig) {
 
 		bytes, err := json.MarshalIndent(&tssConfig, "", "    ")
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		ioutil.WriteFile(configFilePath, bytes, os.FileMode(0600))
 	}

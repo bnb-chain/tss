@@ -19,8 +19,8 @@ var signCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		vault := askVault()
 		passphrase := askPassphrase()
-		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString(flagHome), vault, passphrase); err != nil {
-			panic(err)
+		if err := common.ReadConfigFromHome(viper.GetViper(), false, viper.GetString(flagHome), vault, passphrase); err != nil {
+			common.Panic(err)
 		}
 		initLogLevel(common.TssCfg)
 	},

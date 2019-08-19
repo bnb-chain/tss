@@ -9,11 +9,13 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
 	"os"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -28,8 +30,8 @@ const (
 	RegroupSuffix = "_rgtmp"
 )
 
-func Encrypt(passphrase, channelId, moniker, id string) ([]byte, error) {
-	text := []byte(fmt.Sprintf("%s@%s@%s", channelId, moniker, id))
+func Encrypt(passphrase string, param PeerParam) ([]byte, error) {
+	text, err := json.Marshal(param)
 	key := sha256.Sum256([]byte(passphrase))
 
 	// generate a new aes cipher using our 32 byte long key
@@ -66,7 +68,7 @@ func Encrypt(passphrase, channelId, moniker, id string) ([]byte, error) {
 	return gcm.Seal(nonce, nonce, text, nil), nil
 }
 
-func Decrypt(ciphertext []byte, channelId, passphrase string) (moniker, id string, error error) {
+func Decrypt(ciphertext []byte, channelId, passphrase string) (param *PeerParam, error error) {
 	key := sha256.Sum256([]byte(passphrase))
 	c, err := aes.NewCipher(key[:])
 	if err != nil {
@@ -92,20 +94,20 @@ func Decrypt(ciphertext []byte, channelId, passphrase string) (moniker, id strin
 		return
 	}
 
-	res := strings.SplitN(string(plaintext), "@", 3)
-	if len(res) != 3 {
-		error = fmt.Errorf("wrong format of decrypted plaintext")
+	param = &PeerParam{}
+	error = json.Unmarshal(plaintext, param)
+	if error != nil {
 		return
 	}
-	if res[0] != channelId {
+	if param.ChannelId != channelId {
 		error = fmt.Errorf("wrong channel id of message")
 	}
 	epochSeconds := ConvertHexToTimestamp(channelId[3:])
 	if time.Now().Unix() > int64(epochSeconds) {
-		error = fmt.Errorf("password has been expired")
+		error = fmt.Errorf("channel id has been expired, please regenerate a new one")
 		return
 	}
-	return res[1], res[2], nil
+	return param, nil
 }
 
 // conversion between hex and int32 epoch seconds
@@ -152,7 +154,12 @@ func GetInt(prompt string, defaultValue int, buf *bufio.Reader) (int, error) {
 	if s == "" {
 		return defaultValue, nil
 	}
-	return strconv.Atoi(s)
+	res, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, fmt.Errorf("%s is an invalid integer", s)
+	} else {
+		return res, nil
+	}
 }
 
 // GetString simply returns the trimmed string output of a given reader.
@@ -182,6 +189,13 @@ func GetBool(prompt string, defaultValue bool, buf *bufio.Reader) (bool, error) 
 	} else {
 		return false, fmt.Errorf("input does not make sense, please input 'y' or 'n'")
 	}
+}
+
+func Panic(err error) {
+	logger.Error(err)
+	trace := fmt.Sprintf("stack:\n%v", string(debug.Stack()))
+	logger.Debug(trace)
+	os.Exit(1)
 }
 
 // inputIsTty returns true iff we have an interactive prompt,

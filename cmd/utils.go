@@ -1,5 +1,3 @@
-// Most utilitie functions are borrowed from cosmos/cosmos-sdk/client/input.go
-
 package cmd
 
 import (
@@ -13,14 +11,14 @@ import (
 	"github.com/binance-chain/tss/common"
 )
 
-func getListenAddrs() string {
-	addr, err := multiaddr.NewMultiaddr(common.TssCfg.ListenAddr)
+func getListenAddrs(listenAddr string) string {
+	addr, err := multiaddr.NewMultiaddr(listenAddr)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	host, err := libp2p.New(context.Background(), libp2p.ListenAddrs(addr))
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 
 	builder := strings.Builder{}

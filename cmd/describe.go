@@ -23,8 +23,8 @@ var describeCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		vault := askVault()
 		passphrase := askPassphrase()
-		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString(flagHome), vault, passphrase); err != nil {
-			panic(err)
+		if err := common.ReadConfigFromHome(viper.GetViper(), false, viper.GetString(flagHome), vault, passphrase); err != nil {
+			common.Panic(err)
 		}
 		initLogLevel(common.TssCfg)
 	},
@@ -36,13 +36,13 @@ var describeCmd = &cobra.Command{
 		if pubKey != nil {
 			addr, err := client.GetAddress(*pubKey, viper.GetString(flagPrefix))
 			if err != nil {
-				panic(err)
+				common.Panic(err)
 			}
 			fmt.Printf("address of this vault: %s\n", addr)
 		}
 		cfg, err := json.MarshalIndent(common.TssCfg, "", "\t")
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		fmt.Printf("config of this vault:\n%s\n", string(cfg))
 	},

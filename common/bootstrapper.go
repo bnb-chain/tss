@@ -38,7 +38,7 @@ func NewBootstrapper(expectedPeers int, config *TssConfig) *Bootstrapper {
 		reader := bufio.NewReader(os.Stdin)
 		channelId, err := GetString("please set channel id of this session", reader)
 		if err != nil {
-			panic(err)
+			Panic(err)
 		}
 		config.ChannelId = channelId
 	}
@@ -46,7 +46,7 @@ func NewBootstrapper(expectedPeers int, config *TssConfig) *Bootstrapper {
 		if p, err := speakeasy.Ask("> please input password (AGREED offline with peers) of this session:"); err == nil {
 			config.ChannelPassword = p
 		} else {
-			panic(err)
+			Panic(err)
 		}
 	}
 	return &Bootstrapper{
@@ -58,22 +58,38 @@ func NewBootstrapper(expectedPeers int, config *TssConfig) *Bootstrapper {
 }
 
 func (b *Bootstrapper) HandleBootstrapMsg(peerMsg BootstrapMessage) error {
-	if moniker, id, err := Decrypt(peerMsg.PeerInfo, b.ChannelId, b.ChannelPassword); err != nil {
+	if peerParam, err := Decrypt(peerMsg.PeerInfo, b.ChannelId, b.ChannelPassword); err != nil {
 		return err
 	} else {
-		if info, ok := b.Peers.Load(id); info != nil && ok {
-			if moniker != info.(PeerInfo).Moniker {
-				return fmt.Errorf("received different moniker for id: %s", id)
+		if info, ok := b.Peers.Load(peerParam.Id); info != nil && ok {
+			if peerParam.Moniker != info.(PeerInfo).Moniker {
+				return fmt.Errorf("received different moniker for id: %s", peerParam.Id)
 			}
 		} else {
-			pi := PeerInfo{
-				Id:         id,
-				Moniker:    moniker,
-				RemoteAddr: peerMsg.Addr,
-				IsOld:      peerMsg.IsOld,
-				IsNew:      peerMsg.IsNew,
+			if peerParam.N != TssCfg.Parties {
+				return fmt.Errorf("received differetnt n for party: %s, %s", peerParam.Moniker, peerParam.Id)
 			}
-			b.Peers.Store(id, pi)
+			if peerParam.T != TssCfg.Threshold {
+				return fmt.Errorf("received different t for party: %s, %s", peerParam.Moniker, peerParam.Id)
+			}
+			if peerParam.Msg != TssCfg.Message {
+				return fmt.Errorf("received different message to be signed for party: %s, %s", peerParam.Moniker, peerParam.Id)
+			}
+			if peerParam.NewN != TssCfg.NewParties {
+				return fmt.Errorf("received different new n for party: %s, %s", peerParam.Moniker, peerParam.Id)
+			}
+			if peerParam.NewT != TssCfg.NewThreshold {
+				return fmt.Errorf("received different new t for party: %s, %s", peerParam.Moniker, peerParam.Id)
+			}
+
+			pi := PeerInfo{
+				Id:         peerParam.Id,
+				Moniker:    peerParam.Moniker,
+				RemoteAddr: peerMsg.Addr,
+				IsOld:      peerParam.IsOld,
+				IsNew:      peerParam.IsNew,
+			}
+			b.Peers.Store(peerParam.Id, pi)
 		}
 	}
 	return nil

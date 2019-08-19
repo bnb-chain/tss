@@ -41,7 +41,8 @@ func (m ClientMode) String() string {
 	case RegroupMode:
 		return "regroup"
 	default:
-		panic("unknown mode")
+		common.Panic(fmt.Errorf("unknown mode"))
+		return "" // won't reach here as Panic would kill process
 	}
 }
 
@@ -113,7 +114,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 		}
 
 		if len(signers) < config.Threshold+1 {
-			panic(fmt.Errorf("no enough signers (%d) to meet requirement: %d", len(signers), config.Threshold+1))
+			common.Panic(fmt.Errorf("no enough signers (%d) to meet requirement: %d", len(signers), config.Threshold+1))
 		}
 		updatePeerOriginalIndexes(config, bootstrapper, partyID, signers)
 	}
@@ -231,13 +232,13 @@ func (client *TssClient) Start() {
 	case SignMode:
 		message, ok := big.NewInt(0).SetString(client.config.Message, 10)
 		if !ok {
-			panic(fmt.Errorf("message to be sign: %s is not a valid big.Int", client.config.Message))
+			common.Panic(fmt.Errorf("message to be sign: %s is not a valid big.Int", client.config.Message))
 		}
 		client.signImpl(message)
 		time.Sleep(5 * time.Second)
 	default:
 		if err := client.localParty.Start(); err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		done := make(chan bool)
 		go client.sendMessageRoutine(client.sendCh)
@@ -302,17 +303,17 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 
 		wPriv, err := os.OpenFile(path.Join(client.config.Home, client.config.Vault, "sk.json"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		defer wPriv.Close() // defer within loop is fine here as for one party there would be only one element from saveCh
 		wPub, err := os.OpenFile(path.Join(client.config.Home, client.config.Vault, "pk.json"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		defer wPub.Close() // defer within loop is fine here as for one party there would be only one element from saveCh
 		err = common.Save(&msg, client.transporter.NodeKey(), client.config.KDFConfig, client.config.Password, wPriv, wPub)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 
 		if done != nil {

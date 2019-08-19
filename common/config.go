@@ -103,12 +103,15 @@ type TssConfig struct {
 	Home string
 }
 
-func ReadConfigFromHome(v *viper.Viper, home, vault, passphrase string) error {
+func ReadConfigFromHome(v *viper.Viper, init bool, home, vault, passphrase string) error {
 	cfg, err := LoadConfig(home, vault, passphrase)
 	if e, ok := err.(*os.PathError); ok && e.Err == syscall.ENOENT {
-		fmt.Println("Cannot find config.json, would use config in command line parameter. This is not an error if you run init")
+		if !init {
+			// Cannot find config.json. This is not an error for init command
+			return fmt.Errorf("vault does not exist, please check your \"--home\" or \"--vault_name\" parameter, error: %v", err)
+		}
 	} else if err != nil {
-		return err
+		return fmt.Errorf("cannot use vault, error: %v", err)
 	}
 	marshaled, err := json.Marshal(cfg)
 	if err != nil {

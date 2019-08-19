@@ -33,8 +33,8 @@ var keygenCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		vault := askVault()
 		passphrase := askPassphrase()
-		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString(flagHome), vault, passphrase); err != nil {
-			panic(err)
+		if err := common.ReadConfigFromHome(viper.GetViper(), false, viper.GetString(flagHome), vault, passphrase); err != nil {
+			common.Panic(err)
 		}
 		initLogLevel(common.TssCfg)
 	},
@@ -59,27 +59,21 @@ func checkOverride() {
 		reader := bufio.NewReader(os.Stdin)
 		answer, err := common.GetBool("Vault already generated, do you like override it[y/N]: ", false, reader)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		if !answer {
 			client.Logger.Info("nothing happened")
 			os.Exit(0)
 		} else {
-			passphrase := viper.GetString("password")
-			vault := viper.GetString(flagVault)
 			common.TssCfg.Parties = 0
 			common.TssCfg.Threshold = 0
-			updateConfig()
-			if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString(flagHome), vault, passphrase); err != nil {
-				panic(err)
-			}
 		}
 	}
 }
 
 func checkN() {
 	if common.TssCfg.Parties > 0 && len(common.TssCfg.ExpectedPeers) != common.TssCfg.Parties-1 {
-		panic("peers are not correctly set during bootstrap")
+		common.Panic(fmt.Errorf("peers are not correctly set during bootstrap"))
 	}
 }
 
@@ -91,10 +85,10 @@ func setN() {
 	reader := bufio.NewReader(os.Stdin)
 	n, err := common.GetInt("please set total parties(n) (default: 3): ", 3, reader)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	if n <= 1 {
-		panic(fmt.Errorf("n should greater than 1"))
+		common.Panic(fmt.Errorf("n should greater than 1"))
 	}
 	common.TssCfg.Parties = n
 }
@@ -107,28 +101,31 @@ func setT() {
 	reader := bufio.NewReader(os.Stdin)
 	t, err := common.GetInt("please set threshold(t), at least t + 1 parties needs participant signing (default: 1): ", 1, reader)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	if t <= 0 {
-		panic(fmt.Errorf("t should greater than 0"))
+		common.Panic(fmt.Errorf("t should greater than 0"))
 	}
 	// we allowed t+1 == n, for most common use case 2-2 scheme
 	if t+1 > common.TssCfg.Parties {
-		panic(fmt.Errorf("t + 1 should less than or equals to parties"))
+		common.Panic(fmt.Errorf("t + 1 should less than or equals to parties"))
 	}
 	common.TssCfg.Threshold = t
 }
 
 func askPassphrase() string {
-	if viper.GetString("password") != "" {
-		return viper.GetString("password")
+	if pw := viper.GetString("password"); pw != "" {
+		checkComplexityOfPassword(pw)
+		return pw
 	}
 
 	if p, err := speakeasy.Ask("> Password to sign with this vault:"); err == nil {
 		viper.Set("password", p)
+		checkComplexityOfPassword(p)
 		return p
 	} else {
-		panic(err)
+		common.Panic(err)
+		return ""
 	}
 }
 
@@ -168,7 +165,7 @@ func addToBnbcli(pubKey crypto.PubKey) {
 	}
 	pwd, err := os.Getwd()
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	execuable := "tbnbcli"
 	if common.TssCfg.AddressPrefix == "bnb" {
@@ -208,7 +205,7 @@ func addToBnbcli(pubKey crypto.PubKey) {
 
 		err = bnbcli.Start()
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		err = bnbcli.Wait()
 
@@ -232,6 +229,6 @@ func addToBnbcli(pubKey crypto.PubKey) {
 
 func checkComplexityOfPassword(p string) {
 	if len(p) <= 8 {
-		panic(fmt.Errorf("password is too simple, should be longer than 8 characters"))
+		common.Panic(fmt.Errorf("password is too simple, should be longer than 8 characters"))
 	}
 }

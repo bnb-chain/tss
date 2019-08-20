@@ -67,6 +67,10 @@ var regroupCmd = &cobra.Command{
 				common.Panic(err)
 			}
 
+			if _, err := os.Stat(path.Join(common.TssCfg.Home, tmpVault)); err == nil {
+				os.RemoveAll(path.Join(common.TssCfg.Home, tmpVault))
+			}
+
 			// TODO: this relies on user doesn't rename the binary we released
 			tssInit := exec.Command(path.Join(pwd, "tss"), "init", "--home", common.TssCfg.Home, "--vault_name", tmpVault, "--moniker", tmpMoniker, "--password", common.TssCfg.Password)
 			tssInit.Stdin = devnull

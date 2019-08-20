@@ -42,6 +42,7 @@ var bootstrapCmd = &cobra.Command{
 		if common.TssCfg.BMode == common.PreRegroupMode {
 			numOfPeers = common.TssCfg.Threshold + common.TssCfg.NewParties
 		}
+
 		bootstrapper := common.NewBootstrapper(numOfPeers, &common.TssCfg)
 
 		listener, err := net.Listen("tcp", src)
@@ -79,29 +80,8 @@ var bootstrapCmd = &cobra.Command{
 						time.Sleep(time.Second)
 						conn, err = net.Dial("tcp", dest)
 					}
-
-					bootstrapMsg, err := common.NewBootstrapMessage(
-						common.TssCfg.ChannelId,
-						common.TssCfg.ChannelPassword,
-						common.TssCfg.ListenAddr,
-						common.PeerParam{
-							ChannelId: common.TssCfg.ChannelId,
-							Moniker:   common.TssCfg.Moniker,
-							Msg:       common.TssCfg.Message,
-							Id:        string(common.TssCfg.Id),
-							N:         common.TssCfg.Parties,
-							T:         common.TssCfg.Threshold,
-							NewN:      common.TssCfg.NewParties,
-							NewT:      common.TssCfg.NewThreshold,
-							IsOld:     common.TssCfg.IsOldCommittee,
-							IsNew:     !common.TssCfg.IsOldCommittee,
-						},
-					)
-					if err != nil {
-						common.Panic(err)
-					}
-
-					sendBootstrapMessage(conn, bootstrapMsg)
+					defer conn.Close()
+					handleConnection(conn, bootstrapper)
 				}(peerAddr)
 			}
 
@@ -138,6 +118,9 @@ func setChannelPasswd() {
 	}
 
 	if p, err := speakeasy.Ask("> please input password (AGREED offline with peers) of this session:"); err == nil {
+		if p == "" {
+			common.Panic(fmt.Errorf("channel password should not be empty"))
+		}
 		common.TssCfg.ChannelPassword = p
 	} else {
 		common.Panic(err)
@@ -189,21 +172,10 @@ func acceptConnRoutine(listener net.Listener, bootstrapper *common.Bootstrapper,
 }
 
 func handleConnection(conn net.Conn, b *common.Bootstrapper) {
-	client.Logger.Debugf("handling connection of %s", conn.RemoteAddr().String())
+	client.Logger.Debugf("handling connection from %s", conn.RemoteAddr().String())
 
-	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
-	decoder := gob.NewDecoder(conn)
-	var peerMsg common.BootstrapMessage
-	if err := decoder.Decode(&peerMsg); err != nil {
-		// deliberately not handle err here
-		// possible err maybe:
-		// EOF - on receiving ssdp live message, peer will close conn directly
-		// Read timeout - same with above. If we reading before peer close conn, we will timeout
-	} else {
-		if err := b.HandleBootstrapMsg(peerMsg); err != nil {
-			common.Panic(err)
-		}
-	}
+	sendBootstrapMessage(conn, b.Msg)
+	readBootstrapMessage(conn, b)
 }
 
 func sendBootstrapMessage(conn net.Conn, msg *common.BootstrapMessage) {
@@ -217,9 +189,29 @@ func sendBootstrapMessage(conn net.Conn, msg *common.BootstrapMessage) {
 	conn.SetWriteDeadline(time.Now().Add(time.Second))
 	encoder := gob.NewEncoder(conn)
 	if err := encoder.Encode(msgForConnect); err != nil {
-		common.Panic(err)
+		// deliberately not handle err here
+		// possible err maybe:
+		// EOF - on receiving ssdp live message, peer will close conn directly
+		// Write timeout - same with above. If we writing before peer close conn, we will timeout
 	}
 	client.Logger.Debugf("sent bootstrap msg: %v to %s", msgForConnect, conn.RemoteAddr().String())
+}
+
+func readBootstrapMessage(conn net.Conn, b *common.Bootstrapper) {
+	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	decoder := gob.NewDecoder(conn)
+	var peerMsg common.BootstrapMessage
+	if err := decoder.Decode(&peerMsg); err != nil {
+		// deliberately not handle err here
+		// possible err maybe:
+		// EOF - on receiving ssdp live message, peer will close conn directly
+		// Read timeout - same with above. If we reading before peer close conn, we will timeout
+	} else {
+		if err := b.HandleBootstrapMsg(peerMsg); err != nil {
+			// peer's channel id or channel password is not correct, we can wait them fix
+			client.Logger.Error(err)
+		}
+	}
 }
 
 func checkReceivedPeerInfos(bootstrapper *common.Bootstrapper, done chan<- bool) {

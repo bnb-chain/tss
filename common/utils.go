@@ -85,6 +85,7 @@ func Decrypt(ciphertext []byte, channelId, passphrase string) (param *PeerParam,
 	nonceSize := gcm.NonceSize()
 	if len(ciphertext) < nonceSize {
 		error = fmt.Errorf("ciphertext is not as long as expected")
+		return
 	}
 
 	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
@@ -101,6 +102,7 @@ func Decrypt(ciphertext []byte, channelId, passphrase string) (param *PeerParam,
 	}
 	if param.ChannelId != channelId {
 		error = fmt.Errorf("wrong channel id of message")
+		return
 	}
 	epochSeconds := ConvertHexToTimestamp(channelId[3:])
 	if time.Now().Unix() > int64(epochSeconds) {

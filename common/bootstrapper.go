@@ -27,6 +27,7 @@ type Bootstrapper struct {
 	ChannelId       string
 	ChannelPassword string
 	ExpectedPeers   int
+	Msg             *BootstrapMessage
 	Cfg             *TssConfig
 
 	Peers sync.Map // id -> peerInfo
@@ -40,19 +41,48 @@ func NewBootstrapper(expectedPeers int, config *TssConfig) *Bootstrapper {
 		if err != nil {
 			Panic(err)
 		}
+		if len(channelId) != 11 {
+			Panic(fmt.Errorf("channelId format is invalid"))
+		}
 		config.ChannelId = channelId
 	}
 	if config.ChannelPassword == "" {
 		if p, err := speakeasy.Ask("> please input password (AGREED offline with peers) of this session:"); err == nil {
+			if p == "" {
+				Panic(fmt.Errorf("channel password should not be empty"))
+			}
 			config.ChannelPassword = p
 		} else {
 			Panic(err)
 		}
 	}
+
+	bootstrapMsg, err := NewBootstrapMessage(
+		config.ChannelId,
+		config.ChannelPassword,
+		config.ListenAddr,
+		PeerParam{
+			ChannelId: config.ChannelId,
+			Moniker:   config.Moniker,
+			Msg:       config.Message,
+			Id:        string(config.Id),
+			N:         config.Parties,
+			T:         config.Threshold,
+			NewN:      config.NewParties,
+			NewT:      config.NewThreshold,
+			IsOld:     config.IsOldCommittee,
+			IsNew:     !config.IsOldCommittee,
+		},
+	)
+	if err != nil {
+		Panic(err)
+	}
+
 	return &Bootstrapper{
 		ChannelId:       config.ChannelId,
 		ChannelPassword: config.ChannelPassword,
 		ExpectedPeers:   expectedPeers,
+		Msg:             bootstrapMsg,
 		Cfg:             config,
 	}
 }

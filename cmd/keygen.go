@@ -65,8 +65,8 @@ func checkOverride() {
 			client.Logger.Info("nothing happened")
 			os.Exit(0)
 		} else {
-			common.TssCfg.Parties = 0
-			common.TssCfg.Threshold = 0
+			common.TssCfg.Parties = viper.GetInt("parties")
+			common.TssCfg.Threshold = viper.GetInt("threshold")
 		}
 	}
 }

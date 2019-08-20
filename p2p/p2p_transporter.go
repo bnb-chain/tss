@@ -322,7 +322,9 @@ func (t *p2pTransporter) handleSigner(stream network.Stream) {
 	var peerMsg common.BootstrapMessage
 	decoder.Decode(&peerMsg)
 	if err := t.bootstrapper.HandleBootstrapMsg(peerMsg); err != nil {
-		common.Panic(err)
+		// peer's channel id or channel password is not correct, we can wait them fix
+		logger.Error(err)
+		return
 	}
 }
 

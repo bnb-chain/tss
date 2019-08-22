@@ -36,8 +36,8 @@ var initCmd = &cobra.Command{
 		vault := askVault()
 		makeHomeDir(home, vault)
 		passphrase := setPassphrase()
-		if err := common.ReadConfigFromHome(viper.GetViper(), home, vault, passphrase); err != nil {
-			panic(err)
+		if err := common.ReadConfigFromHome(viper.GetViper(), true, home, vault, passphrase); err != nil {
+			common.Panic(err)
 		}
 		initLogLevel(common.TssCfg)
 	},
@@ -48,16 +48,16 @@ var initCmd = &cobra.Command{
 
 		addr, err := multiaddr.NewMultiaddr(common.TssCfg.ListenAddr)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		host, err := libp2p.New(context.Background(), libp2p.ListenAddrs(addr))
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		client.Logger.Debugf("this node will be listen on %s", host.Addrs())
 		err = host.Close()
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		client.Logger.Infof("Local party has been initialized under: %s\n", path.Join(common.TssCfg.Home, common.TssCfg.Vault))
 	},
@@ -70,27 +70,27 @@ func makeHomeDir(home, vault string) {
 		reader := bufio.NewReader(os.Stdin)
 		answer, err := common.GetBool("Home already exist, do you like override it[y/N]: ", false, reader)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		if answer {
 			if _, err := os.Stat(path.Join(h, "config.json")); err == nil {
 				if err := os.Remove(path.Join(h, "config.json")); err != nil {
-					panic(err)
+					common.Panic(err)
 				}
 			}
 			if _, err := os.Stat(path.Join(h, "node_key")); err == nil {
 				if err := os.Remove(path.Join(h, "node_key")); err != nil {
-					panic(err)
+					common.Panic(err)
 				}
 			}
 			if _, err := os.Stat(path.Join(h, "pk.json")); err == nil {
 				if err := os.Remove(path.Join(h, "pk.json")); err != nil {
-					panic(err)
+					common.Panic(err)
 				}
 			}
 			if _, err := os.Stat(path.Join(h, "sk.json")); err == nil {
 				if err := os.Remove(path.Join(h, "sk.json")); err != nil {
-					panic(err)
+					common.Panic(err)
 				}
 			}
 		} else {
@@ -100,30 +100,34 @@ func makeHomeDir(home, vault string) {
 		}
 	} else {
 		if err := os.MkdirAll(h, 0700); err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 	}
 }
 
 func setPassphrase() string {
 	if pw := viper.GetString("password"); pw != "" {
+		checkComplexityOfPassword(pw)
 		return pw
 	}
 
 	if p, err := speakeasy.Ask("> please set password of this vault:"); err == nil {
 		if p2, err := speakeasy.Ask("> please input again:"); err == nil {
 			if p2 != p {
-				panic(fmt.Errorf("two inputs does not match, please start again"))
+				common.Panic(fmt.Errorf("two inputs does not match, please start again"))
+				return ""
 			} else {
 				checkComplexityOfPassword(p)
 				viper.Set("password", p)
 				return p
 			}
 		} else {
-			panic(err)
+			common.Panic(err)
+			return ""
 		}
 	} else {
-		panic(err)
+		common.Panic(err)
+		return ""
 	}
 }
 
@@ -135,13 +139,13 @@ func askMoniker() {
 	reader := bufio.NewReader(os.Stdin)
 	moniker, err := common.GetString("please set moniker of this party: ", reader)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	if strings.Contains(moniker, "@") {
-		panic(fmt.Errorf("moniker should not contains @ sign"))
+		common.Panic(fmt.Errorf("moniker should not contains @ sign"))
 	}
 	if strings.HasSuffix(moniker, common.RegroupSuffix) {
-		panic(fmt.Errorf("moniker should not end with %s", common.RegroupSuffix))
+		common.Panic(fmt.Errorf("moniker should not end with %s", common.RegroupSuffix))
 	}
 	viper.Set("moniker", moniker)
 }
@@ -154,7 +158,7 @@ func askVault() string {
 	reader := bufio.NewReader(os.Stdin)
 	vault, err := common.GetString("please set vault of this party: ", reader)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	viper.Set(flagVault, vault)
 	return vault
@@ -163,15 +167,15 @@ func askVault() string {
 func setP2pKey() {
 	privKey, id, err := p2p.NewP2pPrivKey()
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 
 	bytes, err := crypto.MarshalPrivateKey(privKey)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	if err := ioutil.WriteFile(path.Join(common.TssCfg.Home, common.TssCfg.Vault, "node_key"), bytes, os.FileMode(0600)); err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 
 	common.TssCfg.Id = common.TssClientId(id.String())
@@ -184,7 +188,7 @@ func setListenAddr() {
 
 	port, err := freeport.GetFreePort()
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	common.TssCfg.ListenAddr = fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port)
 }
@@ -192,13 +196,13 @@ func setListenAddr() {
 func updateConfig() {
 	err := common.SaveConfig(&common.TssCfg, path.Join(common.TssCfg.Home, common.TssCfg.Vault))
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 }
 
 func updateConfigForRegroup(vault string) {
 	err := common.SaveConfig(&common.TssCfg, path.Join(common.TssCfg.Home, vault))
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 }

@@ -31,19 +31,19 @@ func NewTssBootstrapServer(home string, config common.P2PConfig) *TssBootstrapSe
 	if _, err := os.Stat(pathToNodeKey); err == nil {
 		bytes, err := ioutil.ReadFile(pathToNodeKey)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		privKey, err = crypto.UnmarshalPrivateKey(bytes)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 	} else {
-		panic(err)
+		common.Panic(err)
 	}
 
 	addr, err := multiaddr.NewMultiaddr(config.ListenAddr)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 
 	ctx := context.Background()
@@ -55,12 +55,12 @@ func NewTssBootstrapServer(home string, config common.P2PConfig) *TssBootstrapSe
 		libp2p.NATPortMap(),
 	)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 
 	ds, err := leveldb.NewDatastore(path.Join(home, "rt/"), nil)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 
 	kademliaDHT, err := libp2pdht.New(
@@ -69,7 +69,7 @@ func NewTssBootstrapServer(home string, config common.P2PConfig) *TssBootstrapSe
 		opts.Datastore(ds),
 		opts.Client(false))
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 
 	go p2p.DumpDHTRoutine(kademliaDHT)

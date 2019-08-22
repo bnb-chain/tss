@@ -16,10 +16,12 @@ import (
 
 const serviceType string = "binance:tss"
 
-// ssdp service helps parties found others' listen address(host:port)
+// SsdpService helps parties found others' moniker (encrypted within usn) and listen address(host:port)
+// before start this service, process should listen on listenAddr
+// Output of this service is PeerAddrs
 type SsdpService struct {
 	finished         chan bool
-	listenAddr       string
+	listenAddrs      string              // comma separated listen address
 	expectedPeers    int                 // how many listen addresses should be collected before exist
 	existingMonikers map[string]struct{} // existing monikers used to filter out already known listen_addr, this used to exclude already known address during regroup
 	usn              string
@@ -28,10 +30,11 @@ type SsdpService struct {
 	PeerAddrs sync.Map // map[string]string (uuid -> connectable address)
 }
 
-func NewSsdpService(moniker, vault, listenAddr string, expectedPeers int, existingMonikers map[string]struct{}) *SsdpService {
+// listenAddrs - comma separated listen address
+func NewSsdpService(moniker, vault, listenAddrs string, expectedPeers int, existingMonikers map[string]struct{}) *SsdpService {
 	s := &SsdpService{
 		finished:         make(chan bool),
-		listenAddr:       listenAddr,
+		listenAddrs:      listenAddrs,
 		expectedPeers:    expectedPeers,
 		existingMonikers: existingMonikers,
 		usn:              fmt.Sprintf("unique:%s_%s", moniker, vault), // TODO: hash this combination to protect privacy
@@ -57,7 +60,7 @@ func (s *SsdpService) CollectPeerAddrs() {
 
 func (s *SsdpService) startAdvertiser() {
 
-	ad, err := ssdp.Advertise(serviceType, s.usn, s.listenAddr, "", 1800)
+	ad, err := ssdp.Advertise(serviceType, s.usn, s.listenAddrs, "", 1800)
 	if err != nil {
 		log.Fatal(err)
 	}

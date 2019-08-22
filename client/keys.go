@@ -46,7 +46,7 @@ func (client *TssClient) signImpl(m *big.Int) ([]byte, error) {
 
 	// has to start local party before network routines in case 2 other peers' msg comes before self fully initialized
 	if err := client.localParty.Start(); err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 
 	done := make(chan bool)

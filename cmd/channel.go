@@ -25,7 +25,7 @@ var channelCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		channelId, err := rand.Int(rand.Reader, big.NewInt(999))
 		if err != nil {
-			panic(err)
+			common.Panic(err)
 		}
 		expire := askChannelExpire()
 		expireTime := time.Now().Add(time.Duration(expire) * time.Minute).Unix()
@@ -41,7 +41,10 @@ func askChannelExpire() int {
 	reader := bufio.NewReader(os.Stdin)
 	expire, err := common.GetInt("please set expire time in minutes, (default: 30): ", 30, reader)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
+	}
+	if expire <= 0 {
+		common.Panic(fmt.Errorf("expire time should not be zero or negative value"))
 	}
 	return expire
 }

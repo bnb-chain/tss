@@ -46,7 +46,7 @@ func initConfigAndLogLevel() {
 
 	home, err := os.UserHomeDir()
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	rootCmd.PersistentFlags().String(flagHome, path.Join(home, ".tss"), "Path to config/route_table/node_key/tss_key files, configs in config file can be overridden by command line arg quments")
 }
@@ -107,6 +107,7 @@ func initLogLevel(cfg common.TssConfig) {
 	log.SetLogLevel("srv", cfg.LogLevel)
 	log.SetLogLevel("trans", cfg.LogLevel)
 	log.SetLogLevel("p2p_utils", cfg.LogLevel)
+	log.SetLogLevel("common", cfg.LogLevel)
 
 	// libp2p loggers
 	log.SetLogLevel("dht", "error")

@@ -28,8 +28,8 @@ var regroupCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		vault := askVault()
 		passphrase := askPassphrase()
-		if err := common.ReadConfigFromHome(viper.GetViper(), viper.GetString(flagHome), vault, passphrase); err != nil {
-			panic(err)
+		if err := common.ReadConfigFromHome(viper.GetViper(), false, viper.GetString(flagHome), vault, passphrase); err != nil {
+			common.Panic(err)
 		}
 		initLogLevel(common.TssCfg)
 	},
@@ -57,14 +57,18 @@ var regroupCmd = &cobra.Command{
 		if common.TssCfg.IsOldCommittee && common.TssCfg.IsNewCommittee {
 			pwd, err := os.Getwd()
 			if err != nil {
-				panic(err)
+				common.Panic(err)
 			}
 
 			tmpVault = fmt.Sprintf("%s%s", common.TssCfg.Vault, common.RegroupSuffix)
 			tmpMoniker := fmt.Sprintf("%s%s", common.TssCfg.Moniker, common.RegroupSuffix)
 			devnull, err := os.Open(os.DevNull)
 			if err != nil {
-				panic(err)
+				common.Panic(err)
+			}
+
+			if _, err := os.Stat(path.Join(common.TssCfg.Home, tmpVault)); err == nil {
+				os.RemoveAll(path.Join(common.TssCfg.Home, tmpVault))
 			}
 
 			// TODO: this relies on user doesn't rename the binary we released
@@ -73,7 +77,7 @@ var regroupCmd = &cobra.Command{
 			tssInit.Stdout = devnull
 
 			if err := tssInit.Run(); err != nil {
-				panic(fmt.Errorf("failed to fork tss init command: %v", err))
+				common.Panic(fmt.Errorf("failed to fork tss init command: %v", err))
 			}
 
 			setChannelId()
@@ -81,14 +85,14 @@ var regroupCmd = &cobra.Command{
 			tssRegroup = exec.Command(path.Join(pwd, "tss"), "regroup", "--home", common.TssCfg.Home, "--vault_name", tmpVault, "--password", common.TssCfg.Password, "--parties", strconv.Itoa(common.TssCfg.Parties), "--threshold", strconv.Itoa(common.TssCfg.Threshold), "--new_parties", strconv.Itoa(common.TssCfg.NewParties), "--new_threshold", strconv.Itoa(common.TssCfg.NewThreshold), "--channel_password", common.TssCfg.Password, "--channel_id", common.TssCfg.ChannelId, "--log_level", common.TssCfg.LogLevel)
 			stdOut, err := os.Create(path.Join(common.TssCfg.Home, tmpVault, "tss.log"))
 			if err != nil {
-				panic(err)
+				common.Panic(err)
 			}
 			tssRegroup.Stdin = devnull
 			tssRegroup.Stdout = stdOut
 			tssRegroup.Stderr = stdOut
 
 			if err := tssRegroup.Start(); err != nil {
-				panic(fmt.Errorf("failed to fork tss regroup command: %v", err))
+				common.Panic(fmt.Errorf("failed to fork tss regroup command: %v", err))
 			}
 		}
 
@@ -161,7 +165,7 @@ func setIsNew() {
 	reader := bufio.NewReader(os.Stdin)
 	answer, err := common.GetBool("Participant as a new committee?[Y/n]:", true, reader)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	if answer {
 		common.TssCfg.IsNewCommittee = true
@@ -176,10 +180,10 @@ func setOldN() {
 	reader := bufio.NewReader(os.Stdin)
 	n, err := common.GetInt("please set old total parties(n) (default: 3): ", 3, reader)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	if n <= 1 {
-		panic(fmt.Errorf("n should greater than 1"))
+		common.Panic(fmt.Errorf("n should greater than 1"))
 	}
 	common.TssCfg.Parties = n
 }
@@ -192,13 +196,13 @@ func setOldT() {
 	reader := bufio.NewReader(os.Stdin)
 	t, err := common.GetInt("please set old threshold(t), at least t + 1 parties needs participant signing (default: 1): ", 1, reader)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	if t <= 0 {
-		panic(fmt.Errorf("t should greater than 0"))
+		common.Panic(fmt.Errorf("t should greater than 0"))
 	}
 	if t+1 >= common.TssCfg.Parties {
-		panic(fmt.Errorf("t + 1 should less than parties"))
+		common.Panic(fmt.Errorf("t + 1 should less than parties"))
 	}
 	common.TssCfg.Threshold = t
 }
@@ -211,10 +215,10 @@ func setNewN() {
 	reader := bufio.NewReader(os.Stdin)
 	n, err := common.GetInt("please set new total parties(n) (default 3): ", 3, reader)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	if n <= 1 {
-		panic(fmt.Errorf("n should greater than 1"))
+		common.Panic(fmt.Errorf("n should greater than 1"))
 	}
 	common.TssCfg.NewParties = n
 }
@@ -227,13 +231,13 @@ func setNewT() {
 	reader := bufio.NewReader(os.Stdin)
 	t, err := common.GetInt("please set new threshold(t), at least t + 1 parties needs participant signing (default: 1): ", 1, reader)
 	if err != nil {
-		panic(err)
+		common.Panic(err)
 	}
 	if t <= 0 {
-		panic(fmt.Errorf("t should greater than 0"))
+		common.Panic(fmt.Errorf("t should greater than 0"))
 	}
 	if t+1 >= common.TssCfg.NewParties {
-		panic(fmt.Errorf("t + 1 should less than parties"))
+		common.Panic(fmt.Errorf("t + 1 should less than parties"))
 	}
 	common.TssCfg.NewThreshold = t
 }

@@ -154,6 +154,10 @@ var regroupCmd = &cobra.Command{
 			}
 			client.Logger.Info("secret share and configuration has been updated")
 		}
+
+		if mustNew {
+			addToBnbcli(c.PubKey())
+		}
 	},
 }
 

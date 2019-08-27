@@ -201,8 +201,9 @@ func setOldT() {
 	if t <= 0 {
 		common.Panic(fmt.Errorf("t should greater than 0"))
 	}
-	if t+1 >= common.TssCfg.Parties {
-		common.Panic(fmt.Errorf("t + 1 should less than parties"))
+	// we allowed t+1 == n, for most common use case 2-2 scheme
+	if t+1 > common.TssCfg.Parties {
+		common.Panic(fmt.Errorf("t + 1 should less than or equals to parties"))
 	}
 	common.TssCfg.Threshold = t
 }
@@ -236,8 +237,9 @@ func setNewT() {
 	if t <= 0 {
 		common.Panic(fmt.Errorf("t should greater than 0"))
 	}
-	if t+1 >= common.TssCfg.NewParties {
-		common.Panic(fmt.Errorf("t + 1 should less than parties"))
+	// we allowed t+1 == n, for most common use case 2-2 scheme
+	if t+1 > common.TssCfg.Parties {
+		common.Panic(fmt.Errorf("t + 1 should less than or equals to parties"))
 	}
 	common.TssCfg.NewThreshold = t
 }

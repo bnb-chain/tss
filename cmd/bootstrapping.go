@@ -160,7 +160,9 @@ func acceptConnRoutine(listener net.Listener, bootstrapper *common.Bootstrapper,
 		default:
 			conn, err := listener.Accept()
 			if err != nil {
-				client.Logger.Errorf("Some connection error: %s\n", err)
+				if !strings.Contains(err.Error(), "use of closed network connection") {
+					client.Logger.Errorf("Some connection error: %s\n", err)
+				}
 				continue
 			} else {
 				client.Logger.Debugf("%s connected to us!\n", conn.RemoteAddr().String())

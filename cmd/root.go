@@ -98,6 +98,7 @@ func bindClientConfigs() {
 
 	channelCmd.PersistentFlags().Int("channel_expire", 0, "expire time in minutes of this channel")
 
+	regroupCmd.PersistentFlags().Bool("is_old", false, "whether this party is an old committee. If it is set to true, it will participant signing in regroup. There should be only t+1 parties set this to true for one regroup")
 	regroupCmd.PersistentFlags().Bool("is_new_member", false, "whether this party is new committee, for new party it will changed to true automatically. if an old party set this to true, its share will be replaced by one generated one")
 }
 

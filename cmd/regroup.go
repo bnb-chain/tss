@@ -40,7 +40,7 @@ var regroupCmd = &cobra.Command{
 		}
 
 		if !mustNew {
-			common.TssCfg.IsOldCommittee = true
+			setIsOld()
 			setIsNew()
 		} else {
 			common.TssCfg.IsOldCommittee = false
@@ -159,6 +159,21 @@ var regroupCmd = &cobra.Command{
 			addToBnbcli(c.PubKey())
 		}
 	},
+}
+
+func setIsOld() {
+	if common.TssCfg.IsOldCommittee {
+		return
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+	answer, err := common.GetBool("Participant as a old committee?[Y/n]:", true, reader)
+	if err != nil {
+		common.Panic(err)
+	}
+	if answer {
+		common.TssCfg.IsOldCommittee = true
+	}
 }
 
 func setIsNew() {

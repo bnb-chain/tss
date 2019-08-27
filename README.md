@@ -43,19 +43,11 @@ replace value of "--channel_id" for following commands with generated one
 
 5. regroup - replace existing 3 parties with 3 brand new parties
 ```
-# init 1 new parties, this simulates the third person who doesn't participant signing and should replace his share manually
-./tss init --home ~/.new3 --vault_name "default" --moniker "new3" --password "123456789"
-
 # start 2 old parties (answer Y for isOld and IsNew interactive questions)
-./tss regroup --home ~/.test1 --vault_name "default" --password "123456789" --new_parties 3 --new_threshold 1 --is_new_member --channel_password "123456789" --channel_id "1565D44EBE1"
-./tss regroup --home ~/.test2 --vault_name "default" --password "123456789" --new_parties 3 --new_threshold 1 --is_new_member --channel_password "123456789" --channel_id "1565D44EBE1"
-
-# start the new parties
-./tss regroup --home ~/.new3 --vault_name "default" --password "123456789" --parties 3 --threshold 1 --new_parties 3 --new_threshold 1 --channel_password "123456789" --channel_id "1565D44EBE1"
-
-# for the third party, replace the old share
-mv ~/.new3 ~/.test3
-
+./tss regroup --home ~/.test1 --vault_name "default" --password "123456789" --new_parties 3 --new_threshold 1 --channel_password "123456789" --channel_id "1565D44EBE1"
+./tss regroup --home ~/.test2 --vault_name "default" --password "123456789" --new_parties 3 --new_threshold 1 --channel_password "123456789" --channel_id "1565D44EBE1"
+# start the new parties (answer n for isIold and Y for IsNew interactive questions)
+./tss regroup --home ~/.test3 --vault_name "default" --password "123456789" --new_parties 3 --new_threshold 1 --channel_password "123456789" --channel_id "1565D44EBE1"
 ```
 
 ## Network roles and connection topological

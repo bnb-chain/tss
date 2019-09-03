@@ -102,9 +102,9 @@ func (b *Bootstrapper) HandleBootstrapMsg(peerMsg BootstrapMessage) error {
 			if peerParam.T != TssCfg.Threshold {
 				return fmt.Errorf("received different t for party: %s, %s", peerParam.Moniker, peerParam.Id)
 			}
-			if peerParam.Msg != TssCfg.Message {
-				return fmt.Errorf("received different message to be signed for party: %s, %s", peerParam.Moniker, peerParam.Id)
-			}
+			//if peerParam.Msg != TssCfg.Message {
+			//	return fmt.Errorf("received different message to be signed for party: %s, %s", peerParam.Moniker, peerParam.Id)
+			//}
 			if peerParam.NewN != TssCfg.NewParties {
 				return fmt.Errorf("received different new n for party: %s, %s", peerParam.Moniker, peerParam.Id)
 			}

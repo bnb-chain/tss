@@ -28,8 +28,11 @@ require (
 	github.com/libp2p/go-libp2p-swarm v0.2.0
 	github.com/libp2p/go-yamux v1.2.3
 	github.com/magiconair/properties v1.8.1 // indirect
+	github.com/mailru/easyjson v0.0.0-20190626092158-b2ccc519800e // indirect
 	github.com/mattn/go-colorable v0.1.4 // indirect
 	github.com/mattn/go-isatty v0.0.10
+	github.com/miekg/dns v1.1.15 // indirect
+	github.com/minio/sha256-simd v0.1.0
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/multiformats/go-multiaddr v0.0.4
 	github.com/multiformats/go-multiaddr-dns v0.0.3 // indirect

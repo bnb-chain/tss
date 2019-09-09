@@ -21,13 +21,13 @@ import (
 
 var logger = log.Logger("srv")
 
-type TssBootstrapServer struct{}
+type TssP2PServer struct{}
 
-func NewTssBootstrapServer(home string, config common.P2PConfig) *TssBootstrapServer {
-	bs := TssBootstrapServer{}
+func NewTssP2PServer(home, vault string, config common.P2PConfig) *TssP2PServer {
+	bs := TssP2PServer{}
 
 	var privKey crypto.PrivKey
-	pathToNodeKey := path.Join(home, "node_key")
+	pathToNodeKey := path.Join(home, vault, "node_key")
 	if _, err := os.Stat(pathToNodeKey); err == nil {
 		bytes, err := ioutil.ReadFile(pathToNodeKey)
 		if err != nil {
@@ -75,7 +75,7 @@ func NewTssBootstrapServer(home string, config common.P2PConfig) *TssBootstrapSe
 	go p2p.DumpDHTRoutine(kademliaDHT)
 	go p2p.DumpPeersRoutine(host)
 
-	logger.Info("Bootstrap server has started, id: ", host.ID().Pretty())
+	logger.Infof("Bootstrap server has started: %v, %s", host.Addrs(), host.ID().Pretty())
 
 	return &bs
 }

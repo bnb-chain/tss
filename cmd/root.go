@@ -49,6 +49,8 @@ func initConfigAndLogLevel() {
 		common.Panic(err)
 	}
 	rootCmd.PersistentFlags().String(flagHome, path.Join(home, ".tss"), "Path to config/route_table/node_key/tss_key files, configs in config file can be overridden by command line arg quments")
+	rootCmd.PersistentFlags().String(flagVault, "", "name of vault of this party")
+	rootCmd.PersistentFlags().String("log_level", "info", "log level")
 }
 
 func bindP2pConfigs() {
@@ -74,7 +76,6 @@ func bindKdfConfigs() {
 
 func bindClientConfigs() {
 	initCmd.PersistentFlags().String("moniker", "", "moniker of current party")
-	rootCmd.PersistentFlags().String(flagVault, "", "name of vault of this party")
 	keygenCmd.PersistentFlags().String(flagPrefix, "bnb", "prefix of bech32 address")
 	describeCmd.PersistentFlags().String(flagPrefix, "bnb", "prefix of bech32 address")
 	keygenCmd.PersistentFlags().Int("threshold", 0, "threshold of this scheme")
@@ -85,7 +86,6 @@ func bindClientConfigs() {
 	regroupCmd.PersistentFlags().Int("new_parties", 0, "new total parties of regrouped scheme")
 	rootCmd.PersistentFlags().String("password", "", "password, should only be used for testing. If empty, you will be prompted for password to save/load the secret/public share and config")
 	signCmd.PersistentFlags().String("message", "", "message(in *big.Int.String() format) to be signed, only used in sign mode")
-	rootCmd.PersistentFlags().String("log_level", "info", "log level")
 
 	keygenCmd.PersistentFlags().Bool("p2p.broadcast_sanity_check", true, "whether verify broadcast message's hash with peers")
 	signCmd.PersistentFlags().Bool("p2p.broadcast_sanity_check", true, "whether verify broadcast message's hash with peers")

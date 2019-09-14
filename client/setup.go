@@ -58,7 +58,7 @@ func Setup(cfg common.TssConfig) {
 			tssConfig.P2PConfig.PeerAddrs = append(tssConfig.P2PConfig.PeerAddrs[:i], tssConfig.P2PConfig.PeerAddrs[i+1:]...)
 		}
 
-		tssConfig.Id = p2p.GetClientIdFromExpecetdPeers(allPeerIds[i])
+		tssConfig.Id = p2p.GetClientIdFromExpectedPeers(allPeerIds[i])
 		tssConfig.Moniker = p2p.GetMonikerFromExpectedPeers(allPeerIds[i])
 
 		bytes, err := json.MarshalIndent(&tssConfig, "", "    ")

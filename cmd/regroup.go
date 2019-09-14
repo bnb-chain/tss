@@ -108,7 +108,7 @@ var regroupCmd = &cobra.Command{
 			originExpectedNewPeers := make([]string, 0)
 			for _, peer := range common.TssCfg.ExpectedNewPeers {
 				moniker := p2p.GetMonikerFromExpectedPeers(peer)
-				id := p2p.GetClientIdFromExpecetdPeers(peer)
+				id := p2p.GetClientIdFromExpectedPeers(peer)
 				moniker = strings.TrimSuffix(moniker, common.RegroupSuffix)
 				originExpectedNewPeers = append(originExpectedNewPeers, fmt.Sprintf("%s@%s", moniker, id))
 			}

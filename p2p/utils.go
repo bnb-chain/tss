@@ -38,7 +38,7 @@ func GetMonikerFromExpectedPeers(peer string) string {
 	return strings.SplitN(peer, "@", 2)[0]
 }
 
-func GetClientIdFromExpecetdPeers(peer string) common.TssClientId {
+func GetClientIdFromExpectedPeers(peer string) common.TssClientId {
 	return common.TssClientId(strings.SplitN(peer, "@", 2)[1])
 }
 

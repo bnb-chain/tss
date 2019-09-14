@@ -657,7 +657,7 @@ func (t *p2pTransporter) setExpectedPeers(nodeId string, signers map[string]int,
 	}
 
 	for expectedPeer, peerAddr := range mergedExpectedPeers {
-		if pid, err := peer.IDB58Decode(string(GetClientIdFromExpecetdPeers(expectedPeer))); err != nil {
+		if pid, err := peer.IDB58Decode(string(GetClientIdFromExpectedPeers(expectedPeer))); err != nil {
 			common.Panic(err)
 		} else {
 			if pid.Pretty() == nodeId {

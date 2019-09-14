@@ -169,8 +169,8 @@ func ReadConfigFromHome(v *viper.Viper, init bool, home, vault, passphrase strin
 	//	config.P2PConfig.BootstrapPeers = dht.DefaultBootstrapPeers
 	//}
 	//}
-	if config.KDFConfig.KeyLength < 32 {
-		return fmt.Errorf("Length of the generated key (or password hash). must be 32 bytes or more")
+	if config.KDFConfig.KeyLength != 48 {
+		return fmt.Errorf("derived key length must be 48 bytes (32 bytes aes and 16 bytes MAC)")
 	}
 
 	if config.ProfileAddr != "" {

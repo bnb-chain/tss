@@ -12,6 +12,8 @@ import (
 )
 
 func init() {
+	describeCmd.PersistentFlags().String(flagPrefix, "bnb", "prefix of bech32 address")
+
 	rootCmd.AddCommand(describeCmd)
 }
 

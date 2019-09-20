@@ -13,9 +13,16 @@ import (
 )
 
 const (
-	flagHome   = "home"
-	flagVault  = "vault_name"
-	flagPrefix = "address_prefix"
+	flagHome            = "home"
+	flagVault           = "vault_name"
+	flagPassword        = "password"
+	flagLogLevel        = "log_level"
+	flagPrefix          = "address_prefix"
+	flagMoniker         = "moniker"
+	flagThreshold       = "threshold"
+	flagParties         = "parties"
+	flagChannelId       = "channel_id"
+	flagChannelPassword = "channel_password"
 )
 
 var rootCmd = &cobra.Command{
@@ -41,8 +48,6 @@ func Execute() {
 
 func initConfigAndLogLevel() {
 	bindP2pConfigs()
-	bindKdfConfigs()
-	bindClientConfigs()
 
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -50,7 +55,8 @@ func initConfigAndLogLevel() {
 	}
 	rootCmd.PersistentFlags().String(flagHome, path.Join(home, ".tss"), "Path to config/route_table/node_key/tss_key files, configs in config file can be overridden by command line arg quments")
 	rootCmd.PersistentFlags().String(flagVault, "", "name of vault of this party")
-	rootCmd.PersistentFlags().String("log_level", "info", "log level")
+	rootCmd.PersistentFlags().String(flagPassword, "", "password, should only be used for testing. If empty, you will be prompted for password to save/load the secret/public share and config")
+	rootCmd.PersistentFlags().String(flagLogLevel, "info", "log level")
 }
 
 func bindP2pConfigs() {
@@ -63,48 +69,6 @@ func bindP2pConfigs() {
 	//rootCmd.PersistentFlags().Bool("p2p.default_bootstrap", false, "whether to use default bootstrap")
 }
 
-// more detail explanation of these parameters can be found:
-// https://github.com/P-H-C/phc-winner-argon2/blob/master/argon2-specs.pdf
-// https://www.alexedwards.net/blog/how-to-hash-and-verify-passwords-with-argon2-in-go
-func bindKdfConfigs() {
-	initCmd.PersistentFlags().Uint32("kdf.memory", 65536, "The amount of memory used by the algorithm (in kibibytes)")
-	initCmd.PersistentFlags().Uint32("kdf.iterations", 13, "The number of iterations (or passes) over the memory.")
-	initCmd.PersistentFlags().Uint8("kdf.parallelism", 4, "The number of threads (or lanes) used by the algorithm.")
-	initCmd.PersistentFlags().Uint32("kdf.salt_length", 16, "Length of the random salt. 16 bytes is recommended for password hashing.")
-	initCmd.PersistentFlags().Uint32("kdf.key_length", 48, "Length of the generated key (or password hash). must be 32 bytes or more")
-}
-
-func bindClientConfigs() {
-	initCmd.PersistentFlags().String("moniker", "", "moniker of current party")
-	keygenCmd.PersistentFlags().String(flagPrefix, "bnb", "prefix of bech32 address")
-	describeCmd.PersistentFlags().String(flagPrefix, "bnb", "prefix of bech32 address")
-	keygenCmd.PersistentFlags().Int("threshold", 0, "threshold of this scheme")
-	regroupCmd.PersistentFlags().Int("threshold", 0, "threshold of this scheme")
-	keygenCmd.PersistentFlags().Int("parties", 0, "total parities of this scheme")
-	regroupCmd.PersistentFlags().Int("parties", 0, "total parities of this scheme")
-	regroupCmd.PersistentFlags().Int("new_threshold", 0, "new threshold of regrouped scheme")
-	regroupCmd.PersistentFlags().Int("new_parties", 0, "new total parties of regrouped scheme")
-	rootCmd.PersistentFlags().String("password", "", "password, should only be used for testing. If empty, you will be prompted for password to save/load the secret/public share and config")
-	signCmd.PersistentFlags().String("message", "", "message(in *big.Int.String() format) to be signed, only used in sign mode")
-
-	keygenCmd.PersistentFlags().Bool("p2p.broadcast_sanity_check", true, "whether verify broadcast message's hash with peers")
-	signCmd.PersistentFlags().Bool("p2p.broadcast_sanity_check", true, "whether verify broadcast message's hash with peers")
-	regroupCmd.PersistentFlags().Bool("p2p.broadcast_sanity_check", true, "whether verify broadcast message's hash with peers")
-
-	keygenCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
-	signCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
-	regroupCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
-
-	keygenCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
-	signCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
-	regroupCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
-
-	channelCmd.PersistentFlags().Int("channel_expire", 0, "expire time in minutes of this channel")
-
-	regroupCmd.PersistentFlags().Bool("is_old", false, "whether this party is an old committee. If it is set to true, it will participant signing in regroup. There should be only t+1 parties set this to true for one regroup")
-	regroupCmd.PersistentFlags().Bool("is_new_member", false, "whether this party is new committee, for new party it will changed to true automatically. if an old party set this to true, its share will be replaced by one generated one")
-}
-
 func initLogLevel(cfg common.TssConfig) {
 	log.SetLogLevel("tss", cfg.LogLevel)
 	log.SetLogLevel("tss-lib", cfg.LogLevel)
@@ -112,6 +76,7 @@ func initLogLevel(cfg common.TssConfig) {
 	log.SetLogLevel("trans", cfg.LogLevel)
 	log.SetLogLevel("p2p_utils", cfg.LogLevel)
 	log.SetLogLevel("common", cfg.LogLevel)
+	log.SetLogLevel("blockchain", cfg.LogLevel)
 
 	// libp2p loggers
 	log.SetLogLevel("dht", "error")

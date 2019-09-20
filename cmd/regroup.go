@@ -17,7 +17,23 @@ import (
 	"github.com/binance-chain/tss/p2p"
 )
 
+const (
+	flagNewThreshold = "new_threshold"
+	flagNewParties   = "new_parties"
+	flagIsOld        = "is_old"
+	flagIsNew        = "is_new_member"
+)
+
 func init() {
+	regroupCmd.PersistentFlags().Int(flagThreshold, 0, "threshold of this scheme")
+	regroupCmd.PersistentFlags().Int(flagParties, 0, "total parities of this scheme")
+	regroupCmd.PersistentFlags().Int(flagNewThreshold, 0, "new threshold of regrouped scheme")
+	regroupCmd.PersistentFlags().Int(flagNewParties, 0, "new total parties of regrouped scheme")
+	regroupCmd.PersistentFlags().String(flagChannelId, "", "channel id of this session")
+	regroupCmd.PersistentFlags().String(flagChannelPassword, "", "channel password of this session")
+	regroupCmd.PersistentFlags().Bool(flagIsOld, false, "whether this party is an old committee. If it is set to true, it will participant signing in regroup. There should be only t+1 parties set this to true for one regroup")
+	regroupCmd.PersistentFlags().Bool(flagIsNew, false, "whether this party is new committee, for new party it will changed to true automatically. if an old party set this to true, its share will be replaced by one generated one")
+
 	rootCmd.AddCommand(regroupCmd)
 }
 

@@ -120,9 +120,7 @@ func setChannelPasswd() {
 	}
 
 	if p, err := speakeasy.Ask("> please input password (AGREED offline with peers) of this session:"); err == nil {
-		if p == "" {
-			common.Panic(fmt.Errorf("channel password should not be empty"))
-		}
+		checkComplexityOfPassword(p)
 		common.TssCfg.ChannelPassword = p
 	} else {
 		common.Panic(err)

@@ -14,7 +14,13 @@ import (
 	"github.com/binance-chain/tss/common"
 )
 
+const (
+	flagChannelExpire = "channel_expire"
+)
+
 func init() {
+	channelCmd.PersistentFlags().Int(flagChannelExpire, 0, "expire time in minutes of this channel")
+
 	rootCmd.AddCommand(channelCmd)
 }
 

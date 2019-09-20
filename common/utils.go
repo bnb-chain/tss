@@ -1,5 +1,6 @@
 package common
 
+import "C"
 import (
 	"bufio"
 	"bytes"
@@ -105,7 +106,7 @@ func Decrypt(ciphertext []byte, channelId, passphrase string) (param *PeerParam,
 		return
 	}
 	epochSeconds := ConvertHexToTimestamp(channelId[3:])
-	if time.Now().Unix() > int64(epochSeconds) {
+	if time.Now().Unix() > epochSeconds {
 		error = fmt.Errorf("channel id has been expired, please regenerate a new one")
 		return
 	}
@@ -124,14 +125,14 @@ func ConvertTimestampToHex(timestamp int64) string {
 
 // conversion between hex and int32 epoch seconds
 // refer: https://www.epochconverter.com/hex
-func ConvertHexToTimestamp(hexTimestamp string) int {
+func ConvertHexToTimestamp(hexTimestamp string) int64 {
 	dst := make([]byte, 8)
 	hex.Decode(dst, []byte(hexTimestamp))
-	var epochSeconds int32
+	var epochSeconds int64
 	if err := binary.Read(bytes.NewReader(dst), binary.BigEndian, &epochSeconds); err != nil {
 		return math.MaxInt64
 	}
-	return int(epochSeconds)
+	return epochSeconds
 }
 
 func ReplaceIpInAddr(addr, realIp string) string {

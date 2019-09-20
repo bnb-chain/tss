@@ -3,6 +3,7 @@ package client
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"log"
 	"math/big"
 	"os"
 	"path"
@@ -242,12 +243,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 func (client *TssClient) Start() {
 	switch client.mode {
 	case SignMode:
-		message, ok := big.NewInt(0).SetString(client.config.Message, 10)
-		if !ok {
-			common.Panic(fmt.Errorf("message to be sign: %s is not a valid big.Int", client.config.Message))
-		}
-		client.signImpl(message)
-		time.Sleep(5 * time.Second)
+		common.Panic(fmt.Errorf("sign mode should invoke SignImpl method instead"))
 	default:
 		if err := client.localParty.Start(); err != nil {
 			common.Panic(err)
@@ -259,6 +255,29 @@ func (client *TssClient) Start() {
 		go client.handleMessageRoutine()
 		<-done
 	}
+}
+
+// Entrance of signing functionality
+// TODO: This method is bound to ECDSA
+func (client *TssClient) SignImpl(hash []byte) ([]byte, error) {
+	m := HashToInt(hash, tss.EC())
+	Logger.Infof("[%s] message to be signed: %s\n", client.config.Moniker, m.String())
+	client.localParty = signing.NewLocalParty(m, client.params, *client.key, client.sendCh, client.signCh)
+	Logger.Infof("[%s] initialized localParty: %s", client.config.Moniker, client.localParty)
+
+	// has to start local party before network routines in case 2 other peers' msg comes before self fully initialized
+	if err := client.localParty.Start(); err != nil {
+		common.Panic(err)
+	}
+
+	done := make(chan bool)
+	go client.sendMessageRoutine(client.sendCh)
+	go client.handleMessageRoutine()
+	go client.saveSignatureRoutine(client.signCh, done)
+
+	<-done
+	Logger.Debugf("[%s] received signature: %X", client.config.Moniker, client.signature)
+	return client.signature, nil
 }
 
 func (client *TssClient) handleMessageRoutine() {

@@ -58,7 +58,7 @@ func NewTssP2PServer(home, vault string, config common.P2PConfig) *TssP2PServer 
 		common.Panic(err)
 	}
 
-	ds, err := leveldb.NewDatastore(path.Join(home, "rt/"), nil)
+	ds, err := leveldb.NewDatastore(path.Join(home, vault, "rt/"), nil)
 	if err != nil {
 		common.Panic(err)
 	}

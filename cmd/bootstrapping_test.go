@@ -7,8 +7,8 @@ import (
 )
 
 func TestTimestampHexConvertion(t *testing.T) {
-	expected := 1564372501
-	encoded := common.ConvertTimestampToHex(int64(expected))
+	expected := int64(1564372501)
+	encoded := common.ConvertTimestampToHex(expected)
 	if encoded != "5D3E6E15" {
 		t.Fail()
 	}

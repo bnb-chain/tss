@@ -5,8 +5,6 @@ import (
 	"math/big"
 
 	"github.com/bgentry/speakeasy"
-	"github.com/binance-chain/tss-lib/ecdsa/signing"
-	"github.com/binance-chain/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
@@ -23,8 +21,7 @@ func (*TssClient) Bytes() []byte {
 
 func (client *TssClient) Sign(msg []byte) ([]byte, error) {
 	hash := crypto.Sha256(msg)
-	m := hashToInt(hash, tss.EC())
-	return client.signImpl(m)
+	return client.SignImpl(hash)
 }
 
 func (client *TssClient) PubKey() crypto.PubKey {
@@ -37,26 +34,6 @@ func (client *TssClient) PubKey() crypto.PubKey {
 
 func (*TssClient) Equals(key crypto.PrivKey) bool {
 	return true
-}
-
-func (client *TssClient) signImpl(m *big.Int) ([]byte, error) {
-	Logger.Infof("[%s] message to be signed: %s\n", client.config.Moniker, m.String())
-	client.localParty = signing.NewLocalParty(m, client.params, *client.key, client.sendCh, client.signCh)
-	Logger.Infof("[%s] initialized localParty: %s", client.config.Moniker, client.localParty)
-
-	// has to start local party before network routines in case 2 other peers' msg comes before self fully initialized
-	if err := client.localParty.Start(); err != nil {
-		common.Panic(err)
-	}
-
-	done := make(chan bool)
-	go client.sendMessageRoutine(client.sendCh)
-	go client.handleMessageRoutine()
-	go client.saveSignatureRoutine(client.signCh, done)
-
-	<-done
-	Logger.Debugf("[%s] received signature: %X", client.config.Moniker, client.signature)
-	return client.signature, nil
 }
 
 // This helper method is used by PubKey interface in keys.go
@@ -82,7 +59,7 @@ func LoadPubkey(home, vault string) (crypto.PubKey, error) {
 }
 
 // copied from https://github.com/btcsuite/btcd/blob/c26ffa870fd817666a857af1bf6498fabba1ffe3/btcec/signature.go#L263
-func hashToInt(hash []byte, c elliptic.Curve) *big.Int {
+func HashToInt(hash []byte, c elliptic.Curve) *big.Int {
 	orderBits := c.Params().N.BitLen()
 	orderBytes := (orderBits + 7) / 8
 	if len(hash) > orderBytes {

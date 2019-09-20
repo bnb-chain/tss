@@ -23,7 +23,21 @@ import (
 )
 
 func init() {
+	bindKdfConfigs()
+	initCmd.PersistentFlags().String(flagMoniker, "", "moniker of current party")
+
 	rootCmd.AddCommand(initCmd)
+}
+
+// more detail explanation of these parameters can be found:
+// https://github.com/P-H-C/phc-winner-argon2/blob/master/argon2-specs.pdf
+// https://www.alexedwards.net/blog/how-to-hash-and-verify-passwords-with-argon2-in-go
+func bindKdfConfigs() {
+	initCmd.PersistentFlags().Uint32("kdf.memory", 65536, "The amount of memory used by the algorithm (in kibibytes)")
+	initCmd.PersistentFlags().Uint32("kdf.iterations", 13, "The number of iterations (or passes) over the memory.")
+	initCmd.PersistentFlags().Uint8("kdf.parallelism", 4, "The number of threads (or lanes) used by the algorithm.")
+	initCmd.PersistentFlags().Uint32("kdf.salt_length", 16, "Length of the random salt. 16 bytes is recommended for password hashing.")
+	initCmd.PersistentFlags().Uint32("kdf.key_length", 48, "Length of the derived key (or password hash). must be 48 bytes")
 }
 
 var initCmd = &cobra.Command{

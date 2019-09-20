@@ -91,7 +91,7 @@ type TssConfig struct {
 	LogLevel    string `mapstructure:"log_level" json:"log_level"`
 	ProfileAddr string `mapstructure:"profile_addr" json:"profile_addr"`
 	Password    string `json:"-"`
-	Message     string `json:"-"` // string represented big.Int, will refactor later
+	Message     string `json:"-"` // used for signing validation
 
 	ChannelId       string `mapstructure:"channel_id" json:"-"`
 	ChannelPassword string `mapstructure:"channel_password" json:"-"`

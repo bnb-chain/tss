@@ -23,6 +23,12 @@ import (
 )
 
 func init() {
+	keygenCmd.PersistentFlags().String(flagPrefix, "bnb", "prefix of bech32 address")
+	keygenCmd.PersistentFlags().Int(flagThreshold, 0, "threshold of this scheme")
+	keygenCmd.PersistentFlags().Int(flagParties, 0, "total parities of this scheme")
+	keygenCmd.PersistentFlags().String(flagChannelId, "", "channel id of this session")
+	keygenCmd.PersistentFlags().String(flagChannelPassword, "", "channel password of this session")
+
 	rootCmd.AddCommand(keygenCmd)
 }
 

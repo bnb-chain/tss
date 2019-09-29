@@ -56,7 +56,7 @@ type TssClient struct {
 	regroupParams *tss.ReSharingParameters
 	idToPartyIds  map[string]*tss.PartyID
 	key           *keygen.LocalPartySaveData
-	signature     []byte
+	signature     []byte // a 64 byte ecdsa + recover byte (https://bitcoin.stackexchange.com/a/83110)
 
 	saveCh chan keygen.LocalPartySaveData
 	signCh chan signing.SignatureData
@@ -373,9 +373,13 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 	}
 }
 
+// TODO: this implementation is coupled with 64 bytes ecdsa signature
 func (client *TssClient) saveSignatureRoutine(signCh <-chan signing.SignatureData, done chan<- bool) {
 	for signature := range signCh {
-		client.signature = signature.Signature
+		client.signature = make([]byte, 65, 65)
+		copy(client.signature, signature.Signature)
+		client.signature[64] = signature.SignatureRecovery
+
 		if done != nil {
 			done <- true
 			close(done)

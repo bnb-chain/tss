@@ -1,3 +1,5 @@
+// +build deluxe
+
 package cmd
 
 import (
@@ -18,10 +20,11 @@ import (
 )
 
 const (
-	flagNetwork = "network"
-	flagTo      = "to"
-	flagAmount  = "amount"
-	flagDemon   = "demon"
+	flagNetwork   = "network"
+	flagTo        = "to"
+	flagAmount    = "amount"
+	flagDemon     = "demon"
+	flagBroadcast = "broadcast"
 )
 
 func init() {
@@ -32,6 +35,7 @@ func init() {
 	signCmd.PersistentFlags().String(flagTo, "", "to address")
 	signCmd.PersistentFlags().Float64(flagAmount, 0, "amount")
 	signCmd.PersistentFlags().String(flagDemon, "", "demon")
+	signCmd.PersistentFlags().Bool(flagBroadcast, false, "broadcast the transcation to blockchain")
 
 	rootCmd.AddCommand(signCmd)
 }
@@ -71,15 +75,19 @@ var signCmd = &cobra.Command{
 		if err != nil {
 			panic(err)
 		}
+
 		transaction, err := blockchain.BuildTransaction(signature)
 		if err != nil {
 			panic(err)
 		}
-		txHash, err := blockchain.Broadcast(transaction)
-		if err != nil {
-			panic(err)
+		if viper.GetBool(flagBroadcast) {
+			txHash, err := blockchain.Broadcast(transaction)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Println(hex.EncodeToString(txHash))
 		}
-		fmt.Println(hex.EncodeToString(txHash))
+
 		return
 	},
 }

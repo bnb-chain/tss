@@ -1,12 +1,15 @@
+// +build deluxe
+
 package ethereum
 
 /*
-   #cgo LDFLAGS: /Users/zhaocong/Developer/Binance/wallet-core/build/libTrustWalletCore.a /Users/zhaocong/Developer/Binance/wallet-core/build/trezor-crypto/libTrezorCrypto.a /Users/zhaocong/Developer/Binance/wallet-core/build/libprotobuf.a -lstdc++
-   #include "/Users/zhaocong/Developer/Binance/wallet-core/include/TrustWalletCore/TWBinanceSigner.h"
-   #include "/Users/zhaocong/Developer/Binance/wallet-core/include/TrustWalletCore/TWBinanceProto.h"
-   #include "/Users/zhaocong/Developer/Binance/wallet-core/include/TrustWalletCore/TWEthereumAddress.h"
-   #include "/Users/zhaocong/Developer/Binance/wallet-core/include/TrustWalletCore/TWPublicKey.h"
-   #include "/Users/zhaocong/Developer/Binance/wallet-core/include/TrustWalletCore/TWEthereumSigner.h"
+   #cgo LDFLAGS: ${SRCDIR}/../../wallet-core/build/libTrustWalletCore.a ${SRCDIR}/../../wallet-core/build/trezor-crypto/libTrezorCrypto.a ${SRCDIR}/../../wallet-core/build/libprotobuf.a -lstdc++
+   #cgo CFLAGS: -I${SRCDIR}/../../wallet-core/include/TrustWalletCore/
+   #include "TWBinanceSigner.h"
+   #include "TWBinanceProto.h"
+   #include "TWEthereumAddress.h"
+   #include "TWPublicKey.h"
+   #include "TWEthereumSigner.h"
 */
 import "C"
 import (
@@ -57,7 +60,7 @@ type EthereumError struct {
 type EthereumResponse struct {
 	Jsonrpc string        `json:"jsonrpc"`
 	Id      int           `json:"id"`
-	error   EthereumError `json:"error"`
+	Error   EthereumError `json:"error"`
 }
 
 type EthereumAccountResponse struct {
@@ -113,10 +116,8 @@ func (e *Ethereum) BuildPreImage(amount int64, from, to, demon string) ([]byte, 
 }
 
 func (e *Ethereum) BuildTransaction(signature []byte) ([]byte, error) {
-	extendedSignature := make([]byte, 65, 65)
-	copy(extendedSignature, signature)
 	in := C.TW_Ethereum_Proto_SigningInput(common.ByteSliceToTWData(e.serializedSigningInput))
-	output := C.TWEthereumSignerTransaction(in, common.ByteSliceToTWData(extendedSignature))
+	output := C.TWEthereumSignerTransaction(in, common.ByteSliceToTWData(signature))
 	outputBytes := common.TWDataToByteSlice(output)
 	return outputBytes, nil
 }
@@ -150,16 +151,17 @@ func (e *Ethereum) Broadcast(transaction []byte) ([]byte, error) {
 	}
 	fmt.Println(string(payload))
 
-	if res.StatusCode == http.StatusOK {
+	var jsonResponse EthereumResponse
+	err = json.Unmarshal(payload, &jsonResponse)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to parse ethereum response: %v", err)
+	}
+
+	if res.StatusCode == http.StatusOK && jsonResponse.Error.Code == 0 {
 		hash := crypto.Keccak256Hash(transaction)
 		return hash[:], nil
 	} else {
-		payload, err := ioutil.ReadAll(res.Body)
-		if err != nil {
-			return nil, err
-		} else {
-			return nil, fmt.Errorf("failed to broadcast transaction, status: %d, response: %s", res.StatusCode, string(payload))
-		}
+		return nil, fmt.Errorf("failed to broadcast transaction, status: %d, response: %s", res.StatusCode, string(payload))
 	}
 }
 

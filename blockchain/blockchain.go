@@ -21,6 +21,7 @@ type AccountBlockchain interface {
 	// build message to be signed
 	BuildPreImage(amount int64, from, to, demon string) ([]byte, error)
 	// build transaction to be broadcast
+	// TODO: this implementation is coupled with 65 bytse ecdsa signature (sig + 1 byte recover byte)
 	BuildTransaction(signature []byte) ([]byte, error)
 	// broadcast transaction to blockchain node, the transaction hash is returned
 	Broadcast(transaction []byte) ([]byte, error)

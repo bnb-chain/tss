@@ -3,17 +3,16 @@ tss
 
 Cli and transportation wrapper of [tss-lib](https://github.com/binance-chain/tss-lib)
 
+## Build
+Ths transaction building is delegated to [trust-wallet-core](https://github.com/trustwallet/wallet-core). Thus you should install [pre-requirement](https://developer.trustwallet.com/wallet-core/contributing#before-you-start) of trust-wallet-core.
+
+After you installed above pre-requirement, you could run `make build` to bulid a tss executable support sign command.
+
 ## Play in localhost
 
-Please note, "--password" option should only be used in testing. 
-Without this option, the cli would ask interactive input and confirm
+Note: `--password` option should only be used in testing. 
 
-0. build tss executable binary
-```
-git clone https://github.com/binance-chain/tss
-cd tss
-go build
-```
+Without command line option, the cli would ask interactive input and confirm.
 
 1. init 3 parties
 ```

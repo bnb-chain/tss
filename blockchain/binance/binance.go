@@ -1,9 +1,12 @@
+// +build deluxe
+
 package binance
 
 /*
-#cgo LDFLAGS: /Users/zhaocong/Developer/Binance/wallet-core/build/libTrustWalletCore.a /Users/zhaocong/Developer/Binance/wallet-core/build/trezor-crypto/libTrezorCrypto.a /Users/zhaocong/Developer/Binance/wallet-core/build/libprotobuf.a -lstdc++
-#include "/Users/zhaocong/Developer/Binance/wallet-core/include/TrustWalletCore/TWBinanceSigner.h"
-#include "/Users/zhaocong/Developer/Binance/wallet-core/include/TrustWalletCore/TWBinanceProto.h"
+#cgo LDFLAGS: ${SRCDIR}/../../wallet-core/build/libTrustWalletCore.a ${SRCDIR}/../../wallet-core/build/trezor-crypto/libTrezorCrypto.a ${SRCDIR}/../../wallet-core/build/libprotobuf.a -lstdc++
+#cgo CFLAGS: -I${SRCDIR}/../../wallet-core/include/TrustWalletCore/
+#include "TWBinanceSigner.h"
+#include "TWBinanceProto.h"
 */
 import "C"
 import (
@@ -110,7 +113,7 @@ func (b *Binance) BuildPreImage(amount int64, from, to, demon string) ([]byte, e
 
 func (b *Binance) BuildTransaction(signature []byte) ([]byte, error) {
 	in := C.TW_Binance_Proto_SigningInput(common.ByteSliceToTWData(b.serializedSigningInput))
-	output := C.TWBinanceSignerTransaction(in, common.ByteSliceToTWData(b.PublicKey[:]), common.ByteSliceToTWData(signature))
+	output := C.TWBinanceSignerTransaction(in, common.ByteSliceToTWData(b.PublicKey[:]), common.ByteSliceToTWData(signature[:64]))
 	outputBytes := common.TWDataToByteSlice(output)
 	return outputBytes, nil
 }

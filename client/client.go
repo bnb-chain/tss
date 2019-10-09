@@ -53,6 +53,7 @@ type TssClient struct {
 
 	params        *tss.Parameters
 	regroupParams *tss.ReGroupParameters
+	idToPartyIds  map[string]*tss.PartyID
 	key           *keygen.LocalPartySaveData
 	signature     []byte
 
@@ -70,8 +71,10 @@ func init() {
 
 func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClient {
 	id := string(config.Id)
+	idToPartyIds := make(map[string]*tss.PartyID)
 	key := lib.SHA512_256([]byte(id)) // TODO: discuss should we really need pass p2p nodeid pubkey into NewPartyID? (what if in memory implementation)
 	partyID := tss.NewPartyID(id, config.Moniker, new(big.Int).SetBytes(key))
+	idToPartyIds[id] = partyID
 	unsortedPartyIds := make(tss.UnSortedPartyIDs, 0, config.Parties)
 	if mode == RegroupMode {
 		if common.TssCfg.IsOldCommittee {
@@ -129,11 +132,12 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 					continue
 				}
 			}
-			unsortedPartyIds = append(unsortedPartyIds,
-				tss.NewPartyID(
-					id,
-					moniker,
-					new(big.Int).SetBytes(key)))
+			partyId := tss.NewPartyID(
+				id,
+				moniker,
+				new(big.Int).SetBytes(key))
+			idToPartyIds[id] = partyId
+			unsortedPartyIds = append(unsortedPartyIds, partyId)
 		}
 		if mode == RegroupMode {
 			for _, peer := range config.P2PConfig.ExpectedNewPeers {
@@ -141,11 +145,12 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 				moniker := p2p.GetMonikerFromExpectedPeers(peer)
 				key := lib.SHA512_256([]byte(id))
 				if moniker != config.Moniker {
-					unsortedNewPartyIds = append(unsortedNewPartyIds,
-						tss.NewPartyID(
-							id,
-							moniker,
-							new(big.Int).SetBytes(key)))
+					partyId := tss.NewPartyID(
+						id,
+						moniker,
+						new(big.Int).SetBytes(key))
+					idToPartyIds[id] = partyId
+					unsortedNewPartyIds = append(unsortedNewPartyIds, partyId)
 				}
 			}
 			if !config.IsOldCommittee {
@@ -168,7 +173,8 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 	signCh := make(chan signing.LocalPartySignData)
 	sendCh := make(chan tss.Message, len(sortedIds)*10*2) // max signing messages 10 times hash confirmation messages
 	c := TssClient{
-		config: config,
+		config:       config,
+		idToPartyIds: idToPartyIds,
 
 		saveCh: saveCh,
 		signCh: signCh,
@@ -251,8 +257,9 @@ func (client *TssClient) Start() {
 
 func (client *TssClient) handleMessageRoutine() {
 	for msg := range client.transporter.ReceiveCh() {
-		Logger.Infof("[%s] received message: %s", client.config.Moniker, msg)
-		ok, err := client.localParty.Update(msg, client.mode.String())
+		// TODO: we cannot log message without parse it
+		//Logger.Infof("[%s] received message: %s", client.config.Moniker, msg)
+		ok, err := client.localParty.UpdateFromBytes(msg.OriginMsg, client.idToPartyIds[msg.From], nil) // TODO: calculate to field
 		if err != nil {
 			Logger.Errorf("[%s] error updating local party state: %v", client.config.Moniker, err)
 		} else if !ok {
@@ -267,9 +274,15 @@ func (client *TssClient) sendMessageRoutine(sendCh <-chan tss.Message) {
 	for msg := range sendCh {
 		dest := msg.GetTo()
 		if dest == nil || len(dest) > 1 {
-			client.transporter.Broadcast(msg)
+			err := client.transporter.Broadcast(msg)
+			if err != nil {
+				Logger.Errorf("failed to broadcast message: %v", err)
+			}
 		} else {
-			client.transporter.Send(msg, common.TssClientId(dest[0].ID))
+			err := client.transporter.Send(msg, common.TssClientId(dest[0].ID))
+			if err != nil {
+				Logger.Errorf("failed to send message: %v", err)
+			}
 		}
 	}
 }

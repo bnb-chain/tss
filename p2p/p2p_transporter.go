@@ -2,9 +2,8 @@ package p2p
 
 import (
 	"context"
-	"crypto/sha256"
+	"encoding/binary"
 	"encoding/gob"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -14,7 +13,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/binance-chain/tss-lib/protob"
 	"github.com/binance-chain/tss-lib/tss"
+	"github.com/golang/protobuf/proto"
 	"github.com/ipfs/go-datastore"
 	"github.com/libp2p/go-libp2p"
 	relay "github.com/libp2p/go-libp2p-circuit"
@@ -69,36 +70,16 @@ type p2pTransporter struct {
 	pendingCheckHashMsg  map[p2pMessageKey]*P2pMessageWithHash   // guarded by sanityCheckMtx
 	receivedPeersHashMsg map[p2pMessageKey][]*P2pMessageWithHash // guarded by sanityCheckMtx
 
-	receiveCh chan tss.Message
+	receiveCh chan common.P2pMessageWithFrom
 	host      host.Host
 
 	closed chan bool
 }
 
-// encapsulation of messages that need to be broadcasted
-// only send/receive this message on broadcast_sanity_check turn on
-type P2pMessageWithHash struct {
-	tss.MessageMetadata
-	Hash      [sha256.Size]byte
-	originMsg *tss.Message
-}
-
-func (m P2pMessageWithHash) GetType() string {
-	return fmt.Sprintf("[Hash]%s", m.MessageMetadata.GetType())
-}
-
-func (m P2pMessageWithHash) String() string {
-	return fmt.Sprintf("[Hash]%s, hash:%x", m.MessageMetadata.String(), m.Hash)
-}
-
-func (m P2pMessageWithHash) ValidateBasic() bool {
-	return true
-}
-
 type p2pMessageKey string
 
 func keyOf(m P2pMessageWithHash) p2pMessageKey {
-	return p2pMessageKey(fmt.Sprintf("%s%s", m.GetFrom().ID, m.MessageMetadata.GetType()))
+	return p2pMessageKey(fmt.Sprintf("%s%s", m.From.ID, m.Type()))
 }
 
 var _ ifconnmgr.ConnManager = (*p2pTransporter)(nil)
@@ -145,7 +126,7 @@ func NewP2PTransporter(
 	}
 	t.ioMtx = &sync.Mutex{}
 
-	t.receiveCh = make(chan tss.Message, receiveChBufSize)
+	t.receiveCh = make(chan common.P2pMessageWithFrom, receiveChBufSize)
 	// load private key of node id
 	var privKey crypto.PrivKey
 	pathToNodeKey := path.Join(home, vault, "node_key")
@@ -234,18 +215,32 @@ func (t *p2pTransporter) Send(msg tss.Message, to common.TssClientId) error {
 	// TODO: stream.Write should be protected by their lock?
 	stream, ok := t.streams.Load(to.String())
 	if ok && stream != nil {
-		enc, _ := t.encoders.Load(to)
-		if err := enc.(*gob.Encoder).Encode(&msg); err != nil {
-			// TODO: send an signal for quit
-			logger.Errorf("failed to encode gob message: %v, sending quit", err)
+		//enc, _ := t.encoders.Load(to)
+		//if err := enc.(*gob.Encoder).Encode(&msg); err != nil {
+		//	// TODO: send an signal for quit
+		//	logger.Errorf("failed to encode gob message: %v, sending quit", err)
+		//	return err
+		//}
+
+		if out, err := msg.WireBytes(); err != nil {
+			logger.Errorf("failed to encode protobuf message: %v, sending quit", err)
 			return err
+		} else {
+			messageLength := int32(len(out))
+			if err = binary.Write(stream.(network.Stream), binary.BigEndian, &messageLength); err != nil {
+				return err
+			}
+			if _, err = stream.(network.Stream).Write(out); err != nil {
+				return err
+			}
 		}
+
 		logger.Debugf("Sent: %s, To: %s, Via (memory addr of stream): %p", msg, to, stream)
 	}
 	return nil
 }
 
-func (t p2pTransporter) ReceiveCh() <-chan tss.Message {
+func (t p2pTransporter) ReceiveCh() <-chan common.P2pMessageWithFrom {
 	return t.receiveCh
 }
 
@@ -329,79 +324,94 @@ func (t *p2pTransporter) handleSigner(stream network.Stream) {
 }
 
 func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
-	decoder := gob.NewDecoder(stream)
+	var messageLength int32
+	//decoder := gob.NewDecoder(stream)
 	for {
-		var msg tss.Message
-		if err := decoder.Decode(&msg); err == nil {
+		err := binary.Read(stream.(network.Stream), binary.BigEndian, &messageLength)
+		if err != nil {
+			logger.Error("failed to read message bytes length: ", err)
+		}
+		payload := make([]byte, messageLength)
+		readLength, err := stream.(network.Stream).Read(payload)
+		if err != nil {
+			logger.Error("failed to read protobuf message: %v", err)
+		}
+		if readLength != int(messageLength) {
+			logger.Error("failed to read protobuf message: length doesn't match prefix")
+		}
+		var msg protob.Message
+		if err := proto.Unmarshal(payload, &msg); err == nil {
 			logger.Debugf("Received message: %s from peer: %s, via (memory addr of stream): %p", msg.String(), pid, stream)
 
-			switch m := msg.(type) {
-			case P2pMessageWithHash:
-				if t.broadcastSanityCheck {
-					key := keyOf(m)
-					t.sanityCheckMtx.Lock()
-					t.receivedPeersHashMsg[key] = append(t.receivedPeersHashMsg[key], &m)
-					var numOfDest int
-					if m.GetTo() == nil {
-						numOfDest = len(t.expectedPeers)
-					} else {
-						numOfDest = len(m.GetTo())
-					}
-					if t.verifiedPeersBroadcastMsgGuarded(key, numOfDest) {
-						t.receiveCh <- *t.pendingCheckHashMsg[key].originMsg
-						delete(t.pendingCheckHashMsg, key)
-					}
-					t.sanityCheckMtx.Unlock()
-				} else {
-					logger.Errorf("peer %s configuration is not consistent - sanity check is enabled", pid)
-				}
-			case tss.Message:
-				if t.broadcastSanityCheck && m.IsBroadcast() {
-					// we cannot use gob encoding here because the type spec registered relies on message sequence
-					// in other word, it might be not deterministic https://stackoverflow.com/a/33228913/1147187
-					if jsonBytes, err := json.Marshal(msg); err == nil {
-						hash := sha256.Sum256(jsonBytes)
-						logger.Debugf("Encoded message %s: %x (hash: %x)", m, jsonBytes, hash)
-						// TODO: ToOldCommittee is blindly set to false here
-						msgWithHash := P2pMessageWithHash{tss.MessageMetadata{m.GetTo(), m.GetFrom(), m.GetType(), false}, hash, &msg}
-						t.sanityCheckMtx.Lock()
-						t.pendingCheckHashMsg[keyOf(msgWithHash)] = &msgWithHash
-						var numOfDest int
-						if m.GetTo() == nil {
-							numOfDest = len(t.expectedPeers)
-							for _, p := range t.expectedPeers {
-								if p.Pretty() != m.GetFrom().ID {
-									// send our hashing of this message
-									var msgToSend tss.Message
-									msgToSend = msgWithHash
-									t.Send(msgToSend, common.TssClientId(p.Pretty()))
-								}
-							}
-						} else {
-							numOfDest = len(m.GetTo())
-							for _, p := range m.GetTo() {
-								if p.ID != m.GetFrom().ID {
-									// send our hashing of this message
-									var msgToSend tss.Message
-									msgToSend = msgWithHash
-									t.Send(msgToSend, common.TssClientId(p.ID))
-								}
-							}
-						}
-						if t.verifiedPeersBroadcastMsgGuarded(keyOf(msgWithHash), numOfDest) {
-							t.receiveCh <- m
-							delete(t.pendingCheckHashMsg, keyOf(msgWithHash))
-						}
-						t.sanityCheckMtx.Unlock()
-					} else {
-						common.Panic(fmt.Errorf("failed to marshal message: %s to json: %v", msg, err))
-					}
-				} else {
-					t.receiveCh <- msg
-				}
-			}
+			//switch m := msg.(type) {
+			//case P2pMessageWithHash:
+			//	if t.broadcastSanityCheck {
+			//		key := keyOf(m)
+			//		t.sanityCheckMtx.Lock()
+			//		t.receivedPeersHashMsg[key] = append(t.receivedPeersHashMsg[key], &m)
+			//		var numOfDest int
+			//		if m.To == nil {
+			//			numOfDest = len(t.expectedPeers)
+			//		} else {
+			//			numOfDest = len(m.To)
+			//		}
+			//		if t.verifiedPeersBroadcastMsgGuarded(key, numOfDest) {
+			//			t.receiveCh <- t.pendingCheckHashMsg[key].originMsg
+			//			delete(t.pendingCheckHashMsg, key)
+			//		}
+			//		t.sanityCheckMtx.Unlock()
+			//	} else {
+			//		logger.Errorf("peer %s configuration is not consistent - sanity check is enabled", pid)
+			//	}
+			//case tss.ParsedMessage:
+			//	if t.broadcastSanityCheck && m.IsBroadcast() {
+			//		// we cannot use gob encoding here because the type spec registered relies on message sequence
+			//		// in other word, it might be not deterministic https://stackoverflow.com/a/33228913/1147187
+			//		if jsonBytes, err := json.Marshal(msg); err == nil {
+			//			hash := sha256.Sum256(jsonBytes)
+			//			logger.Debugf("Encoded message %s: %x (hash: %x)", m, jsonBytes, hash)
+			//			// TODO: ToOldCommittee is blindly set to false here
+			//			msgWithHash := P2pMessageWithHash{tss.MessageMetadata{From: m.GetFrom(), To: m.GetTo()}, hash, msg}
+			//			t.sanityCheckMtx.Lock()
+			//			t.pendingCheckHashMsg[keyOf(msgWithHash)] = &msgWithHash
+			//			var numOfDest int
+			//			if m.GetTo() == nil {
+			//				numOfDest = len(t.expectedPeers)
+			//				for _, p := range t.expectedPeers {
+			//					if p.Pretty() != m.GetFrom().ID {
+			//						// send our hashing of this message
+			//						var msgToSend tss.ParsedMessage
+			//						msgToSend = msgWithHash
+			//						t.Send(msgToSend, common.TssClientId(p.Pretty()))
+			//					}
+			//				}
+			//			} else {
+			//				numOfDest = len(m.GetTo())
+			//				for _, p := range m.GetTo() {
+			//					if p.ID != m.GetFrom().ID {
+			//						// send our hashing of this message
+			//						var msgToSend tss.ParsedMessage
+			//						msgToSend = msgWithHash
+			//						t.Send(msgToSend, common.TssClientId(p.ID))
+			//					}
+			//				}
+			//			}
+			//			if t.verifiedPeersBroadcastMsgGuarded(keyOf(msgWithHash), numOfDest) {
+			//				t.receiveCh <- m
+			//				delete(t.pendingCheckHashMsg, keyOf(msgWithHash))
+			//			}
+			//			t.sanityCheckMtx.Unlock()
+			//		} else {
+			//			common.Panic(fmt.Errorf("failed to marshal message: %s to json: %v", msg, err))
+			//		}
+			//	} else {
+			//		t.receiveCh <- msg
+			//	}
+			//}
+
+			t.receiveCh <- common.P2pMessageWithFrom{From: pid, OriginMsg: payload}
 		} else {
-			// TODO: figure out why this doesnot work
+			// TODO: figure out why this doesn't work
 			switch err {
 			case yamux.ErrConnectionReset:
 				break // connManager would handle the reconnection

@@ -35,12 +35,6 @@ func (m DummyMsg) ValidateBasic() bool {
 	return true
 }
 
-type BootstrapMessage struct {
-	ChannelId string // channel id + epoch timestamp in dex
-	PeerInfo  []byte // encrypted PeerParam
-	Addr      string
-}
-
 type PeerParam struct {
 	ChannelId, Moniker, Msg, Id string
 	N, T, NewN, NewT            int

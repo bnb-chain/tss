@@ -196,8 +196,16 @@ func GetBool(prompt string, defaultValue bool, buf *bufio.Reader) (bool, error) 
 func Panic(err error) {
 	logger.Error(err)
 	trace := fmt.Sprintf("stack:\n%v", string(debug.Stack()))
-	logger.Debug(trace)
+	logger.Error(trace)
 	os.Exit(1)
+}
+
+// during bootstrapping ssdp service will connect to test availability and disconnect directly
+// we should skip tcp close write/read error for such connections
+func SkipTcpClosePanic(err error) {
+	if !strings.Contains(err.Error(), "connection reset by peer") && !strings.Contains(err.Error(), "EOF") {
+		Panic(err)
+	}
 }
 
 // inputIsTty returns true iff we have an interactive prompt,

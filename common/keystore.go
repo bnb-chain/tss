@@ -60,6 +60,7 @@ type publicFields struct {
 	ECDSAPub          *crypto.ECPoint       // y
 	PaillierPks       []*paillier.PublicKey // pkj
 	NTildej, H1j, H2j []*big.Int
+	NTildei, H1i, H2i *big.Int
 	Ks                []*big.Int
 }
 
@@ -126,7 +127,7 @@ type secretConfig struct {
 func Save(keygenResult *keygen.LocalPartySaveData, nodeKey []byte, config KDFConfig, passphrase string, wPriv, wPub io.Writer) error {
 	sFields := secretFields{
 		keygenResult.Xi,
-		keygenResult.PaillierSk,
+		keygenResult.PaillierSK,
 		nodeKey,
 	}
 
@@ -141,10 +142,13 @@ func Save(keygenResult *keygen.LocalPartySaveData, nodeKey []byte, config KDFCon
 		keygenResult.ShareID,
 		keygenResult.BigXj,
 		keygenResult.ECDSAPub,
-		keygenResult.PaillierPks,
+		keygenResult.PaillierPKs,
 		keygenResult.NTildej,
 		keygenResult.H1j,
 		keygenResult.H2j,
+		keygenResult.NTildei,
+		keygenResult.H1i,
+		keygenResult.H2i,
 		keygenResult.Ks,
 	}
 
@@ -205,12 +209,19 @@ func Load(passphrase string, rPriv, rPub io.Reader) (saveData *keygen.LocalParty
 	}
 
 	return &keygen.LocalPartySaveData{
-		Xi:         sFields.Xi,
-		ShareID:    pFields.ShareID,
-		PaillierSk: sFields.PaillierSk,
+		LocalPreParams: keygen.LocalPreParams{
+			PaillierSK: sFields.PaillierSk,
+			NTildei:    pFields.NTildei,
+			H1i:        pFields.H1i,
+			H2i:        pFields.H2i,
+		},
+		LocalSecrets: keygen.LocalSecrets{
+			Xi:      sFields.Xi,
+			ShareID: pFields.ShareID,
+		},
 
 		BigXj:       pFields.BigXj,
-		PaillierPks: pFields.PaillierPks,
+		PaillierPKs: pFields.PaillierPks,
 
 		NTildej:  pFields.NTildej,
 		H1j:      pFields.H1j,

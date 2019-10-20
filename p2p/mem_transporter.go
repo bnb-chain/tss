@@ -51,11 +51,10 @@ func (t *memTransporter) Broadcast(msg tss.Message) error {
 	return nil
 }
 
-func (t *memTransporter) Send(msg tss.Message, to common.TssClientId) error {
-	logger.Debugf("[%s] Sending: %s", t.cid, msg)
+func (t *memTransporter) Send(msg []byte, to common.TssClientId) error {
+	logger.Debugf("[%s] Sending: %x", t.cid, msg)
 	if peer, ok := registeredTransporters[to]; ok {
-		originMsg, _ := msg.WireBytes()
-		peer.receiveCh <- common.P2pMessageWithFrom{From: string(t.cid), OriginMsg: originMsg}
+		peer.receiveCh <- common.P2pMessageWithFrom{From: string(t.cid), OriginMsg: msg}
 	}
 	return nil
 }

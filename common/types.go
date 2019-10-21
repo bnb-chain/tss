@@ -10,3 +10,8 @@ func (cl *TssClientId) Set(value string) error {
 	*cl = TssClientId(value)
 	return nil
 }
+
+type P2pMessageWithFrom struct {
+	From      string
+	OriginMsg []byte // marshaled protobuf message
+}

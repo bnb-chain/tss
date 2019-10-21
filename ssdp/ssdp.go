@@ -3,7 +3,6 @@ package ssdp
 import (
 	"fmt"
 	"log"
-	"net"
 	"strings"
 	"sync"
 	"time"
@@ -92,16 +91,7 @@ func (s *SsdpService) onAlive(m *ssdp.AliveMessage) {
 	if _, ok := s.PeerAddrs.Load(m.USN); !ok {
 		multiAddrs := strings.Split(m.Location, ",")
 		for _, multiAddr := range multiAddrs {
-			addr, err := common.ConvertMultiAddrStrToNormalAddr(multiAddr)
-			if err != nil {
-				continue
-			}
-			// try availability of remote addr
-			conn, err := net.Dial("tcp", addr)
-			if err != nil {
-				continue
-			}
-			err = conn.Close()
+			_, err := common.ConvertMultiAddrStrToNormalAddr(multiAddr)
 			if err != nil {
 				continue
 			}

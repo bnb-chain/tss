@@ -129,13 +129,13 @@ func (b *Bootstrapper) IsFinished() bool {
 	received := b.LenOfPeers()
 	switch b.Cfg.BMode {
 	case KeygenMode:
-		logger.Debugf("received peers: %d, expect peers: %d", received, b.ExpectedPeers)
+		logger.Debugf("received peers: %d, expect peers: %v", received, b.ExpectedPeers)
 		return received == b.ExpectedPeers
 	case SignMode:
 		logger.Debugf("received peers: %d, expect peers: %d", received, b.Cfg.Threshold)
 		return received == b.Cfg.Threshold
 	case PreRegroupMode:
-		logger.Debugf("received peers: %d, expect peers: %d", received, b.Cfg.ExpectedPeers)
+		logger.Debugf("received peers: %d, expect peers: %v", received, b.Cfg.ExpectedPeers)
 		return received == b.ExpectedPeers
 	case RegroupMode:
 		numOfOld := 0

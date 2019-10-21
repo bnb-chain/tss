@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"bufio"
-	"encoding/gob"
+	"encoding/binary"
 	"fmt"
 	"net"
 	"os"
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/bgentry/speakeasy"
+	"github.com/gogo/protobuf/proto"
 	"github.com/spf13/cobra"
 
 	"github.com/binance-chain/tss/client"
@@ -46,6 +47,7 @@ var bootstrapCmd = &cobra.Command{
 		bootstrapper := common.NewBootstrapper(numOfPeers, &common.TssCfg)
 
 		listener, err := net.Listen("tcp", src)
+		client.Logger.Infof("listening on %s", src)
 		if err != nil {
 			common.Panic(err)
 		}
@@ -188,31 +190,52 @@ func sendBootstrapMessage(conn net.Conn, msg *common.BootstrapMessage) {
 		PeerInfo:  msg.PeerInfo,
 		Addr:      common.ReplaceIpInAddr(msg.Addr, realIp[0]),
 	}
-	conn.SetWriteDeadline(time.Now().Add(time.Second))
-	encoder := gob.NewEncoder(conn)
-	if err := encoder.Encode(msgForConnect); err != nil {
-		// deliberately not handle err here
-		// possible err maybe:
-		// EOF - on receiving ssdp live message, peer will close conn directly
-		// Write timeout - same with above. If we writing before peer close conn, we will timeout
+
+	payload, err := proto.Marshal(&msgForConnect)
+	if err != nil {
+		common.SkipTcpClosePanic(fmt.Errorf("bootstrap message cannot be marshaled to protobuf payload: %v", err))
+		return
+	}
+	messageLength := int32(len(payload))
+	err = binary.Write(conn, binary.BigEndian, &messageLength)
+	if err != nil {
+		common.SkipTcpClosePanic(fmt.Errorf("failed to write bootstrap message length: %v", err))
+		return
+	}
+	n, err := conn.Write(payload)
+	if int32(n) != messageLength || err != nil {
+		common.SkipTcpClosePanic(fmt.Errorf("failed to write bootstrap message: %v", err))
+		return
 	}
 	client.Logger.Debugf("sent bootstrap msg: %v to %s", msgForConnect, conn.RemoteAddr().String())
 }
 
 func readBootstrapMessage(conn net.Conn, b *common.Bootstrapper) {
-	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
-	decoder := gob.NewDecoder(conn)
+	var messageLength int32
+	err := binary.Read(conn, binary.BigEndian, &messageLength)
+	if err != nil {
+		common.SkipTcpClosePanic(fmt.Errorf("failed to read bootstrap message length: %v", err))
+		return
+	}
+	payload := make([]byte, messageLength)
+	n, err := conn.Read(payload)
+
+	if int32(n) != messageLength {
+		return
+	}
+	if err != nil {
+		common.SkipTcpClosePanic(fmt.Errorf("failed to read bootstrap message: %v", err))
+		return
+	}
 	var peerMsg common.BootstrapMessage
-	if err := decoder.Decode(&peerMsg); err != nil {
-		// deliberately not handle err here
-		// possible err maybe:
-		// EOF - on receiving ssdp live message, peer will close conn directly
-		// Read timeout - same with above. If we reading before peer close conn, we will timeout
-	} else {
-		if err := b.HandleBootstrapMsg(peerMsg); err != nil {
-			// peer's channel id or channel password is not correct, we can wait them fix
-			client.Logger.Error(err)
-		}
+	err = proto.Unmarshal(payload, &peerMsg)
+	if err != nil {
+		common.SkipTcpClosePanic(fmt.Errorf("failed to unmarshal bootstrap message: %v", err))
+		return
+	}
+	if err := b.HandleBootstrapMsg(peerMsg); err != nil {
+		// peer's channel id or channel password is not correct, we can wait them fix
+		client.Logger.Error(err)
 	}
 }
 

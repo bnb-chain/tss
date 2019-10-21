@@ -118,7 +118,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 
 	if !mock {
 		for _, peer := range config.P2PConfig.ExpectedPeers {
-			id := string(p2p.GetClientIdFromExpecetdPeers(peer))
+			id := string(p2p.GetClientIdFromExpectedPeers(peer))
 			moniker := p2p.GetMonikerFromExpectedPeers(peer)
 			key := lib.SHA512_256([]byte(id))
 			if mode == SignMode || mode == RegroupMode {
@@ -135,7 +135,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 		}
 		if mode == RegroupMode {
 			for _, peer := range config.P2PConfig.ExpectedNewPeers {
-				id := string(p2p.GetClientIdFromExpecetdPeers(peer))
+				id := string(p2p.GetClientIdFromExpectedPeers(peer))
 				moniker := p2p.GetMonikerFromExpectedPeers(peer)
 				key := lib.SHA512_256([]byte(id))
 				if moniker != config.Moniker {
@@ -187,7 +187,10 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 		key := loadSavedKeyForSign(config, sortedIds, signers)
 		pubKey := btcec.PublicKey(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()})
 		Logger.Infof("[%s] public key: %X\n", config.Moniker, pubKey.SerializeCompressed())
-		address, _ := GetAddress(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()}, config.AddressPrefix)
+		address, err := GetAddress(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()}, config.AddressPrefix)
+		if err != nil {
+			panic(err)
+		}
 		Logger.Debugf("[%s] address is: %s\n", config.Moniker, address)
 		params := tss.NewParameters(p2pCtx, partyID, config.Parties, config.Threshold)
 		c.key = &key
@@ -359,7 +362,7 @@ func updatePeerOriginalIndexes(config *common.TssConfig, bootstrapper *common.Bo
 	allPartyIds := make(tss.UnSortedPartyIDs, 0, config.Parties) // all parties, used for calculating party's index during keygen
 	allPartyIds = append(allPartyIds, partyID)
 	for _, peer := range config.P2PConfig.ExpectedPeers {
-		id := string(p2p.GetClientIdFromExpecetdPeers(peer))
+		id := string(p2p.GetClientIdFromExpectedPeers(peer))
 		moniker := p2p.GetMonikerFromExpectedPeers(peer)
 		key := lib.SHA512_256([]byte(id))
 		allPartyIds = append(allPartyIds,

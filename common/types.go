@@ -11,7 +11,6 @@ func (cl *TssClientId) Set(value string) error {
 	return nil
 }
 
-type P2pMessageWithFrom struct {
-	From      string
-	OriginMsg []byte // marshaled protobuf message
+type P2pMessageWrapper struct {
+	MessageWrapperBytes []byte // marshaled protobuf message
 }

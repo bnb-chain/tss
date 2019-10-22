@@ -15,6 +15,7 @@ import (
 	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/binance-chain/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec"
+	"github.com/gogo/protobuf/proto"
 	"github.com/ipfs/go-log"
 
 	"github.com/binance-chain/tss/common"
@@ -262,9 +263,16 @@ func (client *TssClient) Start() {
 
 func (client *TssClient) handleMessageRoutine() {
 	for msg := range client.transporter.ReceiveCh() {
-		// TODO: we cannot log message without parse it
-		//Logger.Infof("[%s] received message: %s", client.config.Moniker, msg)
-		ok, err := client.localParty.UpdateFromBytes(msg.OriginMsg, client.idToPartyIds[msg.From], nil) // TODO: calculate to field
+		var messageWrapper tss.MessageWrapper
+		if err := proto.Unmarshal(msg.MessageWrapperBytes, &messageWrapper); err != nil {
+			common.Panic(fmt.Errorf("[%s] error updating local party state: %v", client.config.Moniker, err))
+		}
+		any, _ := proto.Marshal(messageWrapper.Message)
+		ok, err := client.localParty.UpdateFromBytes(
+			any,
+			client.idToPartyIds[messageWrapper.From.Id],
+			messageWrapper.IsBroadcast,
+			messageWrapper.IsToOldCommittee)
 		if err != nil {
 			Logger.Errorf("[%s] error updating local party state: %v", client.config.Moniker, err)
 		} else if !ok {
@@ -284,13 +292,13 @@ func (client *TssClient) sendMessageRoutine(sendCh <-chan tss.Message) {
 				Logger.Errorf("failed to broadcast message: %v", err)
 			}
 		} else {
-			if payload, err := msg.WireBytes(); err != nil {
-				Logger.Errorf("failed to encode protobuf message: %v, send stop", err)
-			} else {
-				payload = append([]byte{p2p.MessagePrefix}, payload...)
-				if err = client.transporter.Send(payload, common.TssClientId(dest[0].ID)); err != nil {
-					Logger.Errorf("failed to send message: %v", err)
-				}
+			payload, err := proto.Marshal(msg.WireMsg())
+			if err != nil {
+				Logger.Error("failed to protobuf marshal the message wrapper: %v", err)
+			}
+			payload = append([]byte{p2p.MessagePrefix}, payload...)
+			if err = client.transporter.Send(payload, common.TssClientId(dest[0].Id)); err != nil {
+				Logger.Errorf("failed to send message: %v", err)
 			}
 		}
 	}

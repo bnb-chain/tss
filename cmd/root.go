@@ -59,7 +59,6 @@ func bindP2pConfigs() {
 	regroupCmd.PersistentFlags().StringSlice("p2p.new_peer_addrs", []string{}, "unknown peer's multiple addresses")
 	//rootCmd.PersistentFlags().StringSlice("p2p.peers", []string{}, "peers in this threshold scheme")
 	//rootCmd.PersistentFlags().Bool("p2p.default_bootstrap", false, "whether to use default bootstrap")
-	//rootCmd.PersistentFlags().Bool("p2p.broadcast_sanity_check", true, "whether verify broadcast message's hash with peers")
 }
 
 // more detail explanation of these parameters can be found:
@@ -87,6 +86,10 @@ func bindClientConfigs() {
 	rootCmd.PersistentFlags().String("password", "", "password, should only be used for testing. If empty, you will be prompted for password to save/load the secret/public share and config")
 	signCmd.PersistentFlags().String("message", "", "message(in *big.Int.String() format) to be signed, only used in sign mode")
 	rootCmd.PersistentFlags().String("log_level", "info", "log level")
+
+	keygenCmd.PersistentFlags().Bool("p2p.broadcast_sanity_check", true, "whether verify broadcast message's hash with peers")
+	signCmd.PersistentFlags().Bool("p2p.broadcast_sanity_check", true, "whether verify broadcast message's hash with peers")
+	regroupCmd.PersistentFlags().Bool("p2p.broadcast_sanity_check", true, "whether verify broadcast message's hash with peers")
 
 	keygenCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
 	signCmd.PersistentFlags().String("channel_id", "", "channel id of this session")

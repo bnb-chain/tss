@@ -14,7 +14,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/binance-chain/tss-lib/protob"
 	"github.com/binance-chain/tss-lib/tss"
 	"github.com/golang/protobuf/proto"
 	"github.com/ipfs/go-datastore"
@@ -80,7 +79,7 @@ type p2pTransporter struct {
 	pendingCheckHashMsg  map[p2pMessageKey]*P2PMessageWithHash   // guarded by sanityCheckMtx
 	receivedPeersHashMsg map[p2pMessageKey][]*P2PMessageWithHash // guarded by sanityCheckMtx
 
-	receiveCh chan common.P2pMessageWithFrom
+	receiveCh chan common.P2pMessageWrapper
 	host      host.Host
 
 	closed chan bool
@@ -138,7 +137,7 @@ func NewP2PTransporter(
 	}
 	t.ioMtx = &sync.Mutex{}
 
-	t.receiveCh = make(chan common.P2pMessageWithFrom, receiveChBufSize)
+	t.receiveCh = make(chan common.P2pMessageWrapper, receiveChBufSize)
 	// load private key of node id
 	var privKey crypto.PrivKey
 	pathToNodeKey := path.Join(home, vault, "node_key")
@@ -202,14 +201,14 @@ func (t *p2pTransporter) Broadcast(msg tss.Message) error {
 			shouldSend = true
 		} else {
 			for _, dest := range msg.GetTo() {
-				if to.(string) == dest.ID {
+				if to.(string) == dest.Id {
 					shouldSend = true
 					break
 				}
 			}
 		}
 		if shouldSend {
-			payload, e := msg.WireBytes()
+			payload, e := proto.Marshal(msg.WireMsg())
 			if e != nil {
 				err = fmt.Errorf("failed to encode protobuf message: %v, broadcast stop", err)
 				return false
@@ -247,7 +246,7 @@ func (t *p2pTransporter) Send(msg []byte, to common.TssClientId) error {
 	return nil
 }
 
-func (t p2pTransporter) ReceiveCh() <-chan common.P2pMessageWithFrom {
+func (t p2pTransporter) ReceiveCh() <-chan common.P2pMessageWrapper {
 	return t.receiveCh
 }
 
@@ -369,7 +368,7 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 		payload := payloadWithTypePrefix[1:]
 		switch payloadWithTypePrefix[0] {
 		case MessagePrefix:
-			var m protob.Message
+			var m tss.MessageWrapper
 			err := proto.Unmarshal(payload, &m)
 			if err != nil {
 				common.Panic(fmt.Errorf("failed to unmarshal MessagePrefix, not a valid protobuf format: %v. from: %s", err, pid))
@@ -379,30 +378,16 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 				// in other word, it might be not deterministic https://stackoverflow.com/a/33228913/1147187
 				hash := sha256.Sum256(payload)
 
-				// calculate message destination
 				var to []string
-				if t.regroupParams != nil {
-					if m.IsToOldCommittee {
-						for _, id := range t.regroupParams.Parameters.Parties().IDs() {
-							if id.ID != pid {
-								to = append(to, id.ID)
-							}
-						}
-					} else {
-						for _, id := range t.regroupParams.NewParties().IDs() {
-							if id.ID != pid {
-								to = append(to, id.ID)
-							}
-						}
-					}
-				} // else to could be kept as nil for keygen and sign broadcast
+				for _, id := range m.To {
+					to = append(to, id.Id)
+				}
 
 				msgWithHash := &P2PMessageWithHash{From: pid, To: to, Hash: hash[:], OriginMsg: payload}
 				t.sanityCheckMtx.Lock()
 				t.pendingCheckHashMsg[keyOf(msgWithHash)] = msgWithHash
 				var numOfDest int
 				if to == nil {
-					numOfDest = len(t.expectedPeers)
 					for _, p := range t.expectedPeers {
 						if p.Pretty() != pid {
 							// send our hashing of this message
@@ -412,33 +397,35 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 							}
 							msgWithHashPayload = append([]byte{HashMessagePrefix}, msgWithHashPayload...)
 							err = t.Send(msgWithHashPayload, common.TssClientId(p.Pretty()))
+							numOfDest++
 							if err != nil {
 								common.Panic(fmt.Errorf("cannot send P2PMessageWithHash: %v", err))
 							}
 						}
 					}
 				} else {
-					numOfDest = len(to)
 					for _, p := range to {
-						msgWithHashPayload, err := proto.Marshal(msgWithHash)
-						if err != nil {
-							common.Panic(fmt.Errorf("cannot marshal P2PMessageWithHash"))
+						if p != common.TssCfg.Id.String() {
+							msgWithHashPayload, err := proto.Marshal(msgWithHash)
+							if err != nil {
+								common.Panic(fmt.Errorf("cannot marshal P2PMessageWithHash"))
+							}
+							msgWithHashPayload = append([]byte{HashMessagePrefix}, msgWithHashPayload...)
+							err = t.Send(msgWithHashPayload, common.TssClientId(p))
+							numOfDest++
+							if err != nil {
+								common.Panic(fmt.Errorf("cannot send P2PMessageWithHash: %v", err))
+							}
 						}
-						msgWithHashPayload = append([]byte{HashMessagePrefix}, msgWithHashPayload...)
-						err = t.Send(msgWithHashPayload, common.TssClientId(p))
-						if err != nil {
-							common.Panic(fmt.Errorf("cannot send P2PMessageWithHash: %v", err))
-						}
-
 					}
 				}
 				if t.verifiedPeersBroadcastMsgGuarded(keyOf(msgWithHash), numOfDest) {
-					t.receiveCh <- common.P2pMessageWithFrom{From: pid, OriginMsg: payload}
+					t.receiveCh <- common.P2pMessageWrapper{MessageWrapperBytes: payload}
 					delete(t.pendingCheckHashMsg, keyOf(msgWithHash))
 				}
 				t.sanityCheckMtx.Unlock()
 			} else {
-				t.receiveCh <- common.P2pMessageWithFrom{From: pid, OriginMsg: payload}
+				t.receiveCh <- common.P2pMessageWrapper{MessageWrapperBytes: payload}
 			}
 		case HashMessagePrefix:
 			var m P2PMessageWithHash
@@ -453,12 +440,12 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 				t.receivedPeersHashMsg[key] = append(t.receivedPeersHashMsg[key], &m)
 				var numOfDest int
 				if m.To == nil {
-					numOfDest = len(t.expectedPeers)
+					numOfDest = len(t.expectedPeers) - 1 // exclude the sender
 				} else {
-					numOfDest = len(m.To)
+					numOfDest = len(m.To) - 1 // exclude ourself
 				}
 				if t.verifiedPeersBroadcastMsgGuarded(key, numOfDest) {
-					t.receiveCh <- common.P2pMessageWithFrom{From: pid, OriginMsg: t.pendingCheckHashMsg[key].OriginMsg}
+					t.receiveCh <- common.P2pMessageWrapper{MessageWrapperBytes: t.pendingCheckHashMsg[key].OriginMsg}
 					delete(t.pendingCheckHashMsg, key)
 				}
 				t.sanityCheckMtx.Unlock()
@@ -475,7 +462,7 @@ func (t *p2pTransporter) verifiedPeersBroadcastMsgGuarded(key p2pMessageKey, num
 		logger.Debugf("didn't receive the main message: %s yet", key)
 		return false
 	} else if len(t.receivedPeersHashMsg[key]) != numOfDest {
-		logger.Debugf("didn't receive enough peer's hash messages: %s yet", key)
+		logger.Debugf("didn't receive enough peer's hash messages: %s yet. Expected: %d, Got: %d", key, numOfDest, len(t.receivedPeersHashMsg[key]))
 		return false
 	} else {
 		for _, hashMsg := range t.receivedPeersHashMsg[key] {

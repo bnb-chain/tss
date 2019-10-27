@@ -58,7 +58,7 @@ type TssClient struct {
 	signature     []byte
 
 	saveCh chan keygen.LocalPartySaveData
-	signCh chan signing.LocalSignData
+	signCh chan signing.SignatureData
 	sendCh chan tss.Message
 
 	mode ClientMode
@@ -165,7 +165,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 	sortedIds := tss.SortPartyIDs(unsortedPartyIds)
 	p2pCtx := tss.NewPeerContext(sortedIds)
 	saveCh := make(chan keygen.LocalPartySaveData)
-	signCh := make(chan signing.LocalSignData)
+	signCh := make(chan signing.SignatureData)
 	sendCh := make(chan tss.Message, len(sortedIds)*10*2) // max signing messages 10 times hash confirmation messages
 	c := TssClient{
 		config:       config,
@@ -354,7 +354,7 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 	}
 }
 
-func (client *TssClient) saveSignatureRoutine(signCh <-chan signing.LocalSignData, done chan<- bool) {
+func (client *TssClient) saveSignatureRoutine(signCh <-chan signing.SignatureData, done chan<- bool) {
 	for signature := range signCh {
 		client.signature = signature.Signature
 		if done != nil {

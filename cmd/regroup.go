@@ -31,6 +31,7 @@ func init() {
 	regroupCmd.PersistentFlags().Int(flagNewParties, 0, "new total parties of regrouped scheme")
 	regroupCmd.PersistentFlags().String(flagChannelId, "", "channel id of this session")
 	regroupCmd.PersistentFlags().String(flagChannelPassword, "", "channel password of this session")
+	regroupCmd.PersistentFlags().Bool(flagBroadcastSanityCheck, true, "whether verify broadcast message's hash with peers")
 	regroupCmd.PersistentFlags().Bool(flagIsOld, false, "whether this party is an old committee. If it is set to true, it will participant signing in regroup. There should be only t+1 parties set this to true for one regroup")
 	regroupCmd.PersistentFlags().Bool(flagIsNew, false, "whether this party is new committee, for new party it will changed to true automatically. if an old party set this to true, its share will be replaced by one generated one")
 

@@ -36,8 +36,8 @@ replace value of "--channel_id" for following commands with generated one
 
 4. sign
 ```
-./tss sign --home ~/.test1 --vault_name "default" --password "123456789" --channel_password "123456789" --channel_id "802671B1B19" 
-./tss sign --home ~/.test2 --vault_name "default" --password "123456789" --channel_password "123456789" --channel_id "802671B1B19" 
+./tss sign --home ~/.test1 --vault_name default --password 123456789 --channel_id 802671B1B19 --channel_password 123456789 --amount 10 --to 0xe9C204d1b24adB1205D4947b1fa8d6CBf9AF0d32 --demon ETH --network EthereumRopsten --broadcast
+./tss sign --home ~/.test2 --vault_name default --password 123456789 --channel_id 802671B1B19 --channel_password 123456789 --amount 10 --to 0xe9C204d1b24adB1205D4947b1fa8d6CBf9AF0d32 --demon ETH --network EthereumRopsten
 ```
 
 5. regroup - replace existing 3 parties with 3 brand new parties

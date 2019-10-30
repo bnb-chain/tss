@@ -30,6 +30,7 @@ const (
 func init() {
 	signCmd.PersistentFlags().String(flagChannelId, "", "channel id of this session")
 	signCmd.PersistentFlags().String(flagChannelPassword, "", "channel password of this session")
+	signCmd.PersistentFlags().Bool(flagBroadcastSanityCheck, true, "whether verify broadcast message's hash with peers")
 
 	signCmd.PersistentFlags().String(flagNetwork, "", "")
 	signCmd.PersistentFlags().String(flagTo, "", "to address")

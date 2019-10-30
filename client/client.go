@@ -3,7 +3,6 @@ package client
 import (
 	"crypto/ecdsa"
 	"fmt"
-	"log"
 	"math/big"
 	"os"
 	"path"
@@ -378,7 +377,7 @@ func (client *TssClient) saveSignatureRoutine(signCh <-chan signing.SignatureDat
 	for signature := range signCh {
 		client.signature = make([]byte, 65, 65)
 		copy(client.signature, signature.Signature)
-		client.signature[64] = signature.SignatureRecovery
+		client.signature[64] = signature.SignatureRecovery[0]
 
 		if done != nil {
 			done <- true

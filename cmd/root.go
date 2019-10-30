@@ -23,6 +23,7 @@ const (
 	flagParties         = "parties"
 	flagChannelId       = "channel_id"
 	flagChannelPassword = "channel_password"
+	flagBroadcastSanityCheck = "p2p.broadcast_sanity_check"
 )
 
 var rootCmd = &cobra.Command{

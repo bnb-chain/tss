@@ -3,16 +3,17 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/binance-chain/tss/client"
 	"github.com/binance-chain/tss/common"
 )
 
 func init() {
 	describeCmd.PersistentFlags().String(flagPrefix, "bnb", "prefix of bech32 address")
+	describeCmd.PersistentFlags().String(flagNetwork, "Binance", "")
 
 	rootCmd.AddCommand(describeCmd)
 }
@@ -31,17 +32,15 @@ var describeCmd = &cobra.Command{
 		initLogLevel(common.TssCfg)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		pubKey, err := common.LoadEcdsaPubkey(viper.GetString(flagHome), viper.GetString(flagVault), common.TssCfg.Password)
-		if err != nil {
-			fmt.Printf("cannot load public key, maybe not keygen yet: %v", err)
+		var from string
+		network := viper.GetString(flagNetwork)
+		if strings.HasPrefix(network, "Binance") {
+			_, from = initBinance(network)
+		} else if strings.HasPrefix(network, "Ethereum") {
+			_, from = initEthereum(network)
 		}
-		if pubKey != nil {
-			addr, err := client.GetAddress(*pubKey, viper.GetString(flagPrefix))
-			if err != nil {
-				common.Panic(err)
-			}
-			fmt.Printf("address of this vault: %s\n", addr)
-		}
+		fmt.Printf("address of this vault: %s\n", from)
+
 		cfg, err := json.MarshalIndent(common.TssCfg, "", "\t")
 		if err != nil {
 			common.Panic(err)

@@ -28,6 +28,7 @@ func init() {
 	keygenCmd.PersistentFlags().Int(flagParties, 0, "total parities of this scheme")
 	keygenCmd.PersistentFlags().String(flagChannelId, "", "channel id of this session")
 	keygenCmd.PersistentFlags().String(flagChannelPassword, "", "channel password of this session")
+	keygenCmd.PersistentFlags().Bool(flagBroadcastSanityCheck, true, "whether verify broadcast message's hash with peers")
 
 	rootCmd.AddCommand(keygenCmd)
 }

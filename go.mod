@@ -1,6 +1,6 @@
 module github.com/binance-chain/tss
 
-go 1.12
+go 1.13
 
 require (
 	github.com/bgentry/speakeasy v0.1.0
@@ -8,6 +8,7 @@ require (
 	github.com/btcsuite/btcd v0.20.0-beta
 	github.com/btcsuite/btcutil v0.0.0-20190425235716-9e5f4b9a998d
 	github.com/btcsuite/goleveldb v1.0.0 // indirect
+	github.com/ethereum/go-ethereum v1.9.6
 	github.com/go-kit/kit v0.9.0 // indirect
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/protobuf v1.3.2

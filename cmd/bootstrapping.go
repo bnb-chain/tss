@@ -115,7 +115,8 @@ func setChannelId() {
 }
 
 func setChannelPasswd() {
-	if common.TssCfg.ChannelPassword != "" {
+	if pw := common.TssCfg.ChannelPassword; pw != "" {
+		checkComplexityOfPassword(pw)
 		return
 	}
 
@@ -123,6 +124,7 @@ func setChannelPasswd() {
 		if p == "" {
 			common.Panic(fmt.Errorf("channel password should not be empty"))
 		}
+		checkComplexityOfPassword(p)
 		common.TssCfg.ChannelPassword = p
 	} else {
 		common.Panic(err)

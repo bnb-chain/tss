@@ -26,7 +26,10 @@ var rootCmd = &cobra.Command{
 		viper.BindPFlags(cmd.Flags())
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		// Do Stuff Here
+		if len(args) == 0 {
+			cmd.Help()
+			return
+		}
 	},
 }
 

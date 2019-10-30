@@ -52,6 +52,13 @@ replace value of "--channel_id" for following commands with generated one
 ./tss regroup --home ~/.test3 --vault_name "default" --password "123456789" --new_parties 3 --new_threshold 1 --channel_password "123456789" --channel_id "802671B1B19"
 ```
 
+## Note for running on macos catalina (To be enhanced)
+```
+xattr -d com.apple.quarantine ./tss
+xattr -d com.apple.quarantine ./tbnbcli
+xattr -d com.apple.quarantine ./bnbcli
+```
+
 ## Network roles and connection topological
 ![](network/tss.png)
 

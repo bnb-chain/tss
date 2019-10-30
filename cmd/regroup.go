@@ -82,7 +82,7 @@ var regroupCmd = &cobra.Command{
 
 			setChannelId()
 			setChannelPasswd()
-			tssRegroup = exec.Command(path.Join(pwd, "tss"), "regroup", "--home", common.TssCfg.Home, "--vault_name", tmpVault, "--password", common.TssCfg.Password, "--parties", strconv.Itoa(common.TssCfg.Parties), "--threshold", strconv.Itoa(common.TssCfg.Threshold), "--new_parties", strconv.Itoa(common.TssCfg.NewParties), "--new_threshold", strconv.Itoa(common.TssCfg.NewThreshold), "--channel_password", common.TssCfg.Password, "--channel_id", common.TssCfg.ChannelId, "--log_level", common.TssCfg.LogLevel)
+			tssRegroup = exec.Command(path.Join(pwd, "tss"), "regroup", "--home", common.TssCfg.Home, "--vault_name", tmpVault, "--password", common.TssCfg.Password, "--parties", strconv.Itoa(common.TssCfg.Parties), "--threshold", strconv.Itoa(common.TssCfg.Threshold), "--new_parties", strconv.Itoa(common.TssCfg.NewParties), "--new_threshold", strconv.Itoa(common.TssCfg.NewThreshold), "--channel_password", common.TssCfg.ChannelPassword, "--channel_id", common.TssCfg.ChannelId, "--p2p.broadcast_sanity_check", strconv.FormatBool(common.TssCfg.BroadcastSanityCheck), "--log_level", common.TssCfg.LogLevel)
 			stdOut, err := os.Create(path.Join(common.TssCfg.Home, tmpVault, "tss.log"))
 			if err != nil {
 				common.Panic(err)

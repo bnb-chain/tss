@@ -106,8 +106,7 @@ func Decrypt(ciphertext []byte, channelId, passphrase string) (param *PeerParam,
 	}
 	epochSeconds := ConvertHexToTimestamp(channelId[3:])
 	if time.Now().Unix() > int64(epochSeconds) {
-		error = fmt.Errorf("channel id has been expired, please regenerate a new one")
-		return
+		Panic(fmt.Errorf("channel id has been expired, please regenerate a new one"))
 	}
 	return param, nil
 }

@@ -6,4 +6,5 @@ message P2pMessageWithHash {
     repeated string to = 2;
     bytes hash = 3;
     bytes originMsg = 4;
+    bool is_to_old_and_new_committees = 5; // used only in certain resharing messages
 }

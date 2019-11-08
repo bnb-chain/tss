@@ -4,7 +4,7 @@ go 1.12
 
 require (
 	github.com/bgentry/speakeasy v0.1.0
-	github.com/binance-chain/tss-lib v1.0.0
+	github.com/binance-chain/tss-lib v1.1.0
 	github.com/btcsuite/btcd v0.20.0-beta
 	github.com/btcsuite/btcutil v0.0.0-20190425235716-9e5f4b9a998d
 	github.com/go-kit/kit v0.9.0 // indirect

@@ -127,7 +127,7 @@ var regroupCmd = &cobra.Command{
 		if !mustNew && common.TssCfg.IsNewCommittee && tssRegroup != nil {
 			err := tssRegroup.Wait()
 			if err != nil {
-				client.Logger.Error(fmt.Errorf("failed to wait child tss process finished: %v", err))
+				common.Panic(fmt.Errorf("failed to wait child tss process finished: %v", err))
 			}
 
 			// TODO: Make sure this works under different os (linux and windows)

@@ -1,9 +1,10 @@
 package common
 
 /*
-#cgo LDFLAGS: /Users/zhaocong/Developer/Binance/wallet-core/build/libTrustWalletCore.a /Users/zhaocong/Developer/Binance/wallet-core/build/trezor-crypto/libTrezorCrypto.a /Users/zhaocong/Developer/Binance/wallet-core/build/libprotobuf.a -lstdc++
-#include "/Users/zhaocong/Developer/Binance/wallet-core/include/TrustWalletCore/TWData.h"
-#include "/Users/zhaocong/Developer/Binance/wallet-core/include/TrustWalletCore/TWString.h"
+#cgo LDFLAGS: ${SRCDIR}/../../wallet-core/build/libTrustWalletCore.a ${SRCDIR}/../../wallet-core/build/trezor-crypto/libTrezorCrypto.a ${SRCDIR}/../../wallet-core/build/libprotobuf.a -lstdc++
+#cgo CFLAGS: -I${SRCDIR}/../../wallet-core/include/TrustWalletCore/
+#include "TWData.h"
+#include "TWString.h"
 */
 import "C"
 import (

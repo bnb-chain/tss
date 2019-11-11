@@ -4,7 +4,7 @@ go 1.13
 
 require (
 	github.com/bgentry/speakeasy v0.1.0
-	github.com/binance-chain/tss-lib v0.0.0-20191025122708-233fa70092e1
+	github.com/binance-chain/tss-lib v1.0.0
 	github.com/btcsuite/btcd v0.20.0-beta
 	github.com/btcsuite/btcutil v0.0.0-20190425235716-9e5f4b9a998d
 	github.com/btcsuite/goleveldb v1.0.0 // indirect
@@ -33,7 +33,6 @@ require (
 	github.com/mattn/go-colorable v0.1.4 // indirect
 	github.com/mattn/go-isatty v0.0.10
 	github.com/miekg/dns v1.1.15 // indirect
-	github.com/minio/sha256-simd v0.1.0
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/multiformats/go-multiaddr v0.0.4
 	github.com/multiformats/go-multiaddr-dns v0.0.3 // indirect

@@ -271,10 +271,9 @@ func (client *TssClient) handleMessageRoutine() {
 		ok, err := client.localParty.UpdateFromBytes(
 			any,
 			client.idToPartyIds[messageWrapper.From.Id],
-			messageWrapper.IsBroadcast,
-			messageWrapper.IsToOldCommittee)
+			messageWrapper.IsBroadcast)
 		if err != nil {
-			Logger.Errorf("[%s] error updating local party state: %v", client.config.Moniker, err)
+			common.Panic(fmt.Errorf("[%s] error updating local party state: %v", client.config.Moniker, err))
 		} else if !ok {
 			Logger.Warningf("[%s] Update still waiting for round to finish", client.config.Moniker)
 		} else {

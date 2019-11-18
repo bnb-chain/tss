@@ -383,7 +383,12 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 					to = append(to, id.Id)
 				}
 
-				msgWithHash := &P2PMessageWithHash{From: pid, To: to, Hash: hash[:], OriginMsg: payload}
+				msgWithHash := &P2PMessageWithHash{
+					From: pid,
+					To: to,
+					Hash: hash[:],
+					OriginMsg: payload,
+					IsToOldAndNewCommittees: m.IsToOldAndNewCommittees}
 				t.sanityCheckMtx.Lock()
 				t.pendingCheckHashMsg[keyOf(msgWithHash)] = msgWithHash
 				var numOfDest int
@@ -405,7 +410,7 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 					}
 				} else {
 					for _, p := range to {
-						if p != common.TssCfg.Id.String() {
+						if p != pid && p != common.TssCfg.Id.String() {
 							msgWithHashPayload, err := proto.Marshal(msgWithHash)
 							if err != nil {
 								common.Panic(fmt.Errorf("cannot marshal P2PMessageWithHash"))
@@ -442,7 +447,11 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 				if m.To == nil {
 					numOfDest = len(t.expectedPeers) - 1 // exclude the sender
 				} else {
-					numOfDest = len(m.To) - 1 // exclude ourself
+					if m.IsToOldAndNewCommittees {
+						numOfDest = len(m.To) - 2 // exclude ourself and sender for resharing ack
+					} else {
+						numOfDest = len(m.To) - 1 // exclude ourself
+					}
 				}
 				if t.verifiedPeersBroadcastMsgGuarded(key, numOfDest) {
 					t.receiveCh <- common.P2pMessageWrapper{MessageWrapperBytes: t.pendingCheckHashMsg[key].OriginMsg}

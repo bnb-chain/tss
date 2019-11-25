@@ -66,18 +66,22 @@ var signCmd = &cobra.Command{
 			blockchain, from = initEthereum(network)
 		}
 
-		preImage, err := blockchain.BuildPreImage(int64(viper.GetFloat64(flagAmount)), from, viper.GetString(flagTo), viper.GetString(flagDemon))
+		preImages, err := blockchain.BuildPreImage(int64(viper.GetFloat64(flagAmount)), from, viper.GetString(flagTo), viper.GetString(flagDemon))
 		if err != nil {
 			panic(err)
 		}
-		common.TssCfg.Message = hex.EncodeToString(preImage)
+		msgBuilder := strings.Builder{}
+		for _, preImage := range preImages {
+			fmt.Fprint(&msgBuilder, hex.EncodeToString(preImage))
+		}
+		common.TssCfg.Message = msgBuilder.String()
 		c := client.NewTssClient(&common.TssCfg, client.SignMode, false)
-		signature, err := c.SignImpl(preImage)
+		signatures, err := c.SignImpl(preImages)
 		if err != nil {
 			panic(err)
 		}
 
-		transaction, err := blockchain.BuildTransaction(signature)
+		transaction, err := blockchain.BuildTransaction(signatures)
 		if err != nil {
 			panic(err)
 		}

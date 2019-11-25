@@ -89,7 +89,7 @@ func (b *Binance) GetAddress(publicKey []byte) (string, error) {
 	return bech32.Encode(prefix[b.Network], converted)
 }
 
-func (b *Binance) BuildPreImage(amount int64, from, to, demon string) ([]byte, error) {
+func (b *Binance) BuildPreImage(amount int64, from, to, demon string) ([][]byte, error) {
 	accountNumber, sequence, err := b.fetchAccountInfo(from)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch account information: %v", err)
@@ -108,12 +108,12 @@ func (b *Binance) BuildPreImage(amount int64, from, to, demon string) ([]byte, e
 	in := C.TW_Binance_Proto_SigningInput(common.ByteSliceToTWData(serialized))
 	messageBytes := C.TWBinanceSignerMessage(in)
 	preImage := crypto.Sha256(common.TWDataToByteSlice(messageBytes))
-	return preImage, nil
+	return [][]byte{preImage}, nil
 }
 
-func (b *Binance) BuildTransaction(signature []byte) ([]byte, error) {
+func (b *Binance) BuildTransaction(signatures [][]byte) ([]byte, error) {
 	in := C.TW_Binance_Proto_SigningInput(common.ByteSliceToTWData(b.serializedSigningInput))
-	output := C.TWBinanceSignerTransaction(in, common.ByteSliceToTWData(b.PublicKey[:]), common.ByteSliceToTWData(signature[:64]))
+	output := C.TWBinanceSignerTransaction(in, common.ByteSliceToTWData(b.PublicKey[:]), common.ByteSliceToTWData(signatures[0][:64]))
 	outputBytes := common.TWDataToByteSlice(output)
 	return outputBytes, nil
 }

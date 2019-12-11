@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/golang/protobuf/proto"
@@ -116,7 +117,7 @@ func (e *Ethereum) GetAddress(publicKey []byte) (string, error) {
 
 // from format: "0xF69e5eb40551020547E09cD400881026173A376e"
 // to format: "0xF69e5eb40551020547E09cD400881026173A376e"
-func (e *Ethereum) BuildPreImage(amount int64, from, to, demon string) ([]byte, error) {
+func (e *Ethereum) BuildPreImage(amount int64, from, to, demon string) ([][]byte, error) {
 	payload := make([]byte, 0, 0)
 	if demon != "ETH" {
 		if addr, ok := tokenAddresses[demon]; ok {
@@ -184,12 +185,12 @@ func (e *Ethereum) BuildPreImage(amount int64, from, to, demon string) ([]byte, 
 	messageBytes := C.TWEthereumSignerMessage(in)
 	message := common.TWDataToByteSlice(messageBytes)
 
-	return message, nil
+	return [][]byte{message}, nil
 }
 
-func (e *Ethereum) BuildTransaction(signature []byte) ([]byte, error) {
+func (e *Ethereum) BuildTransaction(signatures []signing.SignatureData) ([]byte, error) {
 	in := C.TW_Ethereum_Proto_SigningInput(common.ByteSliceToTWData(e.serializedSigningInput))
-	output := C.TWEthereumSignerTransaction(in, common.ByteSliceToTWData(signature))
+	output := C.TWEthereumSignerTransaction(in, common.ByteSliceToTWData(append(signatures[0].Signature, signatures[0].SignatureRecovery...)))
 	outputBytes := common.TWDataToByteSlice(output)
 	return outputBytes, nil
 }

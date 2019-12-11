@@ -21,7 +21,8 @@ func (*TssClient) Bytes() []byte {
 
 func (client *TssClient) Sign(msg []byte) ([]byte, error) {
 	hash := crypto.Sha256(msg)
-	return client.SignImpl(hash)
+	signatures, err := client.SignImpl([][]byte{hash})
+	return signatures[0].Signature, err
 }
 
 func (client *TssClient) PubKey() crypto.PubKey {

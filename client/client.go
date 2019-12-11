@@ -55,7 +55,7 @@ type TssClient struct {
 	regroupParams *tss.ReSharingParameters
 	idToPartyIds  map[string]*tss.PartyID
 	key           *keygen.LocalPartySaveData
-	signature     []byte // a 64 byte ecdsa + recover byte (https://bitcoin.stackexchange.com/a/83110)
+	signature     signing.SignatureData
 
 	saveCh chan keygen.LocalPartySaveData
 	signCh chan signing.SignatureData
@@ -258,25 +258,30 @@ func (client *TssClient) Start() {
 
 // Entrance of signing functionality
 // TODO: This method is bound to ECDSA
-func (client *TssClient) SignImpl(hash []byte) ([]byte, error) {
-	m := HashToInt(hash, tss.EC())
-	Logger.Infof("[%s] message to be signed: %s\n", client.config.Moniker, m.String())
-	client.localParty = signing.NewLocalParty(m, client.params, *client.key, client.sendCh, client.signCh)
-	Logger.Infof("[%s] initialized localParty: %s", client.config.Moniker, client.localParty)
+func (client *TssClient) SignImpl(hashes [][]byte) ([]signing.SignatureData, error) {
+	signatures := make([]signing.SignatureData, 0, len(hashes))
+	for _, hash := range hashes {
+		m := HashToInt(hash, tss.EC())
+		Logger.Infof("[%s] message to be signed: %s\n", client.config.Moniker, m.String())
+		client.localParty = signing.NewLocalParty(m, client.params, *client.key, client.sendCh, client.signCh)
+		Logger.Infof("[%s] initialized localParty: %s", client.config.Moniker, client.localParty)
 
-	// has to start local party before network routines in case 2 other peers' msg comes before self fully initialized
-	if err := client.localParty.Start(); err != nil {
-		common.Panic(err)
+		// has to start local party before network routines in case 2 other peers' msg comes before self fully initialized
+		if err := client.localParty.Start(); err != nil {
+			common.Panic(err)
+		}
+
+		done := make(chan bool)
+		go client.sendMessageRoutine(client.sendCh)
+		go client.handleMessageRoutine()
+		go client.saveSignatureRoutine(client.signCh, done)
+
+		<-done
+		signatures = append(signatures, client.signature)
+		Logger.Infof("[%s] received signature: %X", client.config.Moniker, client.signature.Signature)
 	}
 
-	done := make(chan bool)
-	go client.sendMessageRoutine(client.sendCh)
-	go client.handleMessageRoutine()
-	go client.saveSignatureRoutine(client.signCh, done)
-
-	<-done
-	Logger.Debugf("[%s] received signature: %X", client.config.Moniker, client.signature)
-	return client.signature, nil
+	return signatures, nil
 }
 
 func (client *TssClient) handleMessageRoutine() {
@@ -375,9 +380,7 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 // TODO: this implementation is coupled with 64 bytes ecdsa signature
 func (client *TssClient) saveSignatureRoutine(signCh <-chan signing.SignatureData, done chan<- bool) {
 	for signature := range signCh {
-		client.signature = make([]byte, 65, 65)
-		copy(client.signature, signature.Signature)
-		client.signature[64] = signature.SignatureRecovery[0]
+		client.signature = signature
 
 		if done != nil {
 			done <- true

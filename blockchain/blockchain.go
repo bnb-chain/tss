@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/ipfs/go-log"
 )
 
@@ -22,7 +23,7 @@ type AccountBlockchain interface {
 	BuildPreImage(amount int64, from, to, demon string) ([][]byte, error)
 	// build transaction to be broadcast
 	// TODO: this implementation is coupled with 65 bytse ecdsa signature (sig + 1 byte recover byte)
-	BuildTransaction(signatures [][]byte) ([]byte, error)
+	BuildTransaction(signatures []signing.SignatureData) ([]byte, error)
 	// broadcast transaction to blockchain node, the transaction hash is returned
 	Broadcast(transaction []byte) ([]byte, error)
 }

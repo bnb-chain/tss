@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/golang/protobuf/proto"
@@ -187,9 +188,9 @@ func (e *Ethereum) BuildPreImage(amount int64, from, to, demon string) ([][]byte
 	return [][]byte{message}, nil
 }
 
-func (e *Ethereum) BuildTransaction(signatures [][]byte) ([]byte, error) {
+func (e *Ethereum) BuildTransaction(signatures []signing.SignatureData) ([]byte, error) {
 	in := C.TW_Ethereum_Proto_SigningInput(common.ByteSliceToTWData(e.serializedSigningInput))
-	output := C.TWEthereumSignerTransaction(in, common.ByteSliceToTWData(signatures[0]))
+	output := C.TWEthereumSignerTransaction(in, common.ByteSliceToTWData(append(signatures[0].Signature, signatures[0].SignatureRecovery...)))
 	outputBytes := common.TWDataToByteSlice(output)
 	return outputBytes, nil
 }

@@ -55,7 +55,7 @@ type TssClient struct {
 	regroupParams *tss.ReSharingParameters
 	idToPartyIds  map[string]*tss.PartyID
 	key           *keygen.LocalPartySaveData
-	signature     []byte // a series of 64 byte ecdsa + recover byte (https://bitcoin.stackexchange.com/a/83110)
+	signature     signing.SignatureData
 
 	saveCh chan keygen.LocalPartySaveData
 	signCh chan signing.SignatureData
@@ -258,8 +258,8 @@ func (client *TssClient) Start() {
 
 // Entrance of signing functionality
 // TODO: This method is bound to ECDSA
-func (client *TssClient) SignImpl(hashes [][]byte) ([][]byte, error) {
-	signatures := make([][]byte, 0, len(hashes))
+func (client *TssClient) SignImpl(hashes [][]byte) ([]signing.SignatureData, error) {
+	signatures := make([]signing.SignatureData, 0, len(hashes))
 	for _, hash := range hashes {
 		m := HashToInt(hash, tss.EC())
 		Logger.Infof("[%s] message to be signed: %s\n", client.config.Moniker, m.String())
@@ -278,8 +278,7 @@ func (client *TssClient) SignImpl(hashes [][]byte) ([][]byte, error) {
 
 		<-done
 		signatures = append(signatures, client.signature)
-		Logger.Debugf("[%s] received signature: %X", client.config.Moniker, client.signature)
-		fmt.Printf("[%s] received signature: %X", client.config.Moniker, client.signature)
+		Logger.Infof("[%s] received signature: %X", client.config.Moniker, client.signature.Signature)
 	}
 
 	return signatures, nil
@@ -381,9 +380,7 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 // TODO: this implementation is coupled with 64 bytes ecdsa signature
 func (client *TssClient) saveSignatureRoutine(signCh <-chan signing.SignatureData, done chan<- bool) {
 	for signature := range signCh {
-		client.signature = make([]byte, 65, 65)
-		copy(client.signature, signature.Signature)
-		client.signature[64] = signature.SignatureRecovery[0]
+		client.signature = signature
 
 		if done != nil {
 			done <- true

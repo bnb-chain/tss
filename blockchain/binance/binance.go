@@ -19,6 +19,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/btcsuite/btcutil/bech32"
 	"github.com/golang/protobuf/proto"
 	"github.com/tendermint/tendermint/crypto"
@@ -111,9 +112,9 @@ func (b *Binance) BuildPreImage(amount int64, from, to, demon string) ([][]byte,
 	return [][]byte{preImage}, nil
 }
 
-func (b *Binance) BuildTransaction(signatures [][]byte) ([]byte, error) {
+func (b *Binance) BuildTransaction(signatures []signing.SignatureData) ([]byte, error) {
 	in := C.TW_Binance_Proto_SigningInput(common.ByteSliceToTWData(b.serializedSigningInput))
-	output := C.TWBinanceSignerTransaction(in, common.ByteSliceToTWData(b.PublicKey[:]), common.ByteSliceToTWData(signatures[0][:64]))
+	output := C.TWBinanceSignerTransaction(in, common.ByteSliceToTWData(b.PublicKey[:]), common.ByteSliceToTWData(signatures[0].Signature))
 	outputBytes := common.TWDataToByteSlice(output)
 	return outputBytes, nil
 }

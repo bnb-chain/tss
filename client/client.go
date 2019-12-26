@@ -185,7 +185,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 		c.localParty = localParty
 		Logger.Infof("[%s] initialized localParty: %s", config.Moniker, localParty)
 	} else if mode == SignMode {
-		key := loadSavedKeyForSign(config, sortedIds, signers)
+		key := loadSavedKey(config)
 		pubKey := btcec.PublicKey(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()})
 		Logger.Infof("[%s] public key: %X\n", config.Moniker, pubKey.SerializeCompressed())
 		address, err := GetAddress(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()}, config.AddressPrefix)
@@ -210,8 +210,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 		c.regroupParams = params
 
 		if _, ok := signers[common.TssCfg.Moniker]; ok {
-			key := loadSavedKeyForRegroup(config, sortedIds, signers)
-			c.key = &key
+			key := loadSavedKey(config)
 			localParty = resharing.NewLocalParty(params, key, sendCh, saveCh)
 		} else {
 			// TODO do this better!
@@ -310,7 +309,7 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 		//ioutil.WriteFile(path.Join(client.config.Home, "plain.json"), plainJson, 0400)
 
 		if client.mode == RegroupMode {
-			if !common.TssCfg.IsNewCommittee {
+			if common.TssCfg.IsOldCommittee {
 				// wait for round_3 messages sent success before close old
 				// TODO: introduce a send callback to waiting here
 				time.Sleep(5 * time.Second)

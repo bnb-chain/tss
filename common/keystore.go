@@ -68,11 +68,11 @@ type publicFields struct {
 func (data *publicFields) MarshalJSON() ([]byte, error) {
 	bigXj, err := crypto.FlattenECPoints(data.BigXj)
 	if err != nil {
-		return nil, errors.New("failed to flatten bigXjs")
+		return nil, errors.New(fmt.Sprintf("failed to flatten bigXjs: %v", err))
 	}
 	ecdsaPub, err := crypto.FlattenECPoints([]*crypto.ECPoint{data.ECDSAPub})
 	if err != nil {
-		return nil, errors.New("failed to flatten ecdsa public key")
+		return nil, errors.New(fmt.Sprintf("failed to flatten ecdsa public key: %v", err))
 	}
 
 	type Alias publicFields

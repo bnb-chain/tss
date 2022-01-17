@@ -56,6 +56,7 @@ func initConfigAndLogLevel() {
 
 func bindP2pConfigs() {
 	initCmd.PersistentFlags().String("p2p.listen", "", "Adds a multiaddress to the listen list")
+	regroupCmd.PersistentFlags().String("p2p.new_listen", "", "Adds a multiaddress to the listen list for child process")
 	//rootCmd.PersistentFlags().StringSlice("p2p.bootstraps", []string{}, "bootstrap server list in multiaddr format, i.e. /ip4/127.0.0.1/tcp/27148/p2p/12D3KooWMXTGW6uHbVs7QiHEYtzVa4RunbugxRcJhGU43qAvfAa1")
 	//rootCmd.PersistentFlags().StringSlice("p2p.relays", []string{}, "relay server list")
 	keygenCmd.PersistentFlags().StringSlice("p2p.peer_addrs", []string{}, "peer's multiple addresses")

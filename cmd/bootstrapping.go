@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -45,6 +46,9 @@ var bootstrapCmd = &cobra.Command{
 		}
 
 		bootstrapper := common.NewBootstrapper(numOfPeers, &common.TssCfg)
+
+		dd, _ := json.Marshal(common.TssCfg)
+		client.Logger.Debugf("Bootstrapper config: %s\n", dd)
 
 		listener, err := net.Listen("tcp", src)
 		client.Logger.Infof("listening on %s", src)

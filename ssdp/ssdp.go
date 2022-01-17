@@ -91,6 +91,9 @@ func (s *SsdpService) onAlive(m *ssdp.AliveMessage) {
 	if _, ok := s.PeerAddrs.Load(m.USN); !ok {
 		multiAddrs := strings.Split(m.Location, ",")
 		for _, multiAddr := range multiAddrs {
+			if len(multiAddrs) > 1 && strings.Contains(multiAddr, "127.0.0.1") {
+				continue
+			}
 			_, err := common.ConvertMultiAddrStrToNormalAddr(multiAddr)
 			if err != nil {
 				continue

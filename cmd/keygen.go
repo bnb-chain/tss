@@ -199,9 +199,15 @@ func addToBnbcli(pubKey crypto.PubKey) {
 		go func() {
 			_, errStdout = io.Copy(stdout, stdoutIn)
 		}()
+		if errStdout != nil {
+			common.Panic(err)
+		}
 		go func() {
 			_, errStderr = io.Copy(stderr, stderrIn)
 		}()
+		if errStderr != nil {
+			common.Panic(err)
+		}
 
 		err = bnbcli.Start()
 		if err != nil {

@@ -48,12 +48,12 @@ func Setup(cfg common.TssConfig) {
 	for i := 0; i < cfg.Parties; i++ {
 		configFilePath := fmt.Sprintf("./configs/%d/config.json", i)
 		tssConfig := cfg
-		tssConfig.P2PConfig.ExpectedPeers = make([]string, cfg.Parties, cfg.Parties)
+		tssConfig.P2PConfig.ExpectedPeers = make([]string, cfg.Parties) //, cfg.Parties)
 		copy(tssConfig.P2PConfig.ExpectedPeers, allPeerIds)
 		tssConfig.P2PConfig.ExpectedPeers = append(tssConfig.P2PConfig.ExpectedPeers[:i], tssConfig.P2PConfig.ExpectedPeers[i+1:]...)
 
 		if cfg.Parties == len(cfg.P2PConfig.PeerAddrs) {
-			tssConfig.P2PConfig.PeerAddrs = make([]string, cfg.Parties, cfg.Parties)
+			tssConfig.P2PConfig.PeerAddrs = make([]string, cfg.Parties) //, cfg.Parties)
 			copy(tssConfig.P2PConfig.PeerAddrs, cfg.P2PConfig.PeerAddrs)
 			tssConfig.P2PConfig.PeerAddrs = append(tssConfig.P2PConfig.PeerAddrs[:i], tssConfig.P2PConfig.PeerAddrs[i+1:]...)
 		}

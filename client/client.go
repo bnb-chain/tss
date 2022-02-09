@@ -186,9 +186,13 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 		Logger.Infof("[%s] initialized localParty: %s", config.Moniker, localParty)
 	} else if mode == SignMode {
 		key := loadSavedKeyForSign(config, sortedIds, signers)
-		pubKey := btcec.PublicKey(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()})
+		pubKey := btcec.PublicKey(ecdsa.PublicKey{Curve: tss.EC(), 
+												  X: key.ECDSAPub.X(),
+												  Y: key.ECDSAPub.Y()})
 		Logger.Infof("[%s] public key: %X\n", config.Moniker, pubKey.SerializeCompressed())
-		address, err := GetAddress(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()}, config.AddressPrefix)
+		address, err := GetAddress(ecdsa.PublicKey{Curve: tss.EC(),
+												   X: key.ECDSAPub.X(),
+												   Y: key.ECDSAPub.Y()}, config.AddressPrefix)
 		if err != nil {
 			panic(err)
 		}
@@ -323,7 +327,9 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 		}
 
 		Logger.Infof("[%s] received save data", client.config.Moniker)
-		address, err := GetAddress(ecdsa.PublicKey{tss.EC(), msg.ECDSAPub.X(), msg.ECDSAPub.Y()}, client.config.AddressPrefix)
+		address, err := GetAddress(ecdsa.PublicKey{Curve: tss.EC(),
+												   X: msg.ECDSAPub.X(),
+												   Y: msg.ECDSAPub.Y()}, client.config.AddressPrefix)
 		if err != nil {
 			Logger.Errorf("[%s] failed to generate address from public key :%v", client.config.Moniker, err)
 		} else {

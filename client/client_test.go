@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"math/rand"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/ipfs/go-log"
 
+	. "github.com/binance-chain/tss/client"
 	"github.com/binance-chain/tss/common"
 	"github.com/binance-chain/tss/p2p"
 )
@@ -47,17 +48,16 @@ func TestWhole(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		tssConfig := common.TssConfig{
+		tssConfig := &common.TssConfig{
 			Id:        common.TssClientId(strconv.Itoa(i)),
 			Moniker:   strconv.Itoa(i),
 			Threshold: TestParticipants / 2,
 			Parties:   TestParticipants,
-			Mode:      "keygen",
 			Password:  "1234qwerasdf",
 			Home:      home,
 			KDFConfig: common.DefaultKDFConfig(),
 		}
-		client := NewTssClient(tssConfig, true)
+		client := NewTssClient(tssConfig, KeygenMode, true)
 		wg.Add(1)
 		go func() {
 			client.Start()

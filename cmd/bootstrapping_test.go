@@ -1,8 +1,9 @@
-package cmd
+package cmd_test
 
 import (
 	"testing"
 
+	//. "github.com/binance-chain/tss/cmd"
 	"github.com/binance-chain/tss/common"
 )
 
@@ -19,7 +20,7 @@ func TestTimestampHexConvertion(t *testing.T) {
 }
 
 func TestMultiAddrStrToNormalAddr(t *testing.T) {
-	res, err := convertMultiAddrStrToNormalAddr("/ip4/127.0.0.1/tcp/27148")
+	res, err := common.ConvertMultiAddrStrToNormalAddr("/ip4/127.0.0.1/tcp/27148")
 	if err != nil {
 		t.Fail()
 	}
@@ -29,7 +30,7 @@ func TestMultiAddrStrToNormalAddr(t *testing.T) {
 }
 
 func TestReplaceIpInMultiAddr(t *testing.T) {
-	res := replaceIpInAddr("/ip4/0.0.0.0/tcp/27148", "127.0.0.1")
+	res := common.ReplaceIpInAddr("/ip4/0.0.0.0/tcp/27148", "127.0.0.1")
 	if res != "/ip4/127.0.0.1/tcp/27148" {
 		t.Fail()
 	}

@@ -137,6 +137,9 @@ func Save(keygenResult *keygen.LocalPartySaveData, nodeKey []byte, config KDFCon
 	}
 
 	err = encryptAndWrite(priv, config, passphrase, wPriv)
+	if err != nil {
+		return err
+	}
 
 	pFields := publicFields{
 		keygenResult.ShareID,
@@ -246,7 +249,9 @@ func LoadEcdsaPubkey(home, vault, passphrase string) (*ecdsa.PublicKey, error) {
 		return nil, err
 	}
 
-	return &ecdsa.PublicKey{tss.EC(), pFields.ECDSAPub.X(), pFields.ECDSAPub.Y()}, nil
+	return &ecdsa.PublicKey{Curve: tss.EC(),
+							X: pFields.ECDSAPub.X(),
+							Y: pFields.ECDSAPub.Y()}, nil
 }
 
 func LoadConfig(home, vault, passphrase string) (*TssConfig, error) {
@@ -352,7 +357,7 @@ func encryptSecret(data, auth []byte, config KDFConfig) (*cryptoJSON, error) {
 
 func decryptSecret(encryptedSecret cryptoJSON, passphrase string) ([]byte, error) {
 	if encryptedSecret.Cipher != cipherAlg {
-		return nil, fmt.Errorf("Cipher not supported: %s", encryptedSecret.Cipher)
+		return nil, fmt.Errorf("cipher not supported: %s", encryptedSecret.Cipher)
 	}
 	mac, err := hex.DecodeString(encryptedSecret.MAC)
 	if err != nil {

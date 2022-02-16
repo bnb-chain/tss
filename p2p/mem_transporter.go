@@ -1,9 +1,11 @@
 package p2p
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/binance-chain/tss-lib/tss"
+	"github.com/golang/protobuf/proto"
 
 	"github.com/binance-chain/tss/common"
 )
@@ -44,7 +46,11 @@ func (t *memTransporter) Broadcast(msg tss.Message) error {
 	logger.Debugf("[%s] Broadcast: %s", t.cid, msg)
 	for cid, peer := range registeredTransporters {
 		if cid != t.cid {
-			originMsg, _, _ := msg.WireBytes()
+			originMsg, e := proto.Marshal(msg.WireMsg())
+			if e != nil {
+				err := fmt.Errorf("failed to encode protobuf message: %v, broadcast stop", e)
+				return err
+			}
 			peer.receiveCh <- common.P2pMessageWrapper{MessageWrapperBytes: originMsg}
 		}
 	}

@@ -344,7 +344,7 @@ func (t *p2pTransporter) handleSigner(stream network.Stream) {
 func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 	var messageLength int32
 	for {
-		err := binary.Read(stream.(network.Stream), binary.BigEndian, &messageLength)
+		err := binary.Read(stream, binary.BigEndian, &messageLength)
 		if err != nil {
 			if yamuxErr, ok := err.(*yamux.YamuxError); ok {
 				if yamuxErr.Error() == yamux.ErrConnectionReset.Error() {
@@ -358,7 +358,7 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 		}
 
 		payloadWithTypePrefix := make([]byte, messageLength)
-		readLength, err := stream.(network.Stream).Read(payloadWithTypePrefix)
+		readLength, err := stream.Read(payloadWithTypePrefix)
 		if err != nil {
 			common.Panic(fmt.Errorf("failed to read protobuf message: %v, from: %s", err, pid))
 		}
@@ -574,7 +574,7 @@ func (t *p2pTransporter) connectRoutine(dht *libp2pdht.IpfsDHT, pid peer.ID, pro
 					return
 				}
 			} else {
-				err := t.host.Connect(t.ctx, peer.AddrInfo{pid, t.host.Peerstore().Addrs(pid)})
+				err := t.host.Connect(t.ctx, peer.AddrInfo{ID: pid, Addrs: t.host.Peerstore().Addrs(pid)})
 				if err != nil {
 					if err != swarm.ErrDialBackoff {
 						logger.Debugf("Direct Connection to %s failed, will retry, err: %v", pid.Pretty(), err)

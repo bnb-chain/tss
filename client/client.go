@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"os"
 	"path"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -158,7 +159,9 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 			if i != id {
 				id := strconv.Itoa(i)
 				key := lib.SHA512_256([]byte(id))
-				unsortedPartyIds = append(unsortedPartyIds, tss.NewPartyID(id, id, new(big.Int).SetBytes(key)))
+				partyID := tss.NewPartyID(id, id, new(big.Int).SetBytes(key))
+				unsortedPartyIds = append(unsortedPartyIds, partyID)
+				idToPartyIds[id] = partyID
 			}
 		}
 	}
@@ -271,12 +274,15 @@ func (client *TssClient) handleMessageRoutine() {
 		if err := proto.Unmarshal(msg.MessageWrapperBytes, &messageWrapper); err != nil {
 			common.Panic(fmt.Errorf("[%s] error updating local party state: %v", client.config.Moniker, err))
 		}
-		any, _ := proto.Marshal(messageWrapper.Message)
-		ok, err := client.localParty.UpdateFromBytes(
+		any, err := proto.Marshal(messageWrapper.Message)
+		if err != nil {
+			common.Panic(fmt.Errorf("[%s] error marshal message: %v", client.config.Moniker, err))
+		}
+		ok, errU := client.localParty.UpdateFromBytes(
 			any,
 			client.idToPartyIds[messageWrapper.From.Id],
 			messageWrapper.IsBroadcast)
-		if err != nil {
+		if errU != nil {
 			common.Panic(fmt.Errorf("[%s] error updating local party state: %v", client.config.Moniker, err))
 		} else if !ok {
 			Logger.Warningf("[%s] Update still waiting for round to finish", client.config.Moniker)
@@ -299,7 +305,10 @@ func (client *TssClient) sendMessageRoutine(sendCh <-chan tss.Message) {
 			if err != nil {
 				Logger.Error("failed to protobuf marshal the message wrapper: %v", err)
 			}
-			payload = append([]byte{p2p.MessagePrefix}, payload...)
+			if reflect.TypeOf(client.transporter).String() != "*p2p.memTransporter" {
+				payload = append([]byte{p2p.MessagePrefix}, payload...)
+			}
+			
 			if err = client.transporter.Send(payload, common.TssClientId(dest[0].Id)); err != nil {
 				Logger.Errorf("failed to send message: %v", err)
 			}

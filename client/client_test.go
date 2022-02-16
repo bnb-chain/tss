@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	TestParticipants = 10
+	TestParticipants = 2
+	TestThreshold = 1
 )
 
 func initlog() {
@@ -51,7 +52,7 @@ func TestWhole(t *testing.T) {
 		tssConfig := &common.TssConfig{
 			Id:        common.TssClientId(strconv.Itoa(i)),
 			Moniker:   strconv.Itoa(i),
-			Threshold: TestParticipants / 2,
+			Threshold: TestThreshold,
 			Parties:   TestParticipants,
 			Password:  "1234qwerasdf",
 			Home:      home,

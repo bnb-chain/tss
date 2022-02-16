@@ -32,6 +32,9 @@ const (
 
 func Encrypt(passphrase string, param PeerParam) ([]byte, error) {
 	text, err := json.Marshal(param)
+	if err != nil {
+		return nil, err
+	}
 	key := sha256.Sum256([]byte(passphrase))
 
 	// generate a new aes cipher using our 32 byte long key

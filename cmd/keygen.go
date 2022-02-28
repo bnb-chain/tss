@@ -18,6 +18,7 @@ import (
 	"github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 
+	"github.com/binance-chain/tss-lib/tss"
 	"github.com/binance-chain/tss/client"
 	"github.com/binance-chain/tss/common"
 )
@@ -45,7 +46,8 @@ var keygenCmd = &cobra.Command{
 		bootstrapCmd.Run(cmd, args)
 		checkN()
 		setPassphrase()
-		c := client.NewTssClient(&common.TssCfg, client.KeygenMode, false)
+		// TODO let ec be configrable
+		c := client.NewTssClient(tss.S256(), &common.TssCfg, client.KeygenMode, false)
 		c.Start()
 
 		updateConfig()

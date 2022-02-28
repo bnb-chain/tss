@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/binance-chain/tss-lib/tss"
 	"github.com/binance-chain/tss/client"
 	"github.com/binance-chain/tss/common"
 	"github.com/binance-chain/tss/p2p"
@@ -100,7 +101,7 @@ var regroupCmd = &cobra.Command{
 		bootstrapCmd.Run(cmd, args)
 		common.TssCfg.BMode = common.RegroupMode
 
-		c := client.NewTssClient(&common.TssCfg, client.RegroupMode, false)
+		c := client.NewTssClient(tss.S256(), &common.TssCfg, client.RegroupMode, false)
 		c.Start()
 
 		if !common.TssCfg.IsOldCommittee {

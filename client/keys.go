@@ -41,7 +41,7 @@ func (*TssClient) Equals(key crypto.PrivKey) bool {
 
 func (client *TssClient) signImpl(m *big.Int) ([]byte, error) {
 	Logger.Infof("[%s] message to be signed: %s\n", client.config.Moniker, m.String())
-	client.localParty = signing.NewLocalParty(m, client.params, *client.key, client.sendCh, client.signCh)
+	client.localParty = signing.NewLocalParty(nil, m, client.params, *client.key, nil, client.sendCh, client.signCh, nil) //TODO fill nil
 	Logger.Infof("[%s] initialized localParty: %s", client.config.Moniker, client.localParty)
 
 	// has to start local party before network routines in case 2 other peers' msg comes before self fully initialized

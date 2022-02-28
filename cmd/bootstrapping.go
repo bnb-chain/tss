@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/bgentry/speakeasy"
-	"github.com/gogo/protobuf/proto"
 	"github.com/spf13/cobra"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/binance-chain/tss/client"
 	"github.com/binance-chain/tss/common"

@@ -10,6 +10,7 @@ import (
 
 	"github.com/ipfs/go-log"
 
+	"github.com/binance-chain/tss-lib/tss"
 	. "github.com/binance-chain/tss/client"
 	"github.com/binance-chain/tss/common"
 	"github.com/binance-chain/tss/p2p"
@@ -58,7 +59,7 @@ func TestWhole(t *testing.T) {
 			Home:      home,
 			KDFConfig: common.DefaultKDFConfig(),
 		}
-		client := NewTssClient(tssConfig, KeygenMode, true)
+		client := NewTssClient(tss.S256(), tssConfig, KeygenMode, true)
 		wg.Add(1)
 		go func() {
 			client.Start()

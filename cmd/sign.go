@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/binance-chain/tss-lib/tss"
 	"github.com/binance-chain/tss/client"
 	"github.com/binance-chain/tss/common"
 )
@@ -29,7 +30,7 @@ var signCmd = &cobra.Command{
 		setChannelPasswd()
 		setMessage()
 
-		c := client.NewTssClient(&common.TssCfg, client.SignMode, false)
+		c := client.NewTssClient(tss.S256(), &common.TssCfg, client.SignMode, false)
 		c.Start()
 	},
 }

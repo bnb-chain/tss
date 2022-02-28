@@ -1,5 +1,6 @@
 syntax = "proto3";
-package common;
+package tss.common;
+option go_package = "./common";
 
 message BootstrapMessage {
     string ChannelId = 1;

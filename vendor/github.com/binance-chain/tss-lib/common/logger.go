@@ -7,7 +7,7 @@
 package common
 
 import (
-	"github.com/ipfs/go-log"
+	"github.com/ipfs/go-log/v2"
 )
 
 // Logger add "tss-lib" to metadata

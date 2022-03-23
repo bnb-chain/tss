@@ -12,11 +12,10 @@ import (
 	lib "github.com/binance-chain/tss-lib/common"
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
 	"github.com/binance-chain/tss-lib/ecdsa/resharing"
-	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/binance-chain/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec"
-	"github.com/gogo/protobuf/proto"
 	"github.com/ipfs/go-log"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/binance-chain/tss/common"
 	"github.com/binance-chain/tss/p2p"
@@ -58,7 +57,7 @@ type TssClient struct {
 	signature     []byte
 
 	saveCh chan keygen.LocalPartySaveData
-	signCh chan signing.SignatureData
+	signCh chan lib.SignatureData
 	sendCh chan tss.Message
 
 	mode ClientMode
@@ -165,7 +164,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 	sortedIds := tss.SortPartyIDs(unsortedPartyIds)
 	p2pCtx := tss.NewPeerContext(sortedIds)
 	saveCh := make(chan keygen.LocalPartySaveData)
-	signCh := make(chan signing.SignatureData)
+	signCh := make(chan lib.SignatureData)
 	sendCh := make(chan tss.Message, len(sortedIds)*10*2) // max signing messages 10 times hash confirmation messages
 	c := TssClient{
 		config:       config,
@@ -180,7 +179,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 
 	var localParty tss.Party
 	if mode == KeygenMode {
-		params := tss.NewParameters(p2pCtx, partyID, config.Parties, config.Threshold)
+		params := tss.NewParameters(tss.EC(), p2pCtx, partyID, config.Parties, config.Threshold)
 		localParty = keygen.NewLocalParty(params, sendCh, saveCh)
 		c.localParty = localParty
 		Logger.Infof("[%s] initialized localParty: %s", config.Moniker, localParty)
@@ -193,13 +192,14 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 			panic(err)
 		}
 		Logger.Debugf("[%s] address is: %s\n", config.Moniker, address)
-		params := tss.NewParameters(p2pCtx, partyID, config.Parties, config.Threshold)
+		params := tss.NewParameters(tss.EC(), p2pCtx, partyID, config.Parties, config.Threshold)
 		c.key = &key
 		c.params = params
 	} else if mode == RegroupMode {
 		sortedNewIds := tss.SortPartyIDs(unsortedNewPartyIds)
 		newP2pCtx := tss.NewPeerContext(sortedNewIds)
 		params := tss.NewReSharingParameters(
+			tss.EC(),
 			p2pCtx,
 			newP2pCtx,
 			partyID,
@@ -295,6 +295,7 @@ func (client *TssClient) sendMessageRoutine(sendCh <-chan tss.Message) {
 			if err != nil {
 				Logger.Error("failed to protobuf marshal the message wrapper: %v", err)
 			}
+			//fmt.Println(hex.EncodeToString(payload))
 			payload = append([]byte{p2p.MessagePrefix}, payload...)
 			if err = client.transporter.Send(payload, common.TssClientId(dest[0].Id)); err != nil {
 				Logger.Errorf("failed to send message: %v", err)
@@ -353,7 +354,7 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 	}
 }
 
-func (client *TssClient) saveSignatureRoutine(signCh <-chan signing.SignatureData, done chan<- bool) {
+func (client *TssClient) saveSignatureRoutine(signCh <-chan lib.SignatureData, done chan<- bool) {
 	for signature := range signCh {
 		client.signature = signature.Signature
 		if done != nil {

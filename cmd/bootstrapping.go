@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/bgentry/speakeasy"
-	"github.com/gogo/protobuf/proto"
 	"github.com/spf13/cobra"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/binance-chain/tss/client"
 	"github.com/binance-chain/tss/common"
@@ -49,6 +49,7 @@ var bootstrapCmd = &cobra.Command{
 
 		dd, _ := json.Marshal(common.TssCfg)
 		client.Logger.Debugf("Bootstrapper config: %s\n", dd)
+		client.Logger.Debugf("common.TssCfg.NewPeerAddrs: %v\n", common.TssCfg.NewPeerAddrs)
 
 		listener, err := net.Listen("tcp", src)
 		client.Logger.Infof("listening on %s", src)
@@ -76,16 +77,19 @@ var bootstrapCmd = &cobra.Command{
 					if err != nil {
 						common.Panic(fmt.Errorf("failed to convert peer multiAddr to addr: %v", err))
 					}
+					client.Logger.Debugf("going to dial: %s", peerAddr)
 					conn, err := net.Dial("tcp", dest)
 					for conn == nil {
 						if err != nil {
 							if !strings.Contains(err.Error(), "connection refused") {
+								client.Logger.Errorf("dial failed: %v", err)
 								common.Panic(err)
 							}
 						}
 						time.Sleep(time.Second)
 						conn, err = net.Dial("tcp", dest)
 					}
+					client.Logger.Debugf("done dial: %s", peerAddr)
 					defer conn.Close()
 					handleConnection(conn, bootstrapper)
 				}(peerAddr)

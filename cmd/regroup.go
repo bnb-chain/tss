@@ -72,7 +72,14 @@ var regroupCmd = &cobra.Command{
 			}
 
 			// TODO: this relies on user doesn't rename the binary we released
-			tssInit := exec.Command(path.Join(pwd, "tss"), "init", "--home", common.TssCfg.Home, "--vault_name", tmpVault, "--moniker", tmpMoniker, "--password", common.TssCfg.Password, "--p2p.listen", common.TssCfg.NewListenAddr)
+			tssInit := exec.Command(
+				path.Join(pwd, "tss"),
+				"init",
+				"--home", common.TssCfg.Home,
+				"--vault_name", tmpVault,
+				"--moniker", tmpMoniker,
+				"--password", common.TssCfg.Password,
+				"--p2p.listen", common.TssCfg.NewListenAddr)
 			tssInit.Stdin = devnull
 			tssInit.Stdout = devnull
 
@@ -97,6 +104,7 @@ var regroupCmd = &cobra.Command{
 				"--channel_id", common.TssCfg.ChannelId,
 				"--p2p.broadcast_sanity_check", strconv.FormatBool(common.TssCfg.BroadcastSanityCheck),
 				"--p2p.new_peer_addrs", strings.Join(common.TssCfg.NewPeerAddrs, ","),
+				"--pubkey", client.PubKeyCompressedHexString(),
 				"--log_level", common.TssCfg.LogLevel)
 			stdOut, err := os.Create(path.Join(common.TssCfg.Home, tmpVault, "tss.log"))
 			if err != nil {
@@ -171,7 +179,11 @@ var regroupCmd = &cobra.Command{
 		}
 
 		if mustNew {
-			addToBnbcli(c.PubKey())
+			pk, err := client.ParseCompressedPubkey(common.TssCfg.Pubkey)
+			if err != nil {
+				common.Panic(err)
+			}
+			addToBnbcli(pk)
 		}
 	},
 }

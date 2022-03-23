@@ -2,6 +2,7 @@ package client
 
 import (
 	"crypto/elliptic"
+	"encoding/hex"
 	"math/big"
 
 	"github.com/bgentry/speakeasy"
@@ -32,6 +33,15 @@ func (client *TssClient) PubKey() crypto.PubKey {
 		return pubKey
 	} else {
 		return nil
+	}
+}
+
+func PubKeyCompressedHexString() string {
+	if pubKey, err := loadPubkeyAsCompressedHexString(common.TssCfg.Home, common.TssCfg.Vault); err == nil {
+		return pubKey
+	} else {
+		common.Panic(err)
+		return ""
 	}
 }
 
@@ -78,6 +88,35 @@ func LoadPubkey(home, vault string) (crypto.PubKey, error) {
 
 	var pubkeyBytes secp256k1.PubKeySecp256k1
 	copy(pubkeyBytes[:], btcecPubKey.SerializeCompressed())
+	return pubkeyBytes, nil
+}
+
+func loadPubkeyAsCompressedHexString(home, vault string) (string, error) {
+	passphrase := common.TssCfg.Password
+	if passphrase == "" {
+		if p, err := speakeasy.Ask("> Password to sign with this vault:"); err == nil {
+			passphrase = p
+		} else {
+			return "", err
+		}
+	}
+
+	ecdsaPubKey, err := common.LoadEcdsaPubkey(home, vault, passphrase)
+	if err != nil {
+		return "", err
+	}
+	btcecPubKey := (*btcec.PublicKey)(ecdsaPubKey)
+
+	return hex.EncodeToString(btcecPubKey.SerializeCompressed()), nil
+}
+
+func ParseCompressedPubkey(pubkey string) (crypto.PubKey, error) {
+	pkBytes, err := hex.DecodeString(pubkey)
+	if err != nil {
+		return nil, err
+	}
+	var pubkeyBytes secp256k1.PubKeySecp256k1
+	copy(pubkeyBytes[:], pkBytes)
 	return pubkeyBytes, nil
 }
 

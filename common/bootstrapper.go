@@ -57,6 +57,12 @@ func NewBootstrapper(expectedPeers int, config *TssConfig) *Bootstrapper {
 		}
 	}
 
+	fmt.Printf("our bootstrapper info is: moniker: %s, id: %s, listenaddr: %s\n",
+		config.Moniker,
+		string(config.Id),
+		config.ListenAddr,
+	)
+
 	bootstrapMsg, err := NewBootstrapMessage(
 		config.ChannelId,
 		config.ChannelPassword,
@@ -96,6 +102,9 @@ func (b *Bootstrapper) HandleBootstrapMsg(peerMsg BootstrapMessage) error {
 				return fmt.Errorf("received different moniker for id: %s", peerParam.Id)
 			}
 		} else {
+			if peerParam.Moniker == TssCfg.Moniker {
+				return nil
+			}
 			if peerParam.N != TssCfg.Parties {
 				return fmt.Errorf("received differetnt n for party: %s, %s", peerParam.Moniker, peerParam.Id)
 			}
@@ -119,6 +128,7 @@ func (b *Bootstrapper) HandleBootstrapMsg(peerMsg BootstrapMessage) error {
 				IsOld:      peerParam.IsOld,
 				IsNew:      peerParam.IsNew,
 			}
+			logger.Debugf("store peer: %s(%s)", peerParam.Moniker, peerParam.Id)
 			b.Peers.Store(peerParam.Id, pi)
 		}
 	}
@@ -135,7 +145,7 @@ func (b *Bootstrapper) IsFinished() bool {
 		logger.Debugf("received peers: %d, expect peers: %d", received, b.Cfg.Threshold)
 		return received == b.Cfg.Threshold
 	case PreRegroupMode:
-		logger.Debugf("received peers: %d, expect peers: %v", received, b.Cfg.ExpectedPeers)
+		logger.Debugf("received peers: %d, expect peers: %d, expect peers: %v", received, b.ExpectedPeers, b.Cfg.ExpectedPeers)
 		return received == b.ExpectedPeers
 	case RegroupMode:
 		numOfOld := 0

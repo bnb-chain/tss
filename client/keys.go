@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/bgentry/speakeasy"
+	"github.com/binance-chain/tss-lib/ecdsa/presigning"
 	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/binance-chain/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec"
@@ -39,9 +40,30 @@ func (*TssClient) Equals(key crypto.PrivKey) bool {
 	return true
 }
 
+func (client *TssClient) preSignImpl() (*presigning.PreSignatureData, error) {
+	Logger.Infof("[%s] preSign: %s\n", client.config.Moniker, client.config.Home)
+	client.localParty = presigning.NewLocalParty(client.params, *client.key, client.sendCh, client.preSigCh, nil)
+	Logger.Infof("[%s] initialized localParty: %s", client.config.Moniker, client.localParty)
+
+	// has to start local party before network routines in case 2 other peers' msg comes before self fully initialized
+	if err := client.localParty.Start(); err != nil {
+		common.Panic(err)
+	}
+
+	done := make(chan bool)
+	go client.sendMessageRoutine(client.sendCh)
+	go client.handleMessageRoutine()
+	go client.savePreSignatureRoutine(client.preSigCh, done)
+
+	<-done
+	Logger.Debugf("[%s] received preSig: %X", client.config.Moniker, client.preSig.Ssid)
+	return client.preSig, nil
+}
+
 func (client *TssClient) signImpl(m *big.Int) ([]byte, error) {
 	Logger.Infof("[%s] message to be signed: %s\n", client.config.Moniker, m.String())
-	client.localParty = signing.NewLocalParty(nil, m, client.params, *client.key, nil, client.sendCh, client.signCh, nil) //TODO fill nil
+	keyDelta := big.NewInt(0) // TODO add input of keyDelta
+	client.localParty = signing.NewLocalParty(client.preSig, m, client.params, *client.key, keyDelta, client.sendCh, client.signCh, nil)
 	Logger.Infof("[%s] initialized localParty: %s", client.config.Moniker, client.localParty)
 
 	// has to start local party before network routines in case 2 other peers' msg comes before self fully initialized

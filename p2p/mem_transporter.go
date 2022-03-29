@@ -34,6 +34,11 @@ func NewMemTransporter(cid common.TssClientId) common.Transporter {
 	return &t
 }
 
+func ResetMemTransporter() {
+	registeredTransporters = make(map[common.TssClientId]*memTransporter, 0)
+	once = sync.Once{}
+}
+
 func GetMemTransporter(cid common.TssClientId) common.Transporter {
 	return registeredTransporters[cid]
 }

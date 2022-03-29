@@ -13,6 +13,7 @@ import (
 
 	lib "github.com/binance-chain/tss-lib/common"
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
+	"github.com/binance-chain/tss-lib/ecdsa/presigning"
 	"github.com/binance-chain/tss-lib/ecdsa/resharing"
 	"github.com/binance-chain/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec"
@@ -57,11 +58,13 @@ type TssClient struct {
 	regroupParams *tss.ReSharingParameters
 	idToPartyIds  map[string]*tss.PartyID
 	key           *keygen.LocalPartySaveData
+	preSig        *presigning.PreSignatureData
 	signature     []byte
 
-	saveCh chan keygen.LocalPartySaveData
-	signCh chan lib.SignatureData
-	sendCh chan tss.Message
+	saveCh     chan keygen.LocalPartySaveData
+	preSigCh  chan *presigning.PreSignatureData
+	signCh     chan lib.SignatureData
+	sendCh     chan tss.Message
 
 	mode ClientMode
 }
@@ -90,33 +93,35 @@ func NewTssClient(ec elliptic.Curve, config *common.TssConfig, mode ClientMode, 
 		if mode == RegroupMode {
 			common.TssCfg.BMode = common.RegroupMode
 		}
-		bootstrapper := common.NewBootstrapper(0, &common.TssCfg)
-		t := p2p.NewP2PTransporter(config.Home, config.Vault, config.Id.String(), bootstrapper, nil, nil, signers, &config.P2PConfig)
-		t.Shutdown()
-		bootstrapper.Peers.Range(func(_, value interface{}) bool {
-			if pi, ok := value.(common.PeerInfo); ok {
-				if mode == SignMode || (mode == RegroupMode && pi.IsOld) {
-					signers[pi.Moniker] = 0
-				}
+		if !mock {
+			bootstrapper := common.NewBootstrapper(0, config)
+			t := p2p.NewP2PTransporter(config.Home, config.Vault, config.Id.String(), bootstrapper, nil, nil, signers, &config.P2PConfig)
+			t.Shutdown()
+			bootstrapper.Peers.Range(func(_, value interface{}) bool {
+				if pi, ok := value.(common.PeerInfo); ok {
+					if mode == SignMode || (mode == RegroupMode && pi.IsOld) {
+						signers[pi.Moniker] = 0
+					}
 
-				if mode == RegroupMode {
-					if pi.IsNew {
-						// we don't know whether pi's info has been updated during raw tcp bootstrapping
-						config.ExpectedNewPeers = appendIfNotExist(config.ExpectedNewPeers, fmt.Sprintf("%s@%s", pi.Moniker, pi.Id))
-						config.NewPeerAddrs = appendIfNotExist(config.NewPeerAddrs, pi.RemoteAddr)
+					if mode == RegroupMode {
+						if pi.IsNew {
+							// we don't know whether pi's info has been updated during raw tcp bootstrapping
+							config.ExpectedNewPeers = appendIfNotExist(config.ExpectedNewPeers, fmt.Sprintf("%s@%s", pi.Moniker, pi.Id))
+							config.NewPeerAddrs = appendIfNotExist(config.NewPeerAddrs, pi.RemoteAddr)
+						}
 					}
 				}
+				return true
+			})
+			if mode == SignMode || (mode == RegroupMode && common.TssCfg.IsOldCommittee) {
+				signers[config.Moniker] = 0
 			}
-			return true
-		})
-		if mode == SignMode || (mode == RegroupMode && common.TssCfg.IsOldCommittee) {
-			signers[config.Moniker] = 0
-		}
 
-		if len(signers) < config.Threshold+1 {
-			common.Panic(fmt.Errorf("no enough signers (%d) to meet requirement: %d", len(signers), config.Threshold+1))
+			if len(signers) < config.Threshold+1 {
+				common.Panic(fmt.Errorf("no enough signers (%d) to meet requirement: %d", len(signers), config.Threshold+1))
+			}
+			updatePeerOriginalIndexes(config, bootstrapper, partyID, signers)
 		}
-		updatePeerOriginalIndexes(config, bootstrapper, partyID, signers)
 	}
 
 	if !mock {
@@ -155,8 +160,11 @@ func NewTssClient(ec elliptic.Curve, config *common.TssConfig, mode ClientMode, 
 			}
 		}
 	} else {
+		id, _ := strconv.Atoi(string(config.Id))
 		for i := 0; i < config.Parties; i++ {
-			id, _ := strconv.Atoi(string(config.Id))
+			if i < config.Threshold + 1 {
+				signers[strconv.Itoa(i)] = i
+			}
 			if i != id {
 				id := strconv.Itoa(i)
 				key := lib.SHA512_256([]byte(id))
@@ -169,15 +177,17 @@ func NewTssClient(ec elliptic.Curve, config *common.TssConfig, mode ClientMode, 
 	sortedIds := tss.SortPartyIDs(unsortedPartyIds)
 	p2pCtx := tss.NewPeerContext(sortedIds)
 	saveCh := make(chan keygen.LocalPartySaveData)
+	preSigCh := make(chan *presigning.PreSignatureData)
 	signCh := make(chan lib.SignatureData)
-	sendCh := make(chan tss.Message, len(sortedIds)*10*2) // max signing messages 10 times hash confirmation messages
+	sendCh := make(chan tss.Message, len(sortedIds)*20*2) // max signing messages 20 times hash confirmation messages
 	c := TssClient{
 		config:       config,
 		idToPartyIds: idToPartyIds,
 
-		saveCh: saveCh,
-		signCh: signCh,
-		sendCh: sendCh,
+		saveCh:     saveCh,
+		preSigCh:   preSigCh,
+		signCh:     signCh,
+		sendCh:     sendCh,
 
 		mode: mode,
 	}
@@ -190,13 +200,13 @@ func NewTssClient(ec elliptic.Curve, config *common.TssConfig, mode ClientMode, 
 		Logger.Infof("[%s] initialized localParty: %s", config.Moniker, localParty)
 	} else if mode == SignMode {
 		key := loadSavedKeyForSign(config, sortedIds, signers)
-		pubKey := btcec.PublicKey(ecdsa.PublicKey{Curve: tss.EC(), 
-												  X: key.ECDSAPub.X(),
-												  Y: key.ECDSAPub.Y()})
+		pubKey := btcec.PublicKey(ecdsa.PublicKey{Curve: tss.EC(),
+			X: key.ECDSAPub.X(),
+			Y: key.ECDSAPub.Y()})
 		Logger.Infof("[%s] public key: %X\n", config.Moniker, pubKey.SerializeCompressed())
 		address, err := GetAddress(ecdsa.PublicKey{Curve: tss.EC(),
-												   X: key.ECDSAPub.X(),
-												   Y: key.ECDSAPub.Y()}, config.AddressPrefix)
+			X: key.ECDSAPub.X(),
+			Y: key.ECDSAPub.Y()}, config.AddressPrefix)
 		if err != nil {
 			panic(err)
 		}
@@ -248,6 +258,20 @@ func NewTssClient(ec elliptic.Curve, config *common.TssConfig, mode ClientMode, 
 	return &c
 }
 
+func (client *TssClient) CloseChannels() {
+	close(client.preSigCh)
+	close(client.saveCh)
+	close(client.sendCh)
+	close(client.signCh)
+}
+
+func (client *TssClient) GetLocalparty() string {
+	if client.localParty == nil {
+		return "nil"
+	}
+	return client.localParty.String()
+}
+
 func (client *TssClient) Start() {
 	switch client.mode {
 	case SignMode:
@@ -255,6 +279,7 @@ func (client *TssClient) Start() {
 		if !ok {
 			common.Panic(fmt.Errorf("message to be sign: %s is not a valid big.Int", client.config.Message))
 		}
+		client.preSignImpl()
 		client.signImpl(message)
 		time.Sleep(5 * time.Second)
 	default:
@@ -287,7 +312,7 @@ func (client *TssClient) handleMessageRoutine() {
 		if errU != nil {
 			common.Panic(fmt.Errorf("[%s] error updating local party state: %v", client.config.Moniker, err))
 		} else if !ok {
-			Logger.Warningf("[%s] Update still waiting for round to finish", client.config.Moniker)
+			Logger.Warnf("[%s] Update still waiting for round to finish", client.config.Moniker)
 		} else {
 			Logger.Debugf("[%s] update success", client.config.Moniker)
 		}
@@ -310,7 +335,7 @@ func (client *TssClient) sendMessageRoutine(sendCh <-chan tss.Message) {
 			if reflect.TypeOf(client.transporter).String() != "*p2p.memTransporter" {
 				payload = append([]byte{p2p.MessagePrefix}, payload...)
 			}
-			
+
 			if err = client.transporter.Send(payload, common.TssClientId(dest[0].Id)); err != nil {
 				Logger.Errorf("failed to send message: %v", err)
 			}
@@ -339,8 +364,8 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 
 		Logger.Infof("[%s] received save data", client.config.Moniker)
 		address, err := GetAddress(ecdsa.PublicKey{Curve: tss.EC(),
-												   X: msg.ECDSAPub.X(),
-												   Y: msg.ECDSAPub.Y()}, client.config.AddressPrefix)
+			X: msg.ECDSAPub.X(),
+			Y: msg.ECDSAPub.Y()}, client.config.AddressPrefix)
 		if err != nil {
 			Logger.Errorf("[%s] failed to generate address from public key :%v", client.config.Moniker, err)
 		} else {
@@ -373,6 +398,17 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 func (client *TssClient) saveSignatureRoutine(signCh <-chan lib.SignatureData, done chan<- bool) {
 	for signature := range signCh {
 		client.signature = signature.Signature
+		if done != nil {
+			done <- true
+			close(done)
+		}
+		break
+	}
+}
+
+func (client *TssClient) savePreSignatureRoutine(preSigCh <-chan *presigning.PreSignatureData, done chan<- bool) {
+	for preSignature := range preSigCh {
+		client.preSig = preSignature
 		if done != nil {
 			done <- true
 			close(done)

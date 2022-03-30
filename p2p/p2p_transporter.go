@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/gob"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -213,7 +214,6 @@ func (t *p2pTransporter) Broadcast(msg tss.Message) error {
 				err = fmt.Errorf("failed to encode protobuf message: %v, broadcast stop", err)
 				return false
 			}
-			//fmt.Println(hex.EncodeToString(payload))
 			payload = append([]byte{MessagePrefix}, payload...)
 			if e := t.Send(payload, common.TssClientId(to.(string))); e != nil {
 				err = e
@@ -361,21 +361,24 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 
 		payloadWithTypePrefix := make([]byte, 0, messageLength)
 		readBytes := 0
+		logger.Debugf("going to received a message with length: %d", messageLength)
 		for readBytes < int(messageLength) {
-			bufSize := 1024
+			bufSize := 4096
 			if int(messageLength)-readBytes < bufSize {
 				bufSize = int(messageLength) - readBytes
 			}
 			buf := make([]byte, bufSize)
 			readLength, err := stream.(network.Stream).Read(buf)
+			// this line sucks
+			time.Sleep(time.Millisecond)
 			if err != nil {
 				common.Panic(fmt.Errorf("failed to read protobuf message: %v, from: %s", err, pid))
 			} else {
-				logger.Debugf("received: %d", readLength)
 				payloadWithTypePrefix = append(payloadWithTypePrefix, buf...)
 			}
 			readBytes += readLength
 		}
+		logger.Debugf("received a message with length: %d", readBytes)
 		if readBytes != int(messageLength) {
 			common.Panic(fmt.Errorf("failed to read protobuf message: length: %d doesn't match prefix: %d, from: %s", readBytes, int(messageLength), pid))
 		}
@@ -383,7 +386,7 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 		switch payloadWithTypePrefix[0] {
 		case MessagePrefix:
 			var m tss.MessageWrapper
-			//fmt.Println(hex.EncodeToString(payload))
+			logger.Debugf("received a tss message from: %s", m.From.GetMoniker())
 			err := proto.Unmarshal(payload, &m)
 			if err != nil {
 				common.Panic(fmt.Errorf("failed to unmarshal MessagePrefix, not a valid protobuf format: %v. from: %s", err, pid))
@@ -449,6 +452,7 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 			}
 		case HashMessagePrefix:
 			var m P2PMessageWithHash
+			logger.Debugf("received a hash message: %s from: %s", hex.EncodeToString(m.Hash), m.GetFrom())
 			err := proto.Unmarshal(payload, &m)
 			if err != nil {
 				common.Panic(fmt.Errorf("failed to unmarshal MessagePrefix, not a valid protobuf format: %v. from: %s", err, pid))

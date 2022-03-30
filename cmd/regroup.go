@@ -136,11 +136,14 @@ var regroupCmd = &cobra.Command{
 				originExpectedNewPeers = append(originExpectedNewPeers, fmt.Sprintf("%s@%s", moniker, id))
 			}
 			common.TssCfg.ExpectedPeers = originExpectedNewPeers
-			common.TssCfg.PeerAddrs = common.TssCfg.NewPeerAddrs
+			common.TssCfg.PeerAddrs = make([]string, len(common.TssCfg.NewPeerAddrs))
+			copy(common.TssCfg.PeerAddrs, common.TssCfg.NewPeerAddrs)
 			common.TssCfg.Parties = common.TssCfg.NewParties
 			common.TssCfg.Threshold = common.TssCfg.NewThreshold
 			common.TssCfg.NewParties = 0
 			common.TssCfg.NewThreshold = 0
+			common.TssCfg.NewPeerAddrs = nil
+			common.TssCfg.ExpectedNewPeers = nil
 			common.TssCfg.Moniker = strings.TrimSuffix(common.TssCfg.Moniker, common.RegroupSuffix)
 			originVault := common.TssCfg.Vault
 			common.TssCfg.Vault = strings.TrimSuffix(common.TssCfg.Vault, common.RegroupSuffix)

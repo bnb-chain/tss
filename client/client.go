@@ -267,12 +267,15 @@ func (client *TssClient) handleMessageRoutine() {
 		if err := proto.Unmarshal(msg.MessageWrapperBytes, &messageWrapper); err != nil {
 			common.Panic(fmt.Errorf("[%s] error updating local party state: %v", client.config.Moniker, err))
 		}
-		any, _ := proto.Marshal(messageWrapper.Message)
+		any, err := proto.Marshal(messageWrapper.Message)
+		if err != nil {
+			common.Panic(fmt.Errorf("[%s] failed to extract message inside message wrapper: %v", client.config.Moniker, err))
+		}
 		ok, err := client.localParty.UpdateFromBytes(
 			any,
 			client.idToPartyIds[messageWrapper.From.Id],
 			messageWrapper.IsBroadcast)
-		if err != nil {
+		if !ok && err != nil {
 			common.Panic(fmt.Errorf("[%s] error updating local party state: %v", client.config.Moniker, err))
 		} else if !ok {
 			Logger.Warningf("[%s] Update still waiting for round to finish", client.config.Moniker)
@@ -295,7 +298,6 @@ func (client *TssClient) sendMessageRoutine(sendCh <-chan tss.Message) {
 			if err != nil {
 				Logger.Error("failed to protobuf marshal the message wrapper: %v", err)
 			}
-			//fmt.Println(hex.EncodeToString(payload))
 			payload = append([]byte{p2p.MessagePrefix}, payload...)
 			if err = client.transporter.Send(payload, common.TssClientId(dest[0].Id)); err != nil {
 				Logger.Errorf("failed to send message: %v", err)
@@ -311,7 +313,7 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 		//ioutil.WriteFile(path.Join(client.config.Home, "plain.json"), plainJson, 0400)
 
 		if client.mode == RegroupMode {
-			if !common.TssCfg.IsNewCommittee {
+			if common.TssCfg.IsOldCommittee {
 				// wait for round_3 messages sent success before close old
 				// TODO: introduce a send callback to waiting here
 				time.Sleep(5 * time.Second)
@@ -323,7 +325,7 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 			}
 		}
 
-		Logger.Infof("[%s] received save data", client.config.Moniker)
+		Logger.Infof("[%s] received save data %v", client.config.Moniker, msg)
 		address, err := GetAddress(ecdsa.PublicKey{tss.EC(), msg.ECDSAPub.X(), msg.ECDSAPub.Y()}, client.config.AddressPrefix)
 		if err != nil {
 			Logger.Errorf("[%s] failed to generate address from public key :%v", client.config.Moniker, err)

@@ -8,8 +8,7 @@ require (
 	github.com/btcsuite/btcd v0.20.0-beta
 	github.com/btcsuite/btcutil v0.0.0-20190425235716-9e5f4b9a998d
 	github.com/go-kit/kit v0.9.0 // indirect
-	github.com/gogo/protobuf v1.3.1
-	github.com/golang/protobuf v1.5.0
+	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
 	github.com/ipfs/go-cid v0.0.3 // indirect
 	github.com/ipfs/go-datastore v0.0.5
@@ -50,9 +49,7 @@ require (
 	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
 	golang.org/x/net v0.0.0-20191021144547-ec77196f6094 // indirect
 	golang.org/x/sys v0.0.0-20191026070338-33540a1f6037 // indirect
-	google.golang.org/protobuf v1.27.1 // indirect
+	google.golang.org/protobuf v1.27.1
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/yaml.v2 v2.2.4 // indirect
 )
-
-replace github.com/binance-chain/tss-lib => /Users/user/Developer/tss-lib

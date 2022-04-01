@@ -1,4 +1,5 @@
 syntax = "proto3";
+option go_package = "/p2p";
 package p2p;
 
 message P2pMessageWithHash {

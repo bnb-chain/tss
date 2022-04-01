@@ -12,11 +12,10 @@ import (
 	lib "github.com/binance-chain/tss-lib/common"
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
 	"github.com/binance-chain/tss-lib/ecdsa/resharing"
-	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/binance-chain/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec"
-	"github.com/gogo/protobuf/proto"
 	"github.com/ipfs/go-log"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/binance-chain/tss/common"
 	"github.com/binance-chain/tss/p2p"
@@ -58,7 +57,7 @@ type TssClient struct {
 	signature     []byte
 
 	saveCh chan keygen.LocalPartySaveData
-	signCh chan signing.SignatureData
+	signCh chan lib.SignatureData
 	sendCh chan tss.Message
 
 	mode ClientMode
@@ -165,7 +164,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 	sortedIds := tss.SortPartyIDs(unsortedPartyIds)
 	p2pCtx := tss.NewPeerContext(sortedIds)
 	saveCh := make(chan keygen.LocalPartySaveData)
-	signCh := make(chan signing.SignatureData)
+	signCh := make(chan lib.SignatureData)
 	sendCh := make(chan tss.Message, len(sortedIds)*10*2) // max signing messages 10 times hash confirmation messages
 	c := TssClient{
 		config:       config,
@@ -180,7 +179,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 
 	var localParty tss.Party
 	if mode == KeygenMode {
-		params := tss.NewParameters(p2pCtx, partyID, config.Parties, config.Threshold)
+		params := tss.NewParameters(tss.EC(), p2pCtx, partyID, config.Parties, config.Threshold)
 		localParty = keygen.NewLocalParty(params, sendCh, saveCh)
 		c.localParty = localParty
 		Logger.Infof("[%s] initialized localParty: %s", config.Moniker, localParty)
@@ -193,13 +192,14 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 			panic(err)
 		}
 		Logger.Debugf("[%s] address is: %s\n", config.Moniker, address)
-		params := tss.NewParameters(p2pCtx, partyID, config.Parties, config.Threshold)
+		params := tss.NewParameters(tss.EC(), p2pCtx, partyID, config.Parties, config.Threshold)
 		c.key = &key
 		c.params = params
 	} else if mode == RegroupMode {
 		sortedNewIds := tss.SortPartyIDs(unsortedNewPartyIds)
 		newP2pCtx := tss.NewPeerContext(sortedNewIds)
 		params := tss.NewReSharingParameters(
+			tss.EC(),
 			p2pCtx,
 			newP2pCtx,
 			partyID,
@@ -267,12 +267,15 @@ func (client *TssClient) handleMessageRoutine() {
 		if err := proto.Unmarshal(msg.MessageWrapperBytes, &messageWrapper); err != nil {
 			common.Panic(fmt.Errorf("[%s] error updating local party state: %v", client.config.Moniker, err))
 		}
-		any, _ := proto.Marshal(messageWrapper.Message)
+		any, err := proto.Marshal(messageWrapper.Message)
+		if err != nil {
+			common.Panic(fmt.Errorf("[%s] failed to extract message inside message wrapper: %v", client.config.Moniker, err))
+		}
 		ok, err := client.localParty.UpdateFromBytes(
 			any,
 			client.idToPartyIds[messageWrapper.From.Id],
 			messageWrapper.IsBroadcast)
-		if err != nil {
+		if !ok && err != nil {
 			common.Panic(fmt.Errorf("[%s] error updating local party state: %v", client.config.Moniker, err))
 		} else if !ok {
 			Logger.Warningf("[%s] Update still waiting for round to finish", client.config.Moniker)
@@ -310,7 +313,7 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 		//ioutil.WriteFile(path.Join(client.config.Home, "plain.json"), plainJson, 0400)
 
 		if client.mode == RegroupMode {
-			if !common.TssCfg.IsNewCommittee {
+			if common.TssCfg.IsOldCommittee {
 				// wait for round_3 messages sent success before close old
 				// TODO: introduce a send callback to waiting here
 				time.Sleep(5 * time.Second)
@@ -322,7 +325,7 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 			}
 		}
 
-		Logger.Infof("[%s] received save data", client.config.Moniker)
+		Logger.Infof("[%s] received save data %v", client.config.Moniker, msg)
 		address, err := GetAddress(ecdsa.PublicKey{tss.EC(), msg.ECDSAPub.X(), msg.ECDSAPub.Y()}, client.config.AddressPrefix)
 		if err != nil {
 			Logger.Errorf("[%s] failed to generate address from public key :%v", client.config.Moniker, err)
@@ -353,7 +356,7 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 	}
 }
 
-func (client *TssClient) saveSignatureRoutine(signCh <-chan signing.SignatureData, done chan<- bool) {
+func (client *TssClient) saveSignatureRoutine(signCh <-chan lib.SignatureData, done chan<- bool) {
 	for signature := range signCh {
 		client.signature = signature.Signature
 		if done != nil {

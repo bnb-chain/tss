@@ -39,15 +39,16 @@ func (al *addrList) Set(value string) error {
 }
 
 type P2PConfig struct {
-	ListenAddr string `mapstructure:"listen" json:"listen"`
+	ListenAddr    string `mapstructure:"listen" json:"listen"`
+	NewListenAddr string `mapstructure:"new_listen" json:"new_listen"` // new listen addr for child process
 
 	// client only config
 	BootstrapPeers       addrList `mapstructure:"bootstraps" json:"bootstraps"`
 	RelayPeers           addrList `mapstructure:"relays" json:"relays"`
-	PeerAddrs            []string `mapstructure:"peer_addrs" json:"peer_addrs"` // used for some peer has known connectable ip:port so that connection to them doesn't require bootstrap and relay nodes. i.e. in a LAN environment, if ip ports are preallocated, BootstrapPeers and RelayPeers can be empty with all parties host port set
-	ExpectedPeers        []string `mapstructure:"peers" json:"peers"`           // expected peer list, <moniker>@<TssClientId>
-	NewPeerAddrs         []string `mapstructure:"new_peer_addrs" json:"-"`      // same with `PeerAddrs` but for new parties for regroup
-	ExpectedNewPeers     []string `mapstructure:"new_peers" json:"-"`           // expected new peer list used for regroup, <moniker>@<TssClientId>, after regroup success, this field will replace ExpectedPeers
+	PeerAddrs            []string `mapstructure:"peer_addrs" json:"peer_addrs"`         // used for some peer has known connectable ip:port so that connection to them doesn't require bootstrap and relay nodes. i.e. in a LAN environment, if ip ports are preallocated, BootstrapPeers and RelayPeers can be empty with all parties host port set
+	ExpectedPeers        []string `mapstructure:"peers" json:"peers"`                   // expected peer list, <moniker>@<TssClientId>
+	NewPeerAddrs         []string `mapstructure:"new_peer_addrs" json:"new_peer_addrs"` // same with `PeerAddrs` but for new parties for regroup
+	ExpectedNewPeers     []string `mapstructure:"new_peers" json:"new_peers"`           // expected new peer list used for regroup, <moniker>@<TssClientId>, after regroup success, this field will replace ExpectedPeers
 	DefaultBootstap      bool     `mapstructure:"default_bootstrap", json:"default_bootstrap"`
 	BroadcastSanityCheck bool     `mapstructure:"broadcast_sanity_check" json:"-"`
 }
@@ -98,7 +99,9 @@ type TssConfig struct {
 
 	IsOldCommittee bool          `mapstructure:"is_old" json:"-"`
 	IsNewCommittee bool          `mapstructure:"is_new_member" json:"-"`
-	BMode          BootstrapMode `json:"-"`
+	BMode          BootstrapMode `json:"mode"`
+
+	Pubkey string `mapstructure:"pubkey" json:"pubkey"`
 
 	Home string
 }

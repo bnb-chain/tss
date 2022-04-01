@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/gob"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -15,7 +16,6 @@ import (
 	"time"
 
 	"github.com/binance-chain/tss-lib/tss"
-	"github.com/golang/protobuf/proto"
 	"github.com/ipfs/go-datastore"
 	"github.com/libp2p/go-libp2p"
 	relay "github.com/libp2p/go-libp2p-circuit"
@@ -32,6 +32,7 @@ import (
 	swarm "github.com/libp2p/go-libp2p-swarm"
 	"github.com/libp2p/go-yamux"
 	"github.com/multiformats/go-multiaddr"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/binance-chain/tss/common"
 )
@@ -236,10 +237,11 @@ func (t *p2pTransporter) Send(msg []byte, to common.TssClientId) error {
 		if err := binary.Write(stream.(network.Stream), binary.BigEndian, &messageLength); err != nil {
 			return err
 		}
-		if _, err := stream.(network.Stream).Write(msg); err != nil {
+		if n, err := stream.(network.Stream).Write(msg); err != nil {
 			return err
+		} else {
+			logger.Debugf("Send to: %s, bytes: %d, actual send: %d, Via (memory addr of stream): %p", to, messageLength, n, stream)
 		}
-		logger.Debugf("Send to: %s, Via (memory addr of stream): %p", to, stream)
 	} else {
 		logger.Errorf("Cannot resolve stream for peer: %s", to.String())
 	}
@@ -357,18 +359,34 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 			}
 		}
 
-		payloadWithTypePrefix := make([]byte, messageLength)
-		readLength, err := stream.(network.Stream).Read(payloadWithTypePrefix)
-		if err != nil {
-			common.Panic(fmt.Errorf("failed to read protobuf message: %v, from: %s", err, pid))
+		payloadWithTypePrefix := make([]byte, 0, messageLength)
+		readBytes := 0
+		logger.Debugf("going to received a message with length: %d", messageLength)
+		for readBytes < int(messageLength) {
+			bufSize := 4096
+			if int(messageLength)-readBytes < bufSize {
+				bufSize = int(messageLength) - readBytes
+			}
+			buf := make([]byte, bufSize)
+			readLength, err := stream.(network.Stream).Read(buf)
+			// this line sucks
+			time.Sleep(time.Millisecond)
+			if err != nil {
+				common.Panic(fmt.Errorf("failed to read protobuf message: %v, from: %s", err, pid))
+			} else {
+				payloadWithTypePrefix = append(payloadWithTypePrefix, buf...)
+			}
+			readBytes += readLength
 		}
-		if readLength != int(messageLength) {
-			common.Panic(fmt.Errorf("failed to read protobuf message: length doesn't match prefix, from: %s", pid))
+		logger.Debugf("received a message with length: %d", readBytes)
+		if readBytes != int(messageLength) {
+			common.Panic(fmt.Errorf("failed to read protobuf message: length: %d doesn't match prefix: %d, from: %s", readBytes, int(messageLength), pid))
 		}
-		payload := payloadWithTypePrefix[1:]
+		payload := payloadWithTypePrefix[1:messageLength]
 		switch payloadWithTypePrefix[0] {
 		case MessagePrefix:
 			var m tss.MessageWrapper
+			logger.Debugf("received a tss message from: %s", m.From.GetMoniker())
 			err := proto.Unmarshal(payload, &m)
 			if err != nil {
 				common.Panic(fmt.Errorf("failed to unmarshal MessagePrefix, not a valid protobuf format: %v. from: %s", err, pid))
@@ -384,10 +402,10 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 				}
 
 				msgWithHash := &P2PMessageWithHash{
-					From: pid,
-					To: to,
-					Hash: hash[:],
-					OriginMsg: payload,
+					From:                    pid,
+					To:                      to,
+					Hash:                    hash[:],
+					OriginMsg:               payload,
 					IsToOldAndNewCommittees: m.IsToOldAndNewCommittees}
 				t.sanityCheckMtx.Lock()
 				t.pendingCheckHashMsg[keyOf(msgWithHash)] = msgWithHash
@@ -434,6 +452,7 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 			}
 		case HashMessagePrefix:
 			var m P2PMessageWithHash
+			logger.Debugf("received a hash message: %s from: %s", hex.EncodeToString(m.Hash), m.GetFrom())
 			err := proto.Unmarshal(payload, &m)
 			if err != nil {
 				common.Panic(fmt.Errorf("failed to unmarshal MessagePrefix, not a valid protobuf format: %v. from: %s", err, pid))
@@ -481,6 +500,7 @@ func (t *p2pTransporter) verifiedPeersBroadcastMsgGuarded(key p2pMessageKey, num
 		}
 
 		delete(t.receivedPeersHashMsg, key)
+		logger.Debugf("received enough peer's hash messages: %s. Expected: %d, Got: %d", key, numOfDest, len(t.receivedPeersHashMsg[key]))
 		return true
 	}
 }

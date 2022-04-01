@@ -72,7 +72,14 @@ var regroupCmd = &cobra.Command{
 			}
 
 			// TODO: this relies on user doesn't rename the binary we released
-			tssInit := exec.Command(path.Join(pwd, "tss"), "init", "--home", common.TssCfg.Home, "--vault_name", tmpVault, "--moniker", tmpMoniker, "--password", common.TssCfg.Password)
+			tssInit := exec.Command(
+				path.Join(pwd, "tss"),
+				"init",
+				"--home", common.TssCfg.Home,
+				"--vault_name", tmpVault,
+				"--moniker", tmpMoniker,
+				"--password", common.TssCfg.Password,
+				"--p2p.listen", common.TssCfg.NewListenAddr)
 			tssInit.Stdin = devnull
 			tssInit.Stdout = devnull
 
@@ -82,7 +89,23 @@ var regroupCmd = &cobra.Command{
 
 			setChannelId()
 			setChannelPasswd()
-			tssRegroup = exec.Command(path.Join(pwd, "tss"), "regroup", "--home", common.TssCfg.Home, "--vault_name", tmpVault, "--password", common.TssCfg.Password, "--parties", strconv.Itoa(common.TssCfg.Parties), "--threshold", strconv.Itoa(common.TssCfg.Threshold), "--new_parties", strconv.Itoa(common.TssCfg.NewParties), "--new_threshold", strconv.Itoa(common.TssCfg.NewThreshold), "--channel_password", common.TssCfg.ChannelPassword, "--channel_id", common.TssCfg.ChannelId, "--p2p.broadcast_sanity_check", strconv.FormatBool(common.TssCfg.BroadcastSanityCheck), "--log_level", common.TssCfg.LogLevel)
+			tssRegroup = exec.Command(
+				path.Join(pwd, "tss"),
+				"regroup",
+				"--home",
+				common.TssCfg.Home,
+				"--vault_name", tmpVault,
+				"--password", common.TssCfg.Password,
+				"--parties", strconv.Itoa(common.TssCfg.Parties),
+				"--threshold", strconv.Itoa(common.TssCfg.Threshold),
+				"--new_parties", strconv.Itoa(common.TssCfg.NewParties),
+				"--new_threshold", strconv.Itoa(common.TssCfg.NewThreshold),
+				"--channel_password", common.TssCfg.ChannelPassword,
+				"--channel_id", common.TssCfg.ChannelId,
+				"--p2p.broadcast_sanity_check", strconv.FormatBool(common.TssCfg.BroadcastSanityCheck),
+				"--p2p.new_peer_addrs", strings.Join(common.TssCfg.NewPeerAddrs, ","),
+				"--pubkey", client.PubKeyCompressedHexString(),
+				"--log_level", common.TssCfg.LogLevel)
 			stdOut, err := os.Create(path.Join(common.TssCfg.Home, tmpVault, "tss.log"))
 			if err != nil {
 				common.Panic(err)
@@ -113,11 +136,14 @@ var regroupCmd = &cobra.Command{
 				originExpectedNewPeers = append(originExpectedNewPeers, fmt.Sprintf("%s@%s", moniker, id))
 			}
 			common.TssCfg.ExpectedPeers = originExpectedNewPeers
-			common.TssCfg.PeerAddrs = common.TssCfg.NewPeerAddrs
+			common.TssCfg.PeerAddrs = make([]string, len(common.TssCfg.NewPeerAddrs))
+			copy(common.TssCfg.PeerAddrs, common.TssCfg.NewPeerAddrs)
 			common.TssCfg.Parties = common.TssCfg.NewParties
 			common.TssCfg.Threshold = common.TssCfg.NewThreshold
 			common.TssCfg.NewParties = 0
 			common.TssCfg.NewThreshold = 0
+			common.TssCfg.NewPeerAddrs = nil
+			common.TssCfg.ExpectedNewPeers = nil
 			common.TssCfg.Moniker = strings.TrimSuffix(common.TssCfg.Moniker, common.RegroupSuffix)
 			originVault := common.TssCfg.Vault
 			common.TssCfg.Vault = strings.TrimSuffix(common.TssCfg.Vault, common.RegroupSuffix)
@@ -156,7 +182,11 @@ var regroupCmd = &cobra.Command{
 		}
 
 		if mustNew {
-			addToBnbcli(c.PubKey())
+			pk, err := client.ParseCompressedPubkey(common.TssCfg.Pubkey)
+			if err != nil {
+				common.Panic(err)
+			}
+			addToBnbcli(pk)
 		}
 	},
 }

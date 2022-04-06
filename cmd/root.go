@@ -84,6 +84,7 @@ func bindClientConfigs() {
 	keygenCmd.PersistentFlags().Int("threshold", 0, "threshold of this scheme")
 	regroupCmd.PersistentFlags().Int("threshold", 0, "threshold of this scheme")
 	keygenCmd.PersistentFlags().Int("parties", 0, "total parities of this scheme")
+	regroupCmd.PersistentFlags().String(flagPrefix, "bnb", "prefix of bech32 address")
 	regroupCmd.PersistentFlags().Int("parties", 0, "total parities of this scheme")
 	regroupCmd.PersistentFlags().Int("new_threshold", 0, "new threshold of regrouped scheme")
 	regroupCmd.PersistentFlags().Int("new_parties", 0, "new total parties of regrouped scheme")

@@ -325,7 +325,6 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 			}
 		}
 
-		Logger.Infof("[%s] received save data %v", client.config.Moniker, msg)
 		address, err := GetAddress(ecdsa.PublicKey{tss.EC(), msg.ECDSAPub.X(), msg.ECDSAPub.Y()}, client.config.AddressPrefix)
 		if err != nil {
 			Logger.Errorf("[%s] failed to generate address from public key :%v", client.config.Moniker, err)

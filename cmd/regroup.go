@@ -182,11 +182,7 @@ var regroupCmd = &cobra.Command{
 		}
 
 		if mustNew {
-			pk, err := client.ParseCompressedPubkey(common.TssCfg.Pubkey)
-			if err != nil {
-				common.Panic(err)
-			}
-			addToBnbcli(pk)
+			addToBnbcli(c.PubKey())
 		}
 	},
 }

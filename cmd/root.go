@@ -84,6 +84,8 @@ func bindClientConfigs() {
 	keygenCmd.PersistentFlags().Int("threshold", 0, "threshold of this scheme")
 	regroupCmd.PersistentFlags().Int("threshold", 0, "threshold of this scheme")
 	keygenCmd.PersistentFlags().Int("parties", 0, "total parities of this scheme")
+	recoverCmd.PersistentFlags().Int("parties", 0, "total parities of this scheme")
+	recoverCmd.PersistentFlags().Int("threshold", 0, "threshold of this scheme")
 	regroupCmd.PersistentFlags().String(flagPrefix, "bnb", "prefix of bech32 address")
 	regroupCmd.PersistentFlags().Int("parties", 0, "total parities of this scheme")
 	regroupCmd.PersistentFlags().Int("new_threshold", 0, "new threshold of regrouped scheme")
@@ -95,14 +97,17 @@ func bindClientConfigs() {
 	keygenCmd.PersistentFlags().Bool("p2p.broadcast_sanity_check", true, "whether verify broadcast message's hash with peers")
 	signCmd.PersistentFlags().Bool("p2p.broadcast_sanity_check", true, "whether verify broadcast message's hash with peers")
 	regroupCmd.PersistentFlags().Bool("p2p.broadcast_sanity_check", true, "whether verify broadcast message's hash with peers")
+	signCmd.PersistentFlags().Bool("from_mobile", false, "whether use is from mobile")
 
 	keygenCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
 	signCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
 	regroupCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
+	recoverCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
 
 	keygenCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
 	signCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
 	regroupCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
+	recoverCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
 
 	channelCmd.PersistentFlags().Int("channel_expire", 0, "expire time in minutes of this channel")
 

@@ -102,22 +102,22 @@ func (b *Bootstrapper) HandleBootstrapMsg(peerMsg BootstrapMessage) error {
 				return fmt.Errorf("received different moniker for id: %s", peerParam.Id)
 			}
 		} else {
-			if peerParam.Moniker == TssCfg.Moniker {
+			if peerParam.Moniker == b.Cfg.Moniker {
 				return nil
 			}
-			if peerParam.N != TssCfg.Parties {
+			if peerParam.N != b.Cfg.Parties {
 				return fmt.Errorf("received differetnt n for party: %s, %s", peerParam.Moniker, peerParam.Id)
 			}
-			if peerParam.T != TssCfg.Threshold {
+			if peerParam.T != b.Cfg.Threshold {
 				return fmt.Errorf("received different t for party: %s, %s", peerParam.Moniker, peerParam.Id)
 			}
-			if peerParam.Msg != TssCfg.Message {
+			if peerParam.Msg != b.Cfg.Message {
 				return fmt.Errorf("received different message to be signed for party: %s, %s", peerParam.Moniker, peerParam.Id)
 			}
-			if peerParam.NewN != TssCfg.NewParties {
+			if peerParam.NewN != b.Cfg.NewParties {
 				return fmt.Errorf("received different new n for party: %s, %s", peerParam.Moniker, peerParam.Id)
 			}
-			if peerParam.NewT != TssCfg.NewThreshold {
+			if peerParam.NewT != b.Cfg.NewThreshold {
 				return fmt.Errorf("received different new t for party: %s, %s", peerParam.Moniker, peerParam.Id)
 			}
 
@@ -128,7 +128,6 @@ func (b *Bootstrapper) HandleBootstrapMsg(peerMsg BootstrapMessage) error {
 				IsOld:      peerParam.IsOld,
 				IsNew:      peerParam.IsNew,
 			}
-			logger.Debugf("store peer: %s(%s)", peerParam.Moniker, peerParam.Id)
 			b.Peers.Store(peerParam.Id, pi)
 		}
 	}

@@ -63,6 +63,93 @@ type TssClient struct {
 	mode ClientMode
 }
 
+func NewRecoverTssClient(config *common.TssConfig, data *keygen.LocalPartySaveData) *TssClient {
+	id := string(config.Id)
+	idToPartyIds := make(map[string]*tss.PartyID)
+	idKey, _ := new(big.Int).SetString(config.Moniker, 0)
+	partyID := tss.NewPartyID(id, config.Moniker, idKey)
+	idToPartyIds[id] = partyID
+	unsortedPartyIds := make(tss.UnSortedPartyIDs, 0, config.Parties)
+	unsortedPartyIds = append(unsortedPartyIds, partyID)
+
+	signers := make(map[string]int, 0) // used by sign and regroup mode for filtering correct shares from LocalPartySaveData, including self
+	config.BMode = common.SignMode
+	bootstrapper := common.NewBootstrapper(0, config)
+
+	t := p2p.NewP2PTransporter(config.Home, config.Vault, config.Id.String(), bootstrapper, nil, nil, signers, &config.P2PConfig)
+	t.Shutdown()
+	bootstrapper.Peers.Range(func(_, value interface{}) bool {
+		if pi, ok := value.(common.PeerInfo); ok {
+			signers[pi.Moniker] = 0
+		}
+		return true
+	})
+	signers[config.Moniker] = 0
+
+	if len(signers) < config.Threshold+1 {
+		common.Panic(fmt.Errorf("no enough signers (%d) to meet requirement: %d", len(signers), config.Threshold+1))
+	}
+	updatePeerOriginalIndexes(config, bootstrapper, partyID, signers)
+
+	for _, peer := range config.P2PConfig.ExpectedPeers {
+		id := string(p2p.GetClientIdFromExpectedPeers(peer))
+		moniker := p2p.GetMonikerFromExpectedPeers(peer)
+		if _, ok := signers[moniker]; !ok {
+			continue
+		}
+		idKey, _ := new(big.Int).SetString(moniker, 0)
+		partyId := tss.NewPartyID(
+			id,
+			moniker,
+			idKey)
+		idToPartyIds[id] = partyId
+		unsortedPartyIds = append(unsortedPartyIds, partyId)
+	}
+
+	sortedIds := tss.SortPartyIDs(unsortedPartyIds)
+	p2pCtx := tss.NewPeerContext(sortedIds)
+
+	saveCh := make(chan keygen.LocalPartySaveData)
+	signCh := make(chan lib.SignatureData)
+	sendCh := make(chan tss.Message, len(sortedIds)*10*2) // max signing messages 10 times hash confirmation messages
+	c := TssClient{
+		config:       config,
+		idToPartyIds: idToPartyIds,
+
+		saveCh: saveCh,
+		signCh: signCh,
+		sendCh: sendCh,
+
+		mode: SignMode,
+	}
+
+	key := data
+	pubKey := btcec.PublicKey(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()})
+	Logger.Infof("[%s] public key: %X\n", config.Moniker, pubKey.SerializeCompressed())
+	address, err := GetAddress(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()}, config.AddressPrefix)
+	if err != nil {
+		panic(err)
+	}
+	Logger.Debugf("[%s] address is: %s\n", config.Moniker, address)
+	params := tss.NewParameters(tss.EC(), p2pCtx, partyID, config.Parties, config.Threshold)
+
+	c.key = key
+	c.params = params
+
+	// will block until peers are connected
+	c.transporter = p2p.NewP2PTransporter(
+		config.Home,
+		config.Vault,
+		config.Id.String(),
+		nil,
+		c.params,
+		c.regroupParams,
+		signers,
+		&config.P2PConfig)
+
+	return &c
+}
+
 func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClient {
 	id := string(config.Id)
 	idToPartyIds := make(map[string]*tss.PartyID)

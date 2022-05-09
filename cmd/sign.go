@@ -28,6 +28,7 @@ var signCmd = &cobra.Command{
 		setChannelId()
 		setChannelPasswd()
 		setMessage()
+		setFromMobile()
 
 		c := client.NewTssClient(&common.TssCfg, client.SignMode, false)
 		c.Start()
@@ -37,4 +38,8 @@ var signCmd = &cobra.Command{
 // TODO: use MessageBridge
 func setMessage() {
 	common.TssCfg.Message = "0"
+}
+
+func setFromMobile() {
+	common.TssCfg.FromMobile = viper.GetBool("from_mobile")
 }

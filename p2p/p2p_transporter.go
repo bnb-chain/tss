@@ -304,16 +304,16 @@ func (t *p2pTransporter) handleSigner(stream network.Stream) {
 		t.bootstrapper.ChannelPassword,
 		localAddr,
 		common.PeerParam{
-			ChannelId: common.TssCfg.ChannelId,
-			Moniker:   common.TssCfg.Moniker,
-			Msg:       common.TssCfg.Message,
-			Id:        string(common.TssCfg.Id),
-			N:         common.TssCfg.Parties,
-			T:         common.TssCfg.Threshold,
-			NewN:      common.TssCfg.NewParties,
-			NewT:      common.TssCfg.NewThreshold,
-			IsOld:     common.TssCfg.IsOldCommittee,
-			IsNew:     !common.TssCfg.IsOldCommittee,
+			ChannelId: t.bootstrapper.Cfg.ChannelId,
+			Moniker:   t.bootstrapper.Cfg.Moniker,
+			Msg:       t.bootstrapper.Cfg.Message,
+			Id:        string(t.bootstrapper.Cfg.Id),
+			N:         t.bootstrapper.Cfg.Parties,
+			T:         t.bootstrapper.Cfg.Threshold,
+			NewN:      t.bootstrapper.Cfg.NewParties,
+			NewT:      t.bootstrapper.Cfg.NewThreshold,
+			IsOld:     t.bootstrapper.Cfg.IsOldCommittee,
+			IsNew:     !t.bootstrapper.Cfg.IsOldCommittee,
 		}); err == nil {
 		payload, err := proto.Marshal(msg)
 		if err != nil {
@@ -428,7 +428,7 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 					}
 				} else {
 					for _, p := range to {
-						if p != pid && p != common.TssCfg.Id.String() {
+						if p != pid && p != t.bootstrapper.Cfg.Id.String() {
 							msgWithHashPayload, err := proto.Marshal(msgWithHash)
 							if err != nil {
 								common.Panic(fmt.Errorf("cannot marshal P2PMessageWithHash"))

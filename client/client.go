@@ -63,11 +63,138 @@ type TssClient struct {
 	mode ClientMode
 }
 
+func (client *TssClient) RecoverKeygen(data *keygen.LocalPartySaveData) {
+	wPriv, err := os.OpenFile(path.Join(client.config.Home, client.config.Vault, "sk.json"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		common.Panic(err)
+	}
+	defer wPriv.Close() // defer within loop is fine here as for one party there would be only one element from saveCh
+	wPub, err := os.OpenFile(path.Join(client.config.Home, client.config.Vault, "pk.json"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		common.Panic(err)
+	}
+	defer wPub.Close() // defer within loop is fine here as for one party there would be only one element from saveCh
+	err = common.Save(data, client.transporter.NodeKey(), client.config.KDFConfig, client.config.Password, wPriv, wPub)
+	if err != nil {
+		common.Panic(err)
+	}
+}
+
+func NewRecoverTssClient(config *common.TssConfig, data *keygen.LocalPartySaveData) *TssClient {
+	id := string(config.Id)
+	idToPartyIds := make(map[string]*tss.PartyID)
+	idKey, _ := new(big.Int).SetString(config.Moniker, 0)
+	partyID := tss.NewPartyID(id, config.Moniker, idKey)
+	idToPartyIds[id] = partyID
+	unsortedPartyIds := make(tss.UnSortedPartyIDs, 0, config.Parties)
+	unsortedPartyIds = append(unsortedPartyIds, partyID)
+
+	signers := make(map[string]int, 0) // used by sign and regroup mode for filtering correct shares from LocalPartySaveData, including self
+	config.BMode = common.SignMode
+	bootstrapper := common.NewBootstrapper(0, config)
+
+	t := p2p.NewP2PTransporter(config.Home, config.Vault, config.Id.String(), bootstrapper, nil, nil, signers, &config.P2PConfig)
+	t.Shutdown()
+	bootstrapper.Peers.Range(func(_, value interface{}) bool {
+		if pi, ok := value.(common.PeerInfo); ok {
+			signers[pi.Moniker] = 0
+		}
+		return true
+	})
+	signers[config.Moniker] = 0
+
+	if len(signers) < config.Threshold+1 {
+		common.Panic(fmt.Errorf("no enough signers (%d) to meet requirement: %d", len(signers), config.Threshold+1))
+	}
+	updatePeerOriginalIndexes(config, bootstrapper, partyID, signers)
+
+	for _, peer := range config.P2PConfig.ExpectedPeers {
+		id := string(p2p.GetClientIdFromExpectedPeers(peer))
+		moniker := p2p.GetMonikerFromExpectedPeers(peer)
+		if _, ok := signers[moniker]; !ok {
+			continue
+		}
+		idKey, _ := new(big.Int).SetString(moniker, 0)
+		partyId := tss.NewPartyID(
+			id,
+			moniker,
+			idKey)
+		idToPartyIds[id] = partyId
+		unsortedPartyIds = append(unsortedPartyIds, partyId)
+	}
+
+	sortedIds := tss.SortPartyIDs(unsortedPartyIds)
+	p2pCtx := tss.NewPeerContext(sortedIds)
+
+	saveCh := make(chan keygen.LocalPartySaveData)
+	signCh := make(chan lib.SignatureData)
+	sendCh := make(chan tss.Message, len(sortedIds)*10*2) // max signing messages 10 times hash confirmation messages
+	c := TssClient{
+		config:       config,
+		idToPartyIds: idToPartyIds,
+
+		saveCh: saveCh,
+		signCh: signCh,
+		sendCh: sendCh,
+
+		mode: SignMode,
+	}
+
+	key := data
+	pubKey := btcec.PublicKey(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()})
+	Logger.Infof("[%s] public key: %X\n", config.Moniker, pubKey.SerializeCompressed())
+	address, err := GetAddress(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()}, config.AddressPrefix)
+	if err != nil {
+		panic(err)
+	}
+	Logger.Debugf("[%s] address is: %s\n", config.Moniker, address)
+	params := tss.NewParameters(tss.EC(), p2pCtx, partyID, config.Parties, config.Threshold)
+
+	c.key = key
+	c.params = params
+	c.config = config
+
+	// will block until peers are connected
+	c.transporter = p2p.NewP2PTransporter(
+		config.Home,
+		config.Vault,
+		config.Id.String(),
+		nil,
+		c.params,
+		c.regroupParams,
+		signers,
+		&config.P2PConfig)
+
+	return &c
+}
+
+func buildPartyIDFromConfig(config *common.TssConfig) *tss.PartyID {
+	id := string(config.Id)
+	if config.FromMobile {
+		bigInt, _ := new(big.Int).SetString(config.Moniker, 0)
+		return tss.NewPartyID(id, config.Moniker, bigInt)
+	} else {
+		key := lib.SHA512_256([]byte(id))
+		return tss.NewPartyID(id, config.Moniker, new(big.Int).SetBytes(key))
+	}
+}
+
+func buildPartyIDFromPeerInfo(pi string) *tss.PartyID {
+	id := string(p2p.GetClientIdFromExpectedPeers(pi))
+	moniker := p2p.GetMonikerFromExpectedPeers(pi)
+	if common.TssCfg.FromMobile {
+		bigInt, _ := new(big.Int).SetString(moniker, 0)
+		return tss.NewPartyID(id, moniker, bigInt)
+	} else {
+		key := lib.SHA512_256([]byte(id))
+		return tss.NewPartyID(id, moniker, new(big.Int).SetBytes(key))
+	}
+}
+
 func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClient {
 	id := string(config.Id)
 	idToPartyIds := make(map[string]*tss.PartyID)
-	key := lib.SHA512_256([]byte(id)) // TODO: discuss should we really need pass p2p nodeid pubkey into NewPartyID? (what if in memory implementation)
-	partyID := tss.NewPartyID(id, config.Moniker, new(big.Int).SetBytes(key))
+	partyID := buildPartyIDFromConfig(config)
 	idToPartyIds[id] = partyID
 	unsortedPartyIds := make(tss.UnSortedPartyIDs, 0, config.Parties)
 	if mode == RegroupMode {
@@ -120,16 +247,12 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 		for _, peer := range config.P2PConfig.ExpectedPeers {
 			id := string(p2p.GetClientIdFromExpectedPeers(peer))
 			moniker := p2p.GetMonikerFromExpectedPeers(peer)
-			key := lib.SHA512_256([]byte(id))
 			if mode == SignMode || mode == RegroupMode {
 				if _, ok := signers[moniker]; !ok {
 					continue
 				}
 			}
-			partyId := tss.NewPartyID(
-				id,
-				moniker,
-				new(big.Int).SetBytes(key))
+			partyId := buildPartyIDFromPeerInfo(peer)
 			idToPartyIds[id] = partyId
 			unsortedPartyIds = append(unsortedPartyIds, partyId)
 		}
@@ -137,12 +260,8 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 			for _, peer := range config.P2PConfig.ExpectedNewPeers {
 				id := string(p2p.GetClientIdFromExpectedPeers(peer))
 				moniker := p2p.GetMonikerFromExpectedPeers(peer)
-				key := lib.SHA512_256([]byte(id))
 				if moniker != config.Moniker {
-					partyId := tss.NewPartyID(
-						id,
-						moniker,
-						new(big.Int).SetBytes(key))
+					partyId := buildPartyIDFromPeerInfo(peer)
 					idToPartyIds[id] = partyId
 					unsortedNewPartyIds = append(unsortedNewPartyIds, partyId)
 				}
@@ -371,14 +490,7 @@ func updatePeerOriginalIndexes(config *common.TssConfig, bootstrapper *common.Bo
 	allPartyIds := make(tss.UnSortedPartyIDs, 0, config.Parties) // all parties, used for calculating party's index during keygen
 	allPartyIds = append(allPartyIds, partyID)
 	for _, peer := range config.P2PConfig.ExpectedPeers {
-		id := string(p2p.GetClientIdFromExpectedPeers(peer))
-		moniker := p2p.GetMonikerFromExpectedPeers(peer)
-		key := lib.SHA512_256([]byte(id))
-		allPartyIds = append(allPartyIds,
-			tss.NewPartyID(
-				id,
-				moniker,
-				new(big.Int).SetBytes(key)))
+		allPartyIds = append(allPartyIds, buildPartyIDFromPeerInfo(peer))
 	}
 
 	sortedIds := tss.SortPartyIDs(allPartyIds)

@@ -101,7 +101,8 @@ type TssConfig struct {
 	IsNewCommittee bool          `mapstructure:"is_new_member" json:"-"`
 	BMode          BootstrapMode `json:"mode"`
 
-	Pubkey string `mapstructure:"pubkey" json:"pubkey"`
+	Pubkey     string `mapstructure:"pubkey" json:"pubkey"`
+	FromMobile bool
 
 	Home string
 }

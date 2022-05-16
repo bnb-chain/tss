@@ -90,8 +90,8 @@ func NewRecoverTssClient(config *common.TssConfig, data *keygen.LocalPartySaveDa
 	unsortedPartyIds = append(unsortedPartyIds, partyID)
 
 	signers := make(map[string]int, 0) // used by sign and regroup mode for filtering correct shares from LocalPartySaveData, including self
-	config.BMode = common.SignMode
-	bootstrapper := common.NewBootstrapper(0, config)
+	config.BMode = common.RecoverMode
+	bootstrapper := common.NewBootstrapper(config.Parties-1, config)
 
 	t := p2p.NewP2PTransporter(config.Home, config.Vault, config.Id.String(), bootstrapper, nil, nil, signers, &config.P2PConfig)
 	t.Shutdown()
@@ -154,7 +154,6 @@ func NewRecoverTssClient(config *common.TssConfig, data *keygen.LocalPartySaveDa
 	c.params = params
 	c.config = config
 
-	// will block until peers are connected
 	c.transporter = p2p.NewP2PTransporter(
 		config.Home,
 		config.Vault,

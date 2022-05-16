@@ -16,6 +16,7 @@ const (
 	SignMode
 	PreRegroupMode
 	RegroupMode
+	RecoverMode
 )
 
 // Bootstrapper is helper of pre setting of each kind of client command
@@ -144,6 +145,9 @@ func (b *Bootstrapper) IsFinished() bool {
 		logger.Debugf("received peers: %d, expect peers: %d", received, b.Cfg.Threshold)
 		return received == b.Cfg.Threshold
 	case PreRegroupMode:
+		logger.Debugf("received peers: %d, expect peers: %d, expect peers: %v", received, b.ExpectedPeers, b.Cfg.ExpectedPeers)
+		return received == b.ExpectedPeers
+	case RecoverMode:
 		logger.Debugf("received peers: %d, expect peers: %d, expect peers: %v", received, b.ExpectedPeers, b.Cfg.ExpectedPeers)
 		return received == b.ExpectedPeers
 	case RegroupMode:

@@ -80,7 +80,7 @@ func askThreshold() {
 	common.TssCfg.Threshold = threshold
 }
 
-func reloadTssClient(filename string, idx int) {
+func reloadTssClient(filename string, idx int) *client.TssClient {
 	curve, _ := tss.GetCurveName(tss.EC())
 	recoveredData := reloadLocalPartySaveData(filename, string(curve))
 	recoveredConfig := recoverConfig(recoveredData)
@@ -100,6 +100,7 @@ func reloadTssClient(filename string, idx int) {
 
 	c := client.NewRecoverTssClient(&common.TssCfg, recoveredData)
 	c.RecoverKeygen(recoveredData)
+	return c
 }
 
 func checkPrerequisites(data *keygen.LocalPartySaveData, config *common.TssConfig) {
@@ -122,7 +123,7 @@ func reloadLocalPartySaveData(moniker string, curve string) *keygen.LocalPartySa
 	if err != nil {
 		common.Panic(err)
 	}
-	dataMap := make(map[string]string)
+	dataMap := make(map[string]interface{})
 	err = json.Unmarshal(sBytes, &dataMap)
 	if err != nil {
 		common.Panic(err)
@@ -130,18 +131,22 @@ func reloadLocalPartySaveData(moniker string, curve string) *keygen.LocalPartySa
 	var result keygen.LocalPartySaveData
 
 	for k, v := range dataMap {
-		if strings.Contains(k, curve) && len(v) != 0 {
-			d := json.NewDecoder(strings.NewReader(v))
-			d.UseNumber()
-			err = d.Decode(&result)
-			if err != nil {
-				common.Panic(err)
+		if strings.Contains(k, "sensitiveData") {
+			for k, v := range v.(map[string]interface{}) {
+				if strings.Contains(k, curve) && v != nil && len(v.(string)) != 0 {
+					d := json.NewDecoder(strings.NewReader(v.(string)))
+					d.UseNumber()
+					err = d.Decode(&result)
+					if err != nil {
+						common.Panic(err)
+					}
+					words := strings.Split(k, "-")
+					vault := words[len(words)-1]
+					common.TssCfg.Vault = vault
+					client.Logger.Infof("vault is %s", vault)
+					break
+				}
 			}
-			words := strings.Split(k, "-")
-			vault := words[len(words)-1]
-			common.TssCfg.Vault = vault
-			client.Logger.Infof("vault is %s", vault)
-			break
 		}
 	}
 

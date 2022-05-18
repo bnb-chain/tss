@@ -1,0 +1,331 @@
+syntax = "proto3";
+
+option go_package = ".;common";
+
+// PeerHelloRequest requests a PeerHello for a client_id.
+message PeerHelloRequest {
+  string client_id = 1;
+}
+
+// PeerHello represents a peer's introductory message containing their identity pubkey.
+message PeerHello {
+  string client_id = 1;
+  string username = 2;
+  string pubkey = 3;
+}
+
+// VaultJoinRequest contains a one-time invite token with the inviter's RSA signature and joiner's RSA signature.
+message VaultJoinRequest {
+  string vault_id = 1;
+  string inviter_id = 2;
+  string inviter_invite_token = 3;
+  string inviter_invite_token_signature = 4;
+  string joiner_signature = 5;
+}
+
+// VaultJoinApproval contains the following fields:
+// a. The Joiner's RSA public key
+// b. The Joiner's RSA signature
+// c. The new VaultDefinition containing the updated membership status
+// d. The confirmer's RSA signature of VaultDefinition
+// This message is to be retained in the shared vault topic.
+message VaultJoinApproval {
+  string vault_id = 1;
+  string vault_definition_json = 2;
+  string sender_vault_definition_json_signature = 3;
+}
+
+// VaultPendingPeers contains the new pending peers to regroup into a vault, sent regularly by the existing members.
+message VaultPendingPeers {
+  VaultJoinApproval approval = 1;
+  int32 vault_members_count = 2;
+  string vault_pending_peers_json = 3;
+  repeated string vault_pending_peers_confirms = 4;
+  string sender_vault_pending_peers_json_signature = 5;
+  map<string, string> pending_peers_pubkeys = 6;
+  repeated string new_peer_ids = 7;
+  repeated string remove_peer_ids = 8;
+  string at_timestamp = 9;
+  string expiry_timestamp = 10;
+  string request_id = 11;
+}
+
+// VaultRemovalNotification informs a peer that:
+// 1. they are going to be removed from a vault when someone submitted a reshare request (is_complete = false)
+// 2. they have been removed from a vault after a successful regroup. (is_complete = true)
+message VaultRemovalNotification {
+  string request_id = 1;  // id of reshare request
+  string vault_id = 2;
+  int32 vault_regroup_counter = 3;
+  string timestamp = 4;
+  bool is_complete = 5;
+}
+
+message SignParticipantConfirmed {
+  string vaultId = 1;
+  string clientId = 2;
+}
+
+message AddressMessage {
+  string address = 1;
+  string pubkey = 2; // hex encoded btcec.serializecompressed
+  string network = 3;
+  string networkCondition = 4; // open, closed
+  string asset = 5;
+  string vaultId = 6;
+  string vaultName = 7;
+  string symbol = 8;
+  int32 decimals = 9;
+  string pubkeySignature = 10;    // TSS-745
+  string nonceAccountAddress = 11; //TSS-989
+  string nonceAccountStatus = 12; //TSS-989
+}
+
+message VaultMessage {
+  string vaultId = 1;
+  string vaultName = 2;
+  string deviceId = 3;
+  string operator = 4;
+  string whitelistCurveId = 5;
+  string whitelistPubkey = 6;
+}
+
+message WhitelistMetaInfoMessage {
+  string vaultId = 1;
+  string curveId = 2;
+  string pubkey = 3;  // hex encoded btcec.serializecompressed
+}
+
+message Transfer {
+  string network = 1;
+  string from = 2;
+  string to = 3;
+  string amount = 4;
+  string asset = 5;
+  string traceid = 6;
+  int32 sequence = 7;
+  string memo = 8;          // UPDATE at TSS-400
+  bool requireAll = 9;      // UPDATE at TSS-329
+  int32 numOfOutput = 10;   // UPDATE at TSS-336
+  int32 decimals = 11;
+  string symbol = 12; // UPDATE at TSS-529/TSS-544
+  bool useMaxAmount = 13; // UPDATE at TSS-845
+  int64 nonce = 14; // UPDATE at TSS-1065
+  string gasPrice = 15; // UPDATE at TSS-1116
+  int64 gasLimit = 16; // UPDATE at SAF-150
+}
+
+message Request {
+  Transfer transfer = 1;
+  string signature = 2;
+}
+
+message SignEthLikeRequest {
+  int64 chainId = 1;
+  int64 nonce = 2;
+  string to = 3;
+  string from = 4;
+  string value = 5;
+  string gasPrice = 6;
+  string gasLimit = 7;
+  string data = 8;
+  string traceid = 9;
+}
+
+message SignEthLikeMessage {
+  SignEthLikeRequest request = 1; // original request from frontend
+  repeated string message = 2; // hash of pre sign image server built
+  string fee = 3;
+  string sign_input = 4; // rpc fields of presign image stuff i.e. gas estimation
+  int64 timestamp = 5; // timestamp of this signmessage is generated
+  string server_signature = 6; // ecdsa signature of all other fields, encoded by hex
+  string keyDerivationDelta = 7; // TSS-17 a big integer represents delta for HD wallet
+  string childPkX = 8;          // TSS-17 a 32 bytes big integer represents derived X point of public key
+  string childPkY = 9;         // TSS-17 a 32 bytes big integer represents derived Y point of public key
+  string childVaultId = 10;     // TSS-17
+}
+
+message WhitelistItem {
+  string network = 1;
+  string asset = 2;
+  repeated string addresses = 3;
+}
+
+message WhitelistPerVault {
+  repeated WhitelistItem whitelist = 1;
+  int32 version = 2;
+  string signature = 3;
+  string vaultId = 4;  // TSS-961
+  string traceid = 5;  // TSS-1065
+}
+
+message SignMessage {
+  Request request = 1;  // original request from pnk-admin
+  repeated string message = 2;   // hash of pre sign image server built
+  string fee = 3;
+  string sign_input = 4; // rpc fields of presign image stuff i.e. gas estimation
+  string pnk_signature = 5;  // ecdsa signature of original request, same with signature in Request but encoded by hex
+  int64 timestamp = 6;  // timestamp of this signmessage is generated
+  string server_signature = 7; // ecdsa signature of all other fields, encoded by hex
+  string keyDerivationDelta = 8; // TSS-17 a big integer represents delta for HD wallet
+  string childPkX = 9;          // TSS-17 a 32 bytes big integer represents derived X point of public key
+  string childPkY = 10;         // TSS-17 a 32 bytes big integer represents derived Y point of public key
+  string childVaultId = 11;     // TSS-17
+  bool ignoreWhitelistCheck = 12; //TSS-989
+}
+
+message SignMessageForWhitelist {
+  string whitelist = 1; // json marshaled WhitelistPerVault without signature field
+  string oldWhitelist = 2; // json marshaled WhitelistPerVault for the last version
+  string message = 3; // hash of whitelist field
+  int64 timestamp = 4;  // epoch seconds
+  string server_signature = 5;  // ecdsa signature of all above fields, encoded by base64
+  string traceid = 6;
+  string curveid = 7;
+  string keyDerivationDelta = 8; // TSS-17 a big integer represents delta for HD wallet
+  string childPkX = 9;          // TSS-17 a 32 bytes big integer represents derived X point of public key
+  string childPkY = 10;         // TSS-17 a 32 bytes big integer represents derived Y point of public key
+  string childVaultId = 11;     // TSS-17
+}
+
+message SignatureMessage {
+  message SignatureData {
+    bytes signature = 1;
+
+    // Ethereum-style recovery byte; only the first byte is relevant
+    bytes signature_recovery = 2;
+
+    // Signature components R, S
+    bytes r = 3;
+    bytes s = 4;
+
+    // M represents the original message digest that was signed M
+    bytes m = 5;
+  }
+
+  string traceid = 1;
+  repeated SignatureData signatures = 2;
+}
+
+message SignOpen {
+  string request_id = 1;
+}
+
+// I want participant in signing
+message SignConfirmation {
+  string request_id = 1;
+  string confirmer_identity_pubkey = 2;
+  string confirmer_signature = 3;
+  string vault_definition_json = 4;
+  string sender_vault_definition_json_signature = 5;
+  repeated string signers = 6;
+}
+
+message SignRejection {
+  string request_id = 1;
+}
+
+message SignApproved {
+  string request_id = 1;
+  string curve_id = 2;
+  repeated string signers = 3;
+}
+
+message ClientPing {
+  int64 ts = 1;
+}
+
+message IssueTokenRequest {
+  string name = 1;
+  string symbol = 2;
+  string network = 3;
+  int32 decimals = 4;
+  string amount = 5;
+  bool mintable = 6;
+  string owner_address = 7;
+  string proxy_admin = 8;
+  string traceid = 9;
+  string vault = 10;
+}
+
+message IssueTokenMessage {
+  IssueTokenRequest request = 1; // original request from frontend
+  repeated string message = 2; // hash of pre sign image server built
+  string fee = 3;
+  string sign_input = 4; // rpc fields of presign image stuff i.e. gas estimation
+  int64 timestamp = 5; // timestamp of this signmessage is generated
+  string server_signature = 6; // ecdsa signature of all other fields, encoded by hex
+  string keyDerivationDelta = 7; // TSS-17 a big integer represents delta for HD wallet
+  string childPkX = 8;          // TSS-17 a 32 bytes big integer represents derived X point of public key
+  string childPkY = 9;         // TSS-17 a 32 bytes big integer represents derived Y point of public key
+  string childVaultId = 10;     // TSS-17
+}
+
+message MintTokenRequest {
+  string owner_address = 1;
+  string symbol = 2;
+  string network = 3;
+  int32 decimals = 4;
+  string amount = 5;
+  string traceid = 6;
+}
+
+message MintTokenMessage {
+  MintTokenRequest request = 1; // original request from frontend
+  repeated string message = 2; // hash of pre sign image server built
+  string fee = 3;
+  string sign_input = 4; // rpc fields of presign image stuff i.e. gas estimation
+  int64 timestamp = 5; // timestamp of this signmessage is generated
+  string server_signature = 6; // ecdsa signature of all above fields, encoded by hex
+  string keyDerivationDelta = 7; // TSS-17 a big integer represents delta for HD wallet
+  string childPkX = 8;          // TSS-17 a 32 bytes big integer represents derived X point of public key
+  string childPkY = 9;         // TSS-17 a 32 bytes big integer represents derived Y point of public key
+  string childVaultId = 10;     // TSS-17
+}
+
+message BurnTokenRequest {
+  string owner_address = 1;
+  string symbol = 2;
+  string network = 3;
+  int32 decimals = 4;
+  string amount = 5;
+  string traceid = 6;
+}
+
+message BurnTokenMessage {
+  BurnTokenRequest request = 1; // original request from frontend
+  repeated string message = 2; // hash of pre sign image server built
+  string fee = 3;
+  string sign_input = 4; // rpc fields of presign image stuff i.e. gas estimation
+  int64 timestamp = 5; // timestamp of this signmessage is generated
+  string server_signature = 6; // ecdsa signature of all above fields, encoded by hex
+  string keyDerivationDelta = 7; // TSS-17 a big integer represents delta for HD wallet
+  string childPkX = 8;          // TSS-17 a 32 bytes big integer represents derived X point of public key
+  string childPkY = 9;         // TSS-17 a 32 bytes big integer represents derived Y point of public key
+  string childVaultId = 10;     // TSS-17
+}
+
+message AddTokenRequest {
+  string asset = 1;
+  string symbol = 2;
+  string network = 3;
+  int32 decimals = 4;
+}
+
+message RemoveTokenRequest {
+  string asset = 1;
+  string network = 2;
+  string address = 3;
+}
+
+message SignFailed {
+  string traceid = 1;
+  string vaultid = 2;
+  string deviceid = 3;
+}
+
+message SignRejected {
+  string traceid = 1;
+  string vaultid = 2;
+  string deviceid = 3;
+}

@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+option go_package = ".;common";
+
+message Message {
+    string client_id = 1;
+    string type_id = 2;
+    bytes payload = 3;
+    bytes payload_hash_sender_signature = 4;
+}
+
+message SecureMessage {
+    string client_id = 1;
+    string type_id = 2;
+    string session_id = 3;
+    repeated string to_client_ids = 4;
+    repeated bytes enc_nonces = 5;
+    repeated bytes enc_keys = 6;
+    repeated bytes enc_payloads = 7;
+    bytes payloads_hash_sender_signature = 8;
+}

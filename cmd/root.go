@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"crypto/ecdsa"
 	"os"
 	"path"
 
@@ -114,6 +115,19 @@ func bindClientConfigs() {
 	regroupCmd.PersistentFlags().Bool("is_old", false, "whether this party is an old committee. If it is set to true, it will participant signing in regroup. There should be only t+1 parties set this to true for one regroup")
 	regroupCmd.PersistentFlags().Bool("is_new_member", false, "whether this party is new committee, for new party it will changed to true automatically. if an old party set this to true, its share will be replaced by one generated one")
 	regroupCmd.PersistentFlags().String("pubkey", "", "only set via parent process")
+
+	sendCmd.PersistentFlags().String("from", "", "the address of the send cmd send from")
+	sendCmd.PersistentFlags().String("to", "", "the address of the send cmd send to")
+	sendCmd.PersistentFlags().Int64("network", 0, "the chain to send")
+	sendCmd.PersistentFlags().String("asset", "", "the token name")
+	sendCmd.PersistentFlags().Int64("nonce", 0, "the nonce of the transaction meta")
+	sendCmd.PersistentFlags().String("amount", "", "the amount of the send cmd 16 base string")
+	sendCmd.PersistentFlags().String("gasPrice", "", "the gas price of the send cmd 16 base string")
+	sendCmd.PersistentFlags().String("gasLimit", "", "the gas limit of the send cmd 16 base string")
+}
+
+func generateTransferRequest(network, from, to string, amount, asset, traceid string, privKey *ecdsa.PrivateKey) error {
+	return nil
 }
 
 func initLogLevel(cfg common.TssConfig) {

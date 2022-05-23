@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/binance-chain/tss-lib/common"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -17,6 +18,7 @@ import (
 )
 
 var TssCfg TssConfig
+var Signature *common.SignatureData
 
 // A new type we need for writing a custom flag parser
 type addrList []multiaddr.Multiaddr

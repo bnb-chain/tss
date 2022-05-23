@@ -15,8 +15,8 @@ import (
 	opts "github.com/libp2p/go-libp2p-kad-dht/opts"
 	"github.com/multiformats/go-multiaddr"
 
-	"github.com/binance-chain/tss/common"
-	"github.com/binance-chain/tss/p2p"
+	"github.com/Safulet/tss/common"
+	"github.com/Safulet/tss/p2p"
 )
 
 var logger = log.Logger("srv")

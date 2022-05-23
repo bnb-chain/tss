@@ -1,11 +1,12 @@
 package cmd
 
 import (
+	"encoding/json"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/binance-chain/tss/client"
-	"github.com/binance-chain/tss/common"
+	"github.com/Safulet/tss/client"
+	"github.com/Safulet/tss/common"
 )
 
 func init() {
@@ -25,19 +26,28 @@ var signCmd = &cobra.Command{
 		initLogLevel(common.TssCfg)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		setChannelId()
-		setChannelPasswd()
-		setMessage()
-		setFromMobile()
-
-		c := client.NewTssClient(&common.TssCfg, client.SignMode, false)
-		c.Start()
+		signRun()
 	},
+}
+
+func signRun() {
+	setChannelId()
+	setChannelPasswd()
+	setMessage()
+	common.PrintPrefixed(common.TssCfg.Message)
+	setFromMobile()
+
+	c := client.NewTssClient(&common.TssCfg, client.SignMode, false)
+	text, _ := json.Marshal(common.TssCfg)
+	common.PrintPrefixed(string(text))
+	c.Start()
 }
 
 // TODO: use MessageBridge
 func setMessage() {
-	common.TssCfg.Message = "0"
+	if common.TssCfg.Message == "" {
+		common.TssCfg.Message = "0"
+	}
 }
 
 func setFromMobile() {

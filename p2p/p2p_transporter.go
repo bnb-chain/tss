@@ -34,7 +34,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/binance-chain/tss/common"
+	"github.com/Safulet/tss/common"
 )
 
 const (

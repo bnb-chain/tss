@@ -10,8 +10,8 @@ import (
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 
-	"github.com/binance-chain/tss/common"
-	"github.com/binance-chain/tss/p2p"
+	"github.com/Safulet/tss/common"
+	"github.com/Safulet/tss/p2p"
 )
 
 func Setup(cfg common.TssConfig) {

@@ -3,8 +3,8 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/binance-chain/tss/common"
-	"github.com/binance-chain/tss/server"
+	"github.com/Safulet/tss/common"
+	"github.com/Safulet/tss/server"
 )
 
 func init() {

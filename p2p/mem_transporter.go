@@ -5,7 +5,7 @@ import (
 
 	"github.com/binance-chain/tss-lib/tss"
 
-	"github.com/binance-chain/tss/common"
+	"github.com/Safulet/tss/common"
 )
 
 var once = sync.Once{}

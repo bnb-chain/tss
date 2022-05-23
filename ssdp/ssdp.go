@@ -9,8 +9,8 @@ import (
 
 	"github.com/koron/go-ssdp"
 
-	"github.com/binance-chain/tss/client"
-	"github.com/binance-chain/tss/common"
+	"github.com/Safulet/tss/client"
+	"github.com/Safulet/tss/common"
 )
 
 const serviceType string = "binance:tss"

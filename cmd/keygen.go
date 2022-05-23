@@ -18,8 +18,8 @@ import (
 	"github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 
-	"github.com/binance-chain/tss/client"
-	"github.com/binance-chain/tss/common"
+	"github.com/Safulet/tss/client"
+	"github.com/Safulet/tss/common"
 )
 
 func init() {

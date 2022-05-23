@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/binance-chain/tss/cmd"
+	"github.com/Safulet/tss/cmd"
 	"log"
 	"net/http"
 	_ "net/http/pprof"

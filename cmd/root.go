@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"crypto/ecdsa"
 	"os"
 	"path"
 
@@ -9,8 +8,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/binance-chain/tss/client"
-	"github.com/binance-chain/tss/common"
+	"github.com/Safulet/tss/client"
+	"github.com/Safulet/tss/common"
 )
 
 const (
@@ -99,16 +98,19 @@ func bindClientConfigs() {
 	signCmd.PersistentFlags().Bool("p2p.broadcast_sanity_check", true, "whether verify broadcast message's hash with peers")
 	regroupCmd.PersistentFlags().Bool("p2p.broadcast_sanity_check", true, "whether verify broadcast message's hash with peers")
 	signCmd.PersistentFlags().Bool("from_mobile", false, "whether use is from mobile")
+	sendCmd.PersistentFlags().Bool("from_mobile", false, "whether use is from mobile")
 
 	keygenCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
 	signCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
 	regroupCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
 	recoverCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
+	sendCmd.PersistentFlags().String("channel_id", "", "channel id of this session")
 
 	keygenCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
 	signCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
 	regroupCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
 	recoverCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
+	sendCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
 
 	channelCmd.PersistentFlags().Int("channel_expire", 0, "expire time in minutes of this channel")
 
@@ -118,16 +120,13 @@ func bindClientConfigs() {
 
 	sendCmd.PersistentFlags().String("from", "", "the address of the send cmd send from")
 	sendCmd.PersistentFlags().String("to", "", "the address of the send cmd send to")
-	sendCmd.PersistentFlags().Int64("network", 0, "the chain to send")
+	sendCmd.PersistentFlags().String("network", "", "the chain network to send")
 	sendCmd.PersistentFlags().String("asset", "", "the token name")
 	sendCmd.PersistentFlags().Int64("nonce", 0, "the nonce of the transaction meta")
 	sendCmd.PersistentFlags().String("amount", "", "the amount of the send cmd 16 base string")
 	sendCmd.PersistentFlags().String("gasPrice", "", "the gas price of the send cmd 16 base string")
 	sendCmd.PersistentFlags().String("gasLimit", "", "the gas limit of the send cmd 16 base string")
-}
-
-func generateTransferRequest(network, from, to string, amount, asset, traceid string, privKey *ecdsa.PrivateKey) error {
-	return nil
+	sendCmd.PersistentFlags().String("pubKeyHex", "", "the pubKeyHex of the send cmd")
 }
 
 func initLogLevel(cfg common.TssConfig) {

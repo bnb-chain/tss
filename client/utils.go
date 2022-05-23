@@ -16,7 +16,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/ripemd160"
 
-	"github.com/binance-chain/tss/common"
+	"github.com/Safulet/tss/common"
 )
 
 func loadSavedKeyForSign(config *common.TssConfig, sortedIds tss.SortedPartyIDs, signers map[string]int) keygen.LocalPartySaveData {

@@ -10,8 +10,8 @@ import (
 
 	"github.com/ipfs/go-log"
 
-	"github.com/binance-chain/tss/common"
-	"github.com/binance-chain/tss/p2p"
+	"github.com/Safulet/tss/common"
+	"github.com/Safulet/tss/p2p"
 )
 
 const (

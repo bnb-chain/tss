@@ -17,8 +17,8 @@ import (
 	"github.com/ipfs/go-log"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/binance-chain/tss/common"
-	"github.com/binance-chain/tss/p2p"
+	"github.com/Safulet/tss/common"
+	"github.com/Safulet/tss/p2p"
 )
 
 var Logger = log.Logger("tss")
@@ -476,6 +476,7 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 func (client *TssClient) saveSignatureRoutine(signCh <-chan lib.SignatureData, done chan<- bool) {
 	for signature := range signCh {
 		client.signature = signature.Signature
+		common.Signature = &signature
 		if done != nil {
 			done <- true
 			close(done)

@@ -2,10 +2,12 @@ module github.com/Safulet/tss
 
 go 1.12
 
+replace github.com/binance-chain/tss-lib v1.3.4 => /Users/zhangsk97/go/src/github.com/bnb-chain/tss-lib
+
 require (
 	github.com/Safulet/chain-integration/v2 v2.2.21
 	github.com/bgentry/speakeasy v0.1.0
-	github.com/binance-chain/tss-lib v1.3.3
+	github.com/binance-chain/tss-lib v1.3.4
 	github.com/btcsuite/btcd v0.22.1
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.0

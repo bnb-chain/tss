@@ -66,8 +66,7 @@ func askParties() {
 }
 
 func askThreshold() {
-	if threshold := viper.GetString("threshold"); threshold != "" {
-		common.TssCfg.Threshold, _ = strconv.Atoi(threshold)
+	if threshold := viper.GetInt("threshold"); threshold != 0 {
 		return
 	}
 

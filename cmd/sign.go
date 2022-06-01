@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -34,12 +33,9 @@ func signRun() {
 	setChannelId()
 	setChannelPasswd()
 	setMessage()
-	common.PrintPrefixed(common.TssCfg.Message)
 	setFromMobile()
 
 	c := client.NewTssClient(&common.TssCfg, client.SignMode, false)
-	text, _ := json.Marshal(common.TssCfg)
-	common.PrintPrefixed(string(text))
 	c.Start()
 }
 

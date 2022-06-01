@@ -127,6 +127,8 @@ func bindClientConfigs() {
 	sendCmd.PersistentFlags().String("gasPrice", "", "the gas price of the send cmd 16 base string")
 	sendCmd.PersistentFlags().String("gasLimit", "", "the gas limit of the send cmd 16 base string")
 	sendCmd.PersistentFlags().String("pubKeyHex", "", "the pubKeyHex of the send cmd")
+
+	privCmd.PersistentFlags().String("threshold", "", "the big.int from xi")
 }
 
 func initLogLevel(cfg common.TssConfig) {

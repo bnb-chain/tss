@@ -4,22 +4,22 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"github.com/libp2p/go-libp2p"
+	"github.com/multiformats/go-multiaddr"
 	"io/ioutil"
 	"os"
 	"path"
 	"strings"
 
 	"github.com/bgentry/speakeasy"
-	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/multiformats/go-multiaddr"
 	"github.com/phayes/freeport"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/binance-chain/tss/client"
-	"github.com/binance-chain/tss/common"
-	"github.com/binance-chain/tss/p2p"
+	"github.com/bnb-chain/tss/client"
+	"github.com/bnb-chain/tss/common"
+	"github.com/bnb-chain/tss/p2p"
 )
 
 func init() {

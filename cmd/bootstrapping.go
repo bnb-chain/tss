@@ -14,10 +14,10 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/binance-chain/tss/client"
-	"github.com/binance-chain/tss/common"
-	"github.com/binance-chain/tss/p2p"
-	"github.com/binance-chain/tss/ssdp"
+	"github.com/bnb-chain/tss/client"
+	"github.com/bnb-chain/tss/common"
+	"github.com/bnb-chain/tss/p2p"
+	"github.com/bnb-chain/tss/ssdp"
 )
 
 func init() {

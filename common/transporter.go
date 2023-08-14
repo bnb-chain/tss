@@ -1,7 +1,7 @@
 package common
 
 import (
-	"github.com/binance-chain/tss-lib/tss"
+	"github.com/bnb-chain/tss-lib/tss"
 )
 
 // Transportation layer of TssClient provide Broadcast and Send method over p2p network

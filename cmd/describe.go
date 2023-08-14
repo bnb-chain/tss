@@ -7,8 +7,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/binance-chain/tss/client"
-	"github.com/binance-chain/tss/common"
+	"github.com/bnb-chain/tss/client"
+	"github.com/bnb-chain/tss/common"
 )
 
 func init() {

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/binance-chain/tss/cmd"
+	"github.com/bnb-chain/tss/cmd"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -9,7 +9,7 @@ import (
 
 func main() {
 	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
+		log.Println(http.ListenAndServe("localhost:6062", nil))
 	}()
 
 	cmd.Execute()

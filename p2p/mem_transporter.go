@@ -3,9 +3,9 @@ package p2p
 import (
 	"sync"
 
-	"github.com/binance-chain/tss-lib/tss"
+	"github.com/bnb-chain/tss-lib/tss"
 
-	"github.com/binance-chain/tss/common"
+	"github.com/bnb-chain/tss/common"
 )
 
 var once = sync.Once{}

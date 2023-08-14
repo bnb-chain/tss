@@ -3,7 +3,7 @@ package cmd
 import (
 	"testing"
 
-	"github.com/binance-chain/tss/common"
+	"github.com/bnb-chain/tss/common"
 )
 
 func TestTimestampHexConvertion(t *testing.T) {

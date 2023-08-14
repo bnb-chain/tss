@@ -1,6 +1,7 @@
 package client
 
 import (
+	"github.com/ipfs/go-log"
 	"math/rand"
 	"os"
 	"path"
@@ -8,10 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ipfs/go-log"
-
-	"github.com/binance-chain/tss/common"
-	"github.com/binance-chain/tss/p2p"
+	"github.com/bnb-chain/tss/common"
+	"github.com/bnb-chain/tss/p2p"
 )
 
 const (

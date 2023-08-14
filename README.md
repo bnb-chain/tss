@@ -3,7 +3,7 @@ tss
 
 Cli and transportation wrapper of [tss-lib](https://github.com/binance-chain/tss-lib)
 
-[User guide](https://docs.google.com/document/d/1Ad07tzKuytEvGzTiFtwAdEQ3W_Cq0dtFu-1HivguBFA/edit?usp=sharing)
+[User guide](doc/UserGuide.md)
 
 ## Play in localhost
 

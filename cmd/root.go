@@ -1,15 +1,15 @@
 package cmd
 
 import (
+	"github.com/ipfs/go-log"
 	"os"
 	"path"
 
-	"github.com/ipfs/go-log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/binance-chain/tss/client"
-	"github.com/binance-chain/tss/common"
+	"github.com/bnb-chain/tss/client"
+	"github.com/bnb-chain/tss/common"
 )
 
 const (
@@ -21,7 +21,7 @@ const (
 var rootCmd = &cobra.Command{
 	Use:   "tss",
 	Short: "Threshold signing scheme",
-	Long:  `Complete documentation is available at https://github.com/binance-chain/tss`, // TODO: replace documentation here
+	Long:  `Complete documentation is available at https://github.com/bnb-chain/tss`, // TODO: replace documentation here
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		viper.BindPFlags(cmd.Flags())
 	},

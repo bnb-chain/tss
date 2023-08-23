@@ -3,22 +3,22 @@ package client
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"github.com/ipfs/go-log"
 	"math/big"
 	"os"
 	"path"
 	"strconv"
 	"time"
 
-	lib "github.com/binance-chain/tss-lib/common"
-	"github.com/binance-chain/tss-lib/ecdsa/keygen"
-	"github.com/binance-chain/tss-lib/ecdsa/resharing"
-	"github.com/binance-chain/tss-lib/tss"
+	lib "github.com/bnb-chain/tss-lib/common"
+	"github.com/bnb-chain/tss-lib/ecdsa/keygen"
+	"github.com/bnb-chain/tss-lib/ecdsa/resharing"
+	"github.com/bnb-chain/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec"
-	"github.com/ipfs/go-log"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/binance-chain/tss/common"
-	"github.com/binance-chain/tss/p2p"
+	"github.com/bnb-chain/tss/common"
+	"github.com/bnb-chain/tss/p2p"
 )
 
 var Logger = log.Logger("tss")

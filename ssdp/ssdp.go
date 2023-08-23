@@ -2,15 +2,14 @@ package ssdp
 
 import (
 	"fmt"
+	"github.com/koron/go-ssdp"
 	"log"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/koron/go-ssdp"
-
-	"github.com/binance-chain/tss/client"
-	"github.com/binance-chain/tss/common"
+	"github.com/bnb-chain/tss/client"
+	"github.com/bnb-chain/tss/common"
 )
 
 const serviceType string = "binance:tss"

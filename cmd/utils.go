@@ -3,12 +3,11 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"strings"
-
 	"github.com/libp2p/go-libp2p"
 	"github.com/multiformats/go-multiaddr"
+	"strings"
 
-	"github.com/binance-chain/tss/common"
+	"github.com/bnb-chain/tss/common"
 )
 
 func getListenAddrs(listenAddr string) string {

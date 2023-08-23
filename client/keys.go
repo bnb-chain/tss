@@ -6,13 +6,13 @@ import (
 	"math/big"
 
 	"github.com/bgentry/speakeasy"
-	"github.com/binance-chain/tss-lib/ecdsa/signing"
-	"github.com/binance-chain/tss-lib/tss"
+	"github.com/bnb-chain/tss-lib/ecdsa/signing"
+	"github.com/bnb-chain/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 
-	"github.com/binance-chain/tss/common"
+	"github.com/bnb-chain/tss/common"
 )
 
 // This file is bridging TssClient with tendermint PrivKey interface

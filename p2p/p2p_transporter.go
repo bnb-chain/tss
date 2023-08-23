@@ -7,6 +7,10 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 	"fmt"
+	"github.com/ipfs/go-datastore"
+	"github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-yamux"
+	"github.com/multiformats/go-multiaddr"
 	"io/ioutil"
 	"os"
 	"path"
@@ -15,9 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/binance-chain/tss-lib/tss"
-	"github.com/ipfs/go-datastore"
-	"github.com/libp2p/go-libp2p"
+	"github.com/bnb-chain/tss-lib/tss"
 	relay "github.com/libp2p/go-libp2p-circuit"
 	ifconnmgr "github.com/libp2p/go-libp2p-core/connmgr"
 	"github.com/libp2p/go-libp2p-core/crypto"
@@ -30,11 +32,9 @@ import (
 	opts "github.com/libp2p/go-libp2p-kad-dht/opts"
 	"github.com/libp2p/go-libp2p-peerstore/pstoremem"
 	swarm "github.com/libp2p/go-libp2p-swarm"
-	"github.com/libp2p/go-yamux"
-	"github.com/multiformats/go-multiaddr"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/binance-chain/tss/common"
+	"github.com/bnb-chain/tss/common"
 )
 
 const (

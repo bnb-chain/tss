@@ -2,21 +2,20 @@ package server
 
 import (
 	"context"
+	leveldb "github.com/ipfs/go-ds-leveldb"
+	"github.com/ipfs/go-log"
+	"github.com/libp2p/go-libp2p"
+	"github.com/multiformats/go-multiaddr"
 	"io/ioutil"
 	"os"
 	"path"
 
-	"github.com/ipfs/go-ds-leveldb"
-	"github.com/ipfs/go-log"
-	"github.com/libp2p/go-libp2p"
+	"github.com/bnb-chain/tss/common"
+	"github.com/bnb-chain/tss/p2p"
 	relay "github.com/libp2p/go-libp2p-circuit"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	libp2pdht "github.com/libp2p/go-libp2p-kad-dht"
 	opts "github.com/libp2p/go-libp2p-kad-dht/opts"
-	"github.com/multiformats/go-multiaddr"
-
-	"github.com/binance-chain/tss/common"
-	"github.com/binance-chain/tss/p2p"
 )
 
 var logger = log.Logger("srv")

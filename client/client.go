@@ -10,10 +10,10 @@ import (
 	"strconv"
 	"time"
 
-	lib "github.com/bnb-chain/tss-lib/common"
-	"github.com/bnb-chain/tss-lib/ecdsa/keygen"
-	"github.com/bnb-chain/tss-lib/ecdsa/resharing"
-	"github.com/bnb-chain/tss-lib/tss"
+	lib "github.com/bnb-chain/tss-lib/v2/common"
+	"github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
+	"github.com/bnb-chain/tss-lib/v2/ecdsa/resharing"
+	"github.com/bnb-chain/tss-lib/v2/tss"
 	"github.com/btcsuite/btcd/btcec"
 	"google.golang.org/protobuf/proto"
 

@@ -3,7 +3,7 @@ package common
 import (
 	"encoding/gob"
 
-	"github.com/bnb-chain/tss-lib/tss"
+	"github.com/bnb-chain/tss-lib/v2/tss"
 )
 
 func init() {

@@ -16,10 +16,10 @@ import (
 	"os"
 	"path"
 
-	"github.com/bnb-chain/tss-lib/crypto"
-	"github.com/bnb-chain/tss-lib/crypto/paillier"
-	"github.com/bnb-chain/tss-lib/ecdsa/keygen"
-	"github.com/bnb-chain/tss-lib/tss"
+	"github.com/bnb-chain/tss-lib/v2/crypto"
+	"github.com/bnb-chain/tss-lib/v2/crypto/paillier"
+	"github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
+	"github.com/bnb-chain/tss-lib/v2/tss"
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/sha3"
 )

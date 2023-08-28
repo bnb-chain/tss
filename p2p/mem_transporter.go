@@ -3,7 +3,7 @@ package p2p
 import (
 	"sync"
 
-	"github.com/bnb-chain/tss-lib/tss"
+	"github.com/bnb-chain/tss-lib/v2/tss"
 
 	"github.com/bnb-chain/tss/common"
 )

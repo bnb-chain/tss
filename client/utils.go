@@ -3,6 +3,7 @@ package client
 import (
 	"crypto/ecdsa"
 	"crypto/sha256"
+	"encoding/hex"
 	"math/big"
 	"os"
 	"path"
@@ -91,6 +92,9 @@ func loadSavedKey(config *common.TssConfig) keygen.LocalPartySaveData {
 	result, _, err := common.Load(config.Password, wPriv, wPub) // TODO: validate nodeKey
 	if err != nil {
 		common.Panic(err)
+	}
+	for i := range result.Ks {
+		Logger.Infof("ks is " + hex.EncodeToString(result.Ks[i].Bytes()))
 	}
 	return *result
 }

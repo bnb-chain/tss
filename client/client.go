@@ -2,6 +2,7 @@ package client
 
 import (
 	"crypto/ecdsa"
+	"encoding/hex"
 	"fmt"
 	"github.com/ipfs/go-log"
 	"math/big"
@@ -65,6 +66,7 @@ type TssClient struct {
 
 func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClient {
 	id := string(config.Id)
+	Logger.Infof("New Tss Client")
 	idToPartyIds := make(map[string]*tss.PartyID)
 	key := lib.SHA512_256([]byte(id)) // TODO: discuss should we really need pass p2p nodeid pubkey into NewPartyID? (what if in memory implementation)
 	partyID := tss.NewPartyID(id, config.Moniker, new(big.Int).SetBytes(key))
@@ -130,6 +132,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 				id,
 				moniker,
 				new(big.Int).SetBytes(key))
+			fmt.Printf("id is %v, key is %v \n", id, hex.EncodeToString(key))
 			idToPartyIds[id] = partyId
 			unsortedPartyIds = append(unsortedPartyIds, partyId)
 		}
@@ -184,6 +187,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 		c.localParty = localParty
 		Logger.Infof("[%s] initialized localParty: %s", config.Moniker, localParty)
 	} else if mode == SignMode {
+		Logger.Infof("Sign Mode")
 		key := loadSavedKeyForSign(config, sortedIds, signers)
 		pubKey := btcec.PublicKey(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()})
 		Logger.Infof("[%s] public key: %X\n", config.Moniker, pubKey.SerializeCompressed())
@@ -193,6 +197,11 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 		}
 		Logger.Debugf("[%s] address is: %s\n", config.Moniker, address)
 		params := tss.NewParameters(tss.EC(), p2pCtx, partyID, config.Parties, config.Threshold)
+		Logger.Infof("IDs length", p2pCtx.IDs().Len())
+
+		for _, id := range p2pCtx.IDs() {
+			Logger.Infof("Id Key is %s \n", hex.EncodeToString(id.Key))
+		}
 		c.key = &key
 		c.params = params
 	} else if mode == RegroupMode {

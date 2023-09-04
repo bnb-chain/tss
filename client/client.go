@@ -66,7 +66,7 @@ type TssClient struct {
 func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClient {
 	id := string(config.Id)
 	idToPartyIds := make(map[string]*tss.PartyID)
-	key := lib.SHA512_256([]byte(id)) // TODO: discuss should we really need pass p2p nodeid pubkey into NewPartyID? (what if in memory implementation)
+	key := common.SHA512_256([]byte(id)) // TODO: discuss should we really need pass p2p nodeid pubkey into NewPartyID? (what if in memory implementation)
 	partyID := tss.NewPartyID(id, config.Moniker, new(big.Int).SetBytes(key))
 	idToPartyIds[id] = partyID
 	unsortedPartyIds := make(tss.UnSortedPartyIDs, 0, config.Parties)
@@ -120,7 +120,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 		for _, peer := range config.P2PConfig.ExpectedPeers {
 			id := string(p2p.GetClientIdFromExpectedPeers(peer))
 			moniker := p2p.GetMonikerFromExpectedPeers(peer)
-			key := lib.SHA512_256([]byte(id))
+			key := common.SHA512_256([]byte(id))
 			if mode == SignMode || mode == RegroupMode {
 				if _, ok := signers[moniker]; !ok {
 					continue
@@ -137,7 +137,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 			for _, peer := range config.P2PConfig.ExpectedNewPeers {
 				id := string(p2p.GetClientIdFromExpectedPeers(peer))
 				moniker := p2p.GetMonikerFromExpectedPeers(peer)
-				key := lib.SHA512_256([]byte(id))
+				key := common.SHA512_256([]byte(id))
 				if moniker != config.Moniker {
 					partyId := tss.NewPartyID(
 						id,
@@ -156,7 +156,7 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 			id, _ := strconv.Atoi(string(config.Id))
 			if i != id {
 				id := strconv.Itoa(i)
-				key := lib.SHA512_256([]byte(id))
+				key := common.SHA512_256([]byte(id))
 				unsortedPartyIds = append(unsortedPartyIds, tss.NewPartyID(id, id, new(big.Int).SetBytes(key)))
 			}
 		}
@@ -373,7 +373,7 @@ func updatePeerOriginalIndexes(config *common.TssConfig, bootstrapper *common.Bo
 	for _, peer := range config.P2PConfig.ExpectedPeers {
 		id := string(p2p.GetClientIdFromExpectedPeers(peer))
 		moniker := p2p.GetMonikerFromExpectedPeers(peer)
-		key := lib.SHA512_256([]byte(id))
+		key := common.SHA512_256([]byte(id))
 		allPartyIds = append(allPartyIds,
 			tss.NewPartyID(
 				id,

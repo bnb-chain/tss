@@ -3,6 +3,7 @@ package common
 import (
 	"bufio"
 	"bytes"
+	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -27,7 +28,8 @@ import (
 var logger = log.Logger("common")
 
 const (
-	RegroupSuffix = "_rgtmp"
+	RegroupSuffix      = "_rgtmp"
+	hashInputDelimiter = byte('$')
 )
 
 func Encrypt(passphrase string, param PeerParam) ([]byte, error) {
@@ -229,4 +231,34 @@ func readLineFromBuf(buf *bufio.Reader) (string, error) {
 func PrintPrefixed(msg string) {
 	msg = fmt.Sprintf("> %s\n", msg)
 	fmt.Fprint(os.Stderr, msg)
+}
+
+func SHA512_256(in ...[]byte) []byte {
+	var data []byte
+	state := crypto.SHA512_256.New()
+	inLen := len(in)
+	if inLen == 0 {
+		return nil
+	}
+	bzSize := 0
+	// prevent hash collisions with this prefix containing the block count
+	inLenBz := make([]byte, 64/8)
+	// converting between int and uint64 doesn't change the sign bit, but it may be interpreted as a larger value.
+	// this prefix is never read/interpreted, so that doesn't matter.
+	binary.LittleEndian.PutUint64(inLenBz, uint64(inLen))
+	for _, bz := range in {
+		bzSize += len(bz)
+	}
+	data = make([]byte, 0, len(inLenBz)+bzSize+inLen)
+	data = append(data, inLenBz...)
+	for _, bz := range in {
+		data = append(data, bz...)
+		data = append(data, hashInputDelimiter) // safety delimiter
+	}
+	// n < len(data) or an error will never happen.
+	// see: https://golang.org/pkg/hash/#Hash and https://github.com/golang/go/wiki/Hashing#the-hashhash-interface
+	if _, err := state.Write(data); err != nil {
+		return nil
+	}
+	return state.Sum(nil)
 }

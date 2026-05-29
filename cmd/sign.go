@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"bufio"
+	"os"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -36,5 +39,15 @@ var signCmd = &cobra.Command{
 
 // TODO: use MessageBridge
 func setMessage() {
-	common.TssCfg.Message = "0"
+	if message := viper.GetString("message"); message != "" {
+		common.TssCfg.Message = message
+		return
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+	message, err := common.GetString("please set message(in *big.Int.String() format) to be signed: ", reader)
+	if err != nil {
+		common.Panic(err)
+	}
+	common.TssCfg.Message = message
 }

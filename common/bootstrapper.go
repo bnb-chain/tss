@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/bgentry/speakeasy"
 )
@@ -31,6 +33,11 @@ type Bootstrapper struct {
 	Cfg             *TssConfig
 
 	Peers sync.Map // id -> peerInfo
+
+	firstPeerOnce     sync.Once
+	deadlineMu        sync.RWMutex
+	discoveryDeadline time.Time
+	committed         int32
 }
 
 func NewBootstrapper(expectedPeers int, config *TssConfig) *Bootstrapper {
@@ -93,6 +100,23 @@ func NewBootstrapper(expectedPeers int, config *TssConfig) *Bootstrapper {
 	}
 }
 
+func (b *Bootstrapper) Commit() {
+	atomic.StoreInt32(&b.committed, 1)
+}
+
+func (b *Bootstrapper) IsCommitted() bool {
+	return atomic.LoadInt32(&b.committed) == 1
+}
+
+func (b *Bootstrapper) GetDiscoveryDeadlineNano() int64 {
+	b.deadlineMu.RLock()
+	defer b.deadlineMu.RUnlock()
+	if b.discoveryDeadline.IsZero() {
+		return 0
+	}
+	return b.discoveryDeadline.UnixNano()
+}
+
 func (b *Bootstrapper) HandleBootstrapMsg(peerMsg BootstrapMessage) error {
 	if peerParam, err := Decrypt(peerMsg.PeerInfo, b.ChannelId, b.ChannelPassword); err != nil {
 		return err
@@ -121,6 +145,23 @@ func (b *Bootstrapper) HandleBootstrapMsg(peerMsg BootstrapMessage) error {
 				return fmt.Errorf("received different new t for party: %s, %s", peerParam.Moniker, peerParam.Id)
 			}
 
+			b.firstPeerOnce.Do(func() {
+				if b.Cfg.BMode == SignMode && b.Cfg.SignDiscoveryTimeout > 0 {
+					b.deadlineMu.Lock()
+					b.discoveryDeadline = time.Now().Add(b.Cfg.SignDiscoveryTimeout)
+					b.deadlineMu.Unlock()
+					logger.Debugf("sign discovery window started, deadline in %v", b.Cfg.SignDiscoveryTimeout)
+				}
+			})
+			if b.Cfg.BMode == SignMode && peerParam.DiscoveryExpiry != 0 {
+				b.deadlineMu.Lock()
+				peerDeadline := time.Unix(0, peerParam.DiscoveryExpiry)
+				if b.discoveryDeadline.IsZero() || peerDeadline.Before(b.discoveryDeadline) {
+					b.discoveryDeadline = peerDeadline
+					logger.Debugf("propagated earlier discovery deadline from peer: %v", peerDeadline)
+				}
+				b.deadlineMu.Unlock()
+			}
 			pi := PeerInfo{
 				Id:         peerParam.Id,
 				Moniker:    peerParam.Moniker,
@@ -142,8 +183,18 @@ func (b *Bootstrapper) IsFinished() bool {
 		logger.Debugf("received peers: %d, expect peers: %v", received, b.ExpectedPeers)
 		return received == b.ExpectedPeers
 	case SignMode:
-		logger.Debugf("received peers: %d, expect peers: %d", received, b.Cfg.Threshold)
-		return received == b.Cfg.Threshold
+		if received == b.Cfg.Parties-1 {
+			logger.Debugf("sign bootstrap done: all %d peers connected", received)
+			return true
+		}
+		b.deadlineMu.RLock()
+		dl := b.discoveryDeadline
+		b.deadlineMu.RUnlock()
+		if !dl.IsZero() && time.Now().After(dl) && received >= b.Cfg.Threshold {
+			logger.Debugf("sign bootstrap done: discovery window elapsed with %d peers (threshold=%d)", received, b.Cfg.Threshold)
+			return true
+		}
+		return false
 	case PreRegroupMode:
 		logger.Debugf("received peers: %d, expect peers: %d, expect peers: %v", received, b.ExpectedPeers, b.Cfg.ExpectedPeers)
 		return received == b.ExpectedPeers

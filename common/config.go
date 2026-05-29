@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/multiformats/go-multiaddr"
@@ -96,6 +97,7 @@ type TssConfig struct {
 
 	ChannelId       string `mapstructure:"channel_id" json:"-"`
 	ChannelPassword string `mapstructure:"channel_password" json:"-"`
+	SignDiscoveryTimeout time.Duration `mapstructure:"sign_discovery_timeout" json:"-"`
 
 	IsOldCommittee bool          `mapstructure:"is_old" json:"-"`
 	IsNewCommittee bool          `mapstructure:"is_new_member" json:"-"`
@@ -128,31 +130,34 @@ func ReadConfigFromHome(v *viper.Viper, init bool, home, vault, passphrase strin
 
 	var config TssConfig
 	err = v.Unmarshal(&config, func(config *mapstructure.DecoderConfig) {
-		config.DecodeHook = func(from, to reflect.Type, data interface{}) (interface{}, error) {
-			if from.Kind() == reflect.Slice && from.Elem().Kind() == reflect.String && to == reflect.TypeOf(addrList{}) {
-				var al addrList
-				for _, value := range data.([]string) {
-					addr, err := multiaddr.NewMultiaddr(value)
-					if err != nil {
-						return nil, err
+		config.DecodeHook = mapstructure.ComposeDecodeHookFunc(
+			mapstructure.StringToTimeDurationHookFunc(),
+			func(from, to reflect.Type, data interface{}) (interface{}, error) {
+				if from.Kind() == reflect.Slice && from.Elem().Kind() == reflect.String && to == reflect.TypeOf(addrList{}) {
+					var al addrList
+					for _, value := range data.([]string) {
+						addr, err := multiaddr.NewMultiaddr(value)
+						if err != nil {
+							return nil, err
+						}
+						al = append(al, addr)
 					}
-					al = append(al, addr)
+					return al, nil
 				}
-				return al, nil
-			}
-			if from.Kind() == reflect.Slice && from.Elem().Kind() == reflect.Interface && to == reflect.TypeOf(addrList{}) {
-				var al addrList
-				for _, value := range data.([]interface{}) {
-					addr, err := multiaddr.NewMultiaddr(value.(string))
-					if err != nil {
-						return nil, err
+				if from.Kind() == reflect.Slice && from.Elem().Kind() == reflect.Interface && to == reflect.TypeOf(addrList{}) {
+					var al addrList
+					for _, value := range data.([]interface{}) {
+						addr, err := multiaddr.NewMultiaddr(value.(string))
+						if err != nil {
+							return nil, err
+						}
+						al = append(al, addr)
 					}
-					al = append(al, addr)
+					return al, nil
 				}
-				return al, nil
-			}
-			return data, nil
-		}
+				return data, nil
+			},
+		)
 	})
 	if err != nil {
 		return err

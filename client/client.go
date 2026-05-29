@@ -271,9 +271,15 @@ func (client *TssClient) handleMessageRoutine() {
 		if err != nil {
 			common.Panic(fmt.Errorf("[%s] failed to extract message inside message wrapper: %v", client.config.Moniker, err))
 		}
+		fromPartyId := client.idToPartyIds[messageWrapper.From.Id]
+		if fromPartyId == nil {
+			Logger.Warningf("[%s] ignoring message from unknown party %s",
+				client.config.Moniker, messageWrapper.From.Id)
+			continue
+		}
 		ok, err := client.localParty.UpdateFromBytes(
 			any,
-			client.idToPartyIds[messageWrapper.From.Id],
+			fromPartyId,
 			messageWrapper.IsBroadcast)
 		if !ok && err != nil {
 			common.Panic(fmt.Errorf("[%s] error updating local party state: %v", client.config.Moniker, err))

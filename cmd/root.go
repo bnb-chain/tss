@@ -4,6 +4,7 @@ import (
 	"github.com/ipfs/go-log"
 	"os"
 	"path"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -103,6 +104,8 @@ func bindClientConfigs() {
 	keygenCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
 	signCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
 	regroupCmd.PersistentFlags().String("channel_password", "", "channel password of this session")
+	signCmd.PersistentFlags().Duration("sign_discovery_timeout", 5*time.Second,
+		"how long to wait for additional signers after the first peer connects during sign bootstrap (0 = require all n parties)")
 
 	channelCmd.PersistentFlags().Int("channel_expire", 0, "expire time in minutes of this channel")
 

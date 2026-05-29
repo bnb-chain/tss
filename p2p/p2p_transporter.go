@@ -171,8 +171,11 @@ func NewP2PTransporter(
 	if err != nil {
 		common.Panic(err)
 	}
-	host.SetStreamHandler(partyProtocolId, t.handleStream)
-	host.SetStreamHandler(bootstrapProtocolId, t.handleSigner)
+	if bootstrapper != nil {
+		host.SetStreamHandler(bootstrapProtocolId, t.handleSigner)
+	} else {
+		host.SetStreamHandler(partyProtocolId, t.handleStream)
+	}
 	t.host = host
 	t.closed = make(chan bool)
 	logger.Debug("Host created. We are:", host.ID())
@@ -283,6 +286,18 @@ func (t *p2pTransporter) Notifee() network.Notifiee {
 
 func (t *p2pTransporter) handleStream(stream network.Stream) {
 	pid := stream.Conn().RemotePeer().Pretty()
+	isExpected := false
+	for _, ep := range t.expectedPeers {
+		if ep.Pretty() == pid {
+			isExpected = true
+			break
+		}
+	}
+	if !isExpected {
+		logger.Warningf("rejecting sign stream from non-committee peer %s", pid)
+		stream.Reset()
+		return
+	}
 	logger.Infof("Connected to: %s(%s)", pid, stream.Protocol())
 
 	if _, loaded := t.streams.LoadOrStore(pid, stream); !loaded {
@@ -292,6 +307,12 @@ func (t *p2pTransporter) handleStream(stream network.Stream) {
 }
 
 func (t *p2pTransporter) handleSigner(stream network.Stream) {
+	if t.bootstrapper.IsCommitted() {
+		logger.Warningf("bootstrap already committed, rejecting late connection from %s",
+			stream.Conn().RemotePeer().Pretty())
+		stream.Reset()
+		return
+	}
 	pid := stream.Conn().RemotePeer().Pretty()
 	logger.Infof("Connected to: %s(%s)", pid, stream.Protocol())
 
@@ -304,16 +325,17 @@ func (t *p2pTransporter) handleSigner(stream network.Stream) {
 		t.bootstrapper.ChannelPassword,
 		localAddr,
 		common.PeerParam{
-			ChannelId: common.TssCfg.ChannelId,
-			Moniker:   common.TssCfg.Moniker,
-			Msg:       common.TssCfg.Message,
-			Id:        string(common.TssCfg.Id),
-			N:         common.TssCfg.Parties,
-			T:         common.TssCfg.Threshold,
-			NewN:      common.TssCfg.NewParties,
-			NewT:      common.TssCfg.NewThreshold,
-			IsOld:     common.TssCfg.IsOldCommittee,
-			IsNew:     !common.TssCfg.IsOldCommittee,
+			ChannelId:       common.TssCfg.ChannelId,
+			Moniker:         common.TssCfg.Moniker,
+			Msg:             common.TssCfg.Message,
+			Id:              string(common.TssCfg.Id),
+			N:               common.TssCfg.Parties,
+			T:               common.TssCfg.Threshold,
+			NewN:            common.TssCfg.NewParties,
+			NewT:            common.TssCfg.NewThreshold,
+			IsOld:           common.TssCfg.IsOldCommittee,
+			IsNew:           !common.TssCfg.IsOldCommittee,
+			DiscoveryExpiry: t.bootstrapper.GetDiscoveryDeadlineNano(),
 		}); err == nil {
 		payload, err := proto.Marshal(msg)
 		if err != nil {
@@ -522,6 +544,7 @@ func (t *p2pTransporter) initBootstrapConnection(dht *libp2pdht.IpfsDHT) {
 			time.Sleep(time.Second)
 		}
 	}
+	t.bootstrapper.Commit()
 }
 
 func (t *p2pTransporter) initConnection(dht *libp2pdht.IpfsDHT) {
@@ -560,7 +583,7 @@ func (t *p2pTransporter) connectRoutine(dht *libp2pdht.IpfsDHT, pid peer.ID, pro
 		case <-timeout.C:
 			break
 		default:
-			time.Sleep(1000 * time.Millisecond)
+			time.Sleep(500 * time.Millisecond)
 			if len(t.host.Peerstore().Addrs(pid)) == 0 {
 				_, err := dht.FindPeer(t.ctx, pid)
 				if err == nil {
@@ -594,6 +617,9 @@ func (t *p2pTransporter) connectRoutine(dht *libp2pdht.IpfsDHT, pid peer.ID, pro
 					return
 				}
 			} else {
+				if sw, ok := t.host.Network().(*swarm.Swarm); ok {
+					sw.Backoff().Clear(pid)
+				}
 				err := t.host.Connect(t.ctx, peer.AddrInfo{pid, t.host.Peerstore().Addrs(pid)})
 				if err != nil {
 					if err != swarm.ErrDialBackoff {
@@ -608,8 +634,9 @@ func (t *p2pTransporter) connectRoutine(dht *libp2pdht.IpfsDHT, pid peer.ID, pro
 
 					stream, err := t.host.NewStream(t.ctx, pid, protocol.ID(protocolId))
 					if err != nil {
-						logger.Info("Direct Connection failed, Will give up")
-						common.Panic(err)
+						logger.Infof("Direct Connection to %s failed (stream negotiation), will retry: %v", pid.Pretty(), err)
+						t.host.Network().ClosePeer(pid)
+						continue
 					} else {
 						switch protocolId {
 						case partyProtocolId:

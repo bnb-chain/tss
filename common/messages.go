@@ -39,6 +39,7 @@ type PeerParam struct {
 	ChannelId, Moniker, Msg, Id string
 	N, T, NewN, NewT            int
 	IsOld, IsNew                bool
+	DiscoveryExpiry             int64 // Unix nanoseconds; 0 = deadline not yet set
 }
 
 func NewBootstrapMessage(channelId, channelPassword, addr string, param PeerParam) (*BootstrapMessage, error) {

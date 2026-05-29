@@ -374,7 +374,7 @@ func (t *p2pTransporter) readDataRoutine(pid string, stream network.Stream) {
 			if err != nil {
 				common.Panic(fmt.Errorf("failed to read protobuf message: %v, from: %s", err, pid))
 			} else {
-				payloadWithTypePrefix = append(payloadWithTypePrefix, buf...)
+				payloadWithTypePrefix = append(payloadWithTypePrefix, buf[:readLength]...)
 			}
 			readBytes += readLength
 		}

@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strings"
@@ -228,13 +229,12 @@ func readBootstrapMessage(conn net.Conn, b *common.Bootstrapper) {
 		return
 	}
 	payload := make([]byte, messageLength)
-	n, err := conn.Read(payload)
-
-	if int32(n) != messageLength {
-		return
-	}
+	n, err := io.ReadFull(conn, payload)
 	if err != nil {
 		common.SkipTcpClosePanic(fmt.Errorf("failed to read bootstrap message: %v", err))
+		return
+	}
+	if int32(n) != messageLength {
 		return
 	}
 	var peerMsg common.BootstrapMessage

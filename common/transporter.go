@@ -1,7 +1,7 @@
 package common
 
 import (
-	"github.com/bnb-chain/tss-lib/v2/tss"
+	"github.com/bnb-chain/tss-lib/v3/tss"
 )
 
 // Transportation layer of TssClient provide Broadcast and Send method over p2p network

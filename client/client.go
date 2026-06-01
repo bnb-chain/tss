@@ -10,11 +10,10 @@ import (
 	"strconv"
 	"time"
 
-	lib "github.com/bnb-chain/tss-lib/v2/common"
-	"github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
-	"github.com/bnb-chain/tss-lib/v2/ecdsa/resharing"
-	"github.com/bnb-chain/tss-lib/v2/tss"
-	"github.com/btcsuite/btcd/btcec"
+	lib "github.com/bnb-chain/tss-lib/v3/common"
+	"github.com/bnb-chain/tss-lib/v3/ecdsa/keygen"
+	"github.com/bnb-chain/tss-lib/v3/ecdsa/resharing"
+	"github.com/bnb-chain/tss-lib/v3/tss"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/bnb-chain/tss/common"
@@ -56,8 +55,8 @@ type TssClient struct {
 	key           *keygen.LocalPartySaveData
 	signature     []byte
 
-	saveCh chan keygen.LocalPartySaveData
-	signCh chan lib.SignatureData
+	saveCh chan *keygen.LocalPartySaveData
+	signCh chan *lib.SignatureData
 	sendCh chan tss.Message
 
 	mode ClientMode
@@ -163,8 +162,8 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 	}
 	sortedIds := tss.SortPartyIDs(unsortedPartyIds)
 	p2pCtx := tss.NewPeerContext(sortedIds)
-	saveCh := make(chan keygen.LocalPartySaveData)
-	signCh := make(chan lib.SignatureData)
+	saveCh := make(chan *keygen.LocalPartySaveData)
+	signCh := make(chan *lib.SignatureData)
 	sendCh := make(chan tss.Message, len(sortedIds)*10*2) // max signing messages 10 times hash confirmation messages
 	c := TssClient{
 		config:       config,
@@ -185,11 +184,15 @@ func NewTssClient(config *common.TssConfig, mode ClientMode, mock bool) *TssClie
 		Logger.Infof("[%s] initialized localParty: %s", config.Moniker, localParty)
 	} else if mode == SignMode {
 		key := loadSavedKeyForSign(config, sortedIds, signers)
-		pubKey := btcec.PublicKey(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()})
-		Logger.Infof("[%s] public key: %X\n", config.Moniker, pubKey.SerializeCompressed())
-		address, err := GetAddress(ecdsa.PublicKey{tss.EC(), key.ECDSAPub.X(), key.ECDSAPub.Y()}, config.AddressPrefix)
+		pubKey := ecdsa.PublicKey{Curve: tss.EC(), X: key.ECDSAPub.X(), Y: key.ECDSAPub.Y()}
+		pubKeyBytes, err := compressedPubKey(pubKey)
 		if err != nil {
-			panic(err)
+			common.Panic(err)
+		}
+		Logger.Infof("[%s] public key: %X\n", config.Moniker, pubKeyBytes)
+		address, err := GetAddress(pubKey, config.AddressPrefix)
+		if err != nil {
+			common.Panic(err)
 		}
 		Logger.Debugf("[%s] address is: %s\n", config.Moniker, address)
 		params := tss.NewParameters(tss.EC(), p2pCtx, partyID, config.Parties, config.Threshold)
@@ -306,7 +309,7 @@ func (client *TssClient) sendMessageRoutine(sendCh <-chan tss.Message) {
 	}
 }
 
-func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData, done chan<- bool) {
+func (client *TssClient) saveDataRoutine(saveCh <-chan *keygen.LocalPartySaveData, done chan<- bool) {
 	for msg := range saveCh {
 		// Used for debugging signature verification failed issue, never uncomment in production!
 		//plainJson, err := json.Marshal(msg)
@@ -325,7 +328,7 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 			}
 		}
 
-		address, err := GetAddress(ecdsa.PublicKey{tss.EC(), msg.ECDSAPub.X(), msg.ECDSAPub.Y()}, client.config.AddressPrefix)
+		address, err := GetAddress(ecdsa.PublicKey{Curve: tss.EC(), X: msg.ECDSAPub.X(), Y: msg.ECDSAPub.Y()}, client.config.AddressPrefix)
 		if err != nil {
 			Logger.Errorf("[%s] failed to generate address from public key :%v", client.config.Moniker, err)
 		} else {
@@ -342,7 +345,7 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 			common.Panic(err)
 		}
 		defer wPub.Close() // defer within loop is fine here as for one party there would be only one element from saveCh
-		err = common.Save(&msg, client.transporter.NodeKey(), client.config.KDFConfig, client.config.Password, wPriv, wPub)
+		err = common.Save(msg, client.transporter.NodeKey(), client.config.KDFConfig, client.config.Password, wPriv, wPub)
 		if err != nil {
 			common.Panic(err)
 		}
@@ -355,7 +358,7 @@ func (client *TssClient) saveDataRoutine(saveCh <-chan keygen.LocalPartySaveData
 	}
 }
 
-func (client *TssClient) saveSignatureRoutine(signCh <-chan lib.SignatureData, done chan<- bool) {
+func (client *TssClient) saveSignatureRoutine(signCh <-chan *lib.SignatureData, done chan<- bool) {
 	for signature := range signCh {
 		client.signature = signature.Signature
 		if done != nil {

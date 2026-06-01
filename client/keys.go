@@ -6,9 +6,8 @@ import (
 	"math/big"
 
 	"github.com/bgentry/speakeasy"
-	"github.com/bnb-chain/tss-lib/v2/ecdsa/signing"
-	"github.com/bnb-chain/tss-lib/v2/tss"
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/bnb-chain/tss-lib/v3/ecdsa/signing"
+	"github.com/bnb-chain/tss-lib/v3/tss"
 	"github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 
@@ -84,10 +83,12 @@ func LoadPubkey(home, vault string) (crypto.PubKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	btcecPubKey := (*btcec.PublicKey)(ecdsaPubKey)
-
+	compressed, err := compressedPubKey(*ecdsaPubKey)
+	if err != nil {
+		return nil, err
+	}
 	var pubkeyBytes secp256k1.PubKeySecp256k1
-	copy(pubkeyBytes[:], btcecPubKey.SerializeCompressed())
+	copy(pubkeyBytes[:], compressed)
 	return pubkeyBytes, nil
 }
 
@@ -105,9 +106,11 @@ func loadPubkeyAsCompressedHexString(home, vault string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	btcecPubKey := (*btcec.PublicKey)(ecdsaPubKey)
-
-	return hex.EncodeToString(btcecPubKey.SerializeCompressed()), nil
+	compressed, err := compressedPubKey(*ecdsaPubKey)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(compressed), nil
 }
 
 func ParseCompressedPubkey(pubkey string) (crypto.PubKey, error) {

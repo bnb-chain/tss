@@ -16,10 +16,10 @@ import (
 	"os"
 	"path"
 
-	"github.com/bnb-chain/tss-lib/v2/crypto"
-	"github.com/bnb-chain/tss-lib/v2/crypto/paillier"
-	"github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
-	"github.com/bnb-chain/tss-lib/v2/tss"
+	"github.com/bnb-chain/tss-lib/v3/crypto"
+	"github.com/bnb-chain/tss-lib/v3/crypto/paillier"
+	"github.com/bnb-chain/tss-lib/v3/ecdsa/keygen"
+	"github.com/bnb-chain/tss-lib/v3/tss"
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/sha3"
 )
@@ -246,7 +246,7 @@ func LoadEcdsaPubkey(home, vault, passphrase string) (*ecdsa.PublicKey, error) {
 		return nil, err
 	}
 
-	return &ecdsa.PublicKey{tss.EC(), pFields.ECDSAPub.X(), pFields.ECDSAPub.Y()}, nil
+	return &ecdsa.PublicKey{Curve: tss.EC(), X: pFields.ECDSAPub.X(), Y: pFields.ECDSAPub.Y()}, nil
 }
 
 func LoadConfig(home, vault, passphrase string) (*TssConfig, error) {

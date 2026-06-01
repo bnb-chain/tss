@@ -7,11 +7,10 @@ import (
 	"os"
 	"path"
 
-	"github.com/bnb-chain/tss-lib/v2/crypto"
-	"github.com/bnb-chain/tss-lib/v2/crypto/paillier"
-	"github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
-	"github.com/bnb-chain/tss-lib/v2/tss"
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/bnb-chain/tss-lib/v3/crypto"
+	"github.com/bnb-chain/tss-lib/v3/crypto/paillier"
+	"github.com/bnb-chain/tss-lib/v3/ecdsa/keygen"
+	"github.com/bnb-chain/tss-lib/v3/tss"
 	"github.com/btcsuite/btcutil/bech32"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/ripemd160"
@@ -120,9 +119,11 @@ func appendIfNotExist(target []string, new string) []string {
 }
 
 func GetAddress(key ecdsa.PublicKey, prefix string) (string, error) {
-	btcecPubKey := btcec.PublicKey(key)
 	// be consistent with tendermint/crypto
-	compressed := btcecPubKey.SerializeCompressed()
+	compressed, err := compressedPubKey(key)
+	if err != nil {
+		return "", err
+	}
 	hasherSHA256 := sha256.New()
 	hasherSHA256.Write(compressed[:]) // does not error
 	sha := hasherSHA256.Sum(nil)
@@ -136,4 +137,28 @@ func GetAddress(key ecdsa.PublicKey, prefix string) (string, error) {
 		return "", errors.Wrap(err, "encoding bech32 failed")
 	}
 	return bech32.Encode(prefix, converted)
+}
+
+// compressedPubKey serializes public keys for curves whose field size matches
+// the coordinate byte length used by SEC 1 compressed point encoding.
+func compressedPubKey(key ecdsa.PublicKey) ([]byte, error) {
+	if key.Curve == nil || key.X == nil || key.Y == nil {
+		return nil, errors.New("invalid public key: curve, x, and y must be set")
+	}
+
+	params := key.Curve.Params()
+	byteLen := (params.BitSize + 7) / 8
+	xBytes := key.X.Bytes()
+	if len(xBytes) > byteLen {
+		return nil, errors.New("invalid public key: x coordinate is too large for curve")
+	}
+
+	compressed := make([]byte, byteLen+1)
+	if key.Y.Bit(0) == 0 {
+		compressed[0] = 0x02
+	} else {
+		compressed[0] = 0x03
+	}
+	copy(compressed[1+byteLen-len(xBytes):], xBytes)
+	return compressed, nil
 }
